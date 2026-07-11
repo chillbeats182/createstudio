@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OreateAI Studio</title>
+  <link rel="stylesheet" href="src/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <!-- ===== HEADER ===== -->
+    <header id="header">
+      <div class="header-left">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/><line x1="7" y1="2" x2="7" y2="22"/><line x1="17" y1="2" x2="17" y2="22"/><line x1="2" y1="12" x2="22" y2="12"/><line x1="2" y1="7" x2="7" y2="7"/><line x1="2" y1="17" x2="7" y2="17"/><line x1="17" y1="7" x2="22" y2="7"/><line x1="17" y1="17" x2="22" y2="17"/></svg>
+        <span class="header-title">OreateAI Studio</span>
+      </div>
+      <div class="header-right">
+        <span id="header-credits" class="badge-credits" style="display:none">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+          <span id="header-credits-value">0</span> credits
+        </span>
+      </div>
+    </header>
+
+    <!-- ===== CONNECT VIEW ===== -->
+    <main id="view-connect" class="main-centered">
+      <div class="card connect-card">
+        <div class="connect-icon">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </div>
+        <h2 class="connect-title">Connect Your Account</h2>
+        <p class="connect-subtitle">Paste your browser cookies from OreateAI.com</p>
+
+        <label class="field-label">Cookie JSON</label>
+        <textarea id="cookie-input" rows="7" placeholder='[{"domain":".oreateai.com","name":"ouss","value":"eyJ...","path":"/"}]'></textarea>
+
+        <div id="connect-error" class="error-text" style="display:none"></div>
+
+        <button id="btn-connect" class="btn btn-primary btn-block" disabled>
+          <span id="connect-spinner" class="spinner" style="display:none"></span>
+          <span id="connect-text">Connect</span>
+        </button>
+      </div>
+    </main>
+
+    <!-- ===== AUTHENTICATED VIEW ===== -->
+    <main id="view-auth" class="main-auth" style="display:none">
+      <div class="auth-layout">
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+          <div class="sidebar-section">
+            <div class="avatar-circle">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+            </div>
+            <p id="user-email" class="user-email">-</p>
+            <span id="user-vip" class="badge-vip" style="display:none">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+              Free
+            </span>
+          </div>
+
+          <div class="sidebar-stats">
+            <div class="stat-row">
+              <span class="stat-label">Credits</span>
+              <span id="stat-credits" class="stat-value stat-credits">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">Completed</span>
+              <span id="stat-completed" class="stat-value">0</span>
+            </div>
+            <div class="stat-row">
+              <span class="stat-label">History</span>
+              <span id="stat-history" class="stat-value">0</span>
+            </div>
+          </div>
+
+          <button id="btn-disconnect" class="btn btn-ghost btn-block">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Disconnect
+          </button>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="auth-main">
+          <!-- Tabs -->
+          <div class="tabs">
+            <button class="tab active" data-tab="generate">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.912 5.813h6.112l-4.968 3.61 1.912 5.813L12 14.626l-4.968 3.61 1.912-5.813L3.976 8.813h6.112z"/></svg>
+              Generate
+            </button>
+            <button class="tab" data-tab="history">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              History
+            </button>
+          </div>
+
+          <!-- Tab: Generate -->
+          <div id="tab-generate" class="tab-content active">
+            <!-- Scene & Model Row -->
+            <div class="config-row">
+              <div class="config-field">
+                <label class="field-label">Scene</label>
+                <select id="sel-scene" class="select-input"></select>
+              </div>
+              <div class="config-field">
+                <label class="field-label">Model</label>
+                <select id="sel-model" class="select-input"></select>
+              </div>
+            </div>
+
+            <!-- Duration, Resolution, Video Size -->
+            <div class="config-row config-row-wrap">
+              <div class="config-field">
+                <label class="field-label">Duration</label>
+                <div class="btn-group" id="group-duration"></div>
+              </div>
+              <div class="config-field">
+                <label class="field-label">Resolution</label>
+                <div class="btn-group" id="group-resolution"></div>
+              </div>
+              <div class="config-field">
+                <label class="field-label">Size</label>
+                <div class="btn-group" id="group-videosize"></div>
+              </div>
+            </div>
+
+            <!-- Motion-specific controls -->
+            <div id="motion-controls" style="display:none">
+              <div class="config-row">
+                <div class="config-field">
+                  <label class="field-label">Motion Duration</label>
+                  <div class="btn-group" id="group-motduration"></div>
+                </div>
+                <div class="config-field flex-align-end">
+                  <label class="switch-label">
+                    <input type="checkbox" id="chk-keep-sound" />
+                    <span class="switch-slider"></span>
+                    Keep Original Sound
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- Upload Areas -->
+            <div class="upload-row" id="upload-row">
+              <div class="upload-zone" id="zone-image" tabindex="0">
+                <div class="upload-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                  <p class="upload-label">Source Image</p>
+                  <p class="upload-hint">Drag &amp; drop or click to upload</p>
+                </div>
+                <img id="preview-image" class="upload-preview" style="display:none" />
+                <button id="btn-clear-image" class="btn-clear" style="display:none">&times;</button>
+                <input type="file" id="file-image" accept="image/*" hidden />
+              </div>
+              <div class="upload-zone" id="zone-video" style="display:none" tabindex="0">
+                <div class="upload-placeholder">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="23 7 16 12 23 17 23 7"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg>
+                  <p class="upload-label">Motion Video</p>
+                  <p class="upload-hint">Drag &amp; drop or click to upload</p>
+                </div>
+                <video id="preview-video" class="upload-preview" style="display:none" muted></video>
+                <button id="btn-clear-video" class="btn-clear" style="display:none">&times;</button>
+                <input type="file" id="file-video" accept="video/*" hidden />
+              </div>
+            </div>
+
+            <!-- Prompt -->
+            <div class="prompt-section">
+              <label class="field-label">Prompt</label>
+              <textarea id="input-prompt" rows="4" placeholder="Describe the video you want to generate…"></textarea>
+            </div>
+
+            <!-- Generate Button -->
+            <button id="btn-generate" class="btn btn-primary btn-block btn-lg">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l1.912 5.813h6.112l-4.968 3.61 1.912 5.813L12 14.626l-4.968 3.61 1.912-5.813L3.976 8.813h6.112z"/></svg>
+              <span id="generate-text">Generate Video</span>
+              <span id="generate-spinner" class="spinner" style="display:none"></span>
+            </button>
+
+            <!-- Progress -->
+            <div id="progress-section" style="display:none">
+              <div class="progress-bar">
+                <div id="progress-fill" class="progress-fill"></div>
+              </div>
+              <p id="progress-text" class="progress-text">Submitting task…</p>
+            </div>
+
+            <!-- Video Result -->
+            <div id="result-section" style="display:none">
+              <div class="result-player">
+                <video id="result-video" controls></video>
+              </div>
+            </div>
+          </div>
+
+          <!-- Tab: History -->
+          <div id="tab-history" class="tab-content">
+            <div class="history-header">
+              <h3>Generation History</h3>
+              <button id="btn-refresh-history" class="btn btn-ghost btn-sm">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                Refresh
+              </button>
+            </div>
+            <div id="history-list" class="history-list">
+              <div id="history-empty" class="empty-state">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" opacity="0.3"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                <p>No generation history yet</p>
+                <p class="empty-hint">Your generated videos will appear here</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <!-- ===== VIDEO DIALOG ===== -->
+    <div id="video-dialog" class="dialog-overlay" style="display:none">
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3 id="dialog-title">Video</h3>
+          <button id="dialog-close" class="btn-icon">&times;</button>
+        </div>
+        <div class="dialog-body">
+          <video id="dialog-video" controls autoplay></video>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TOAST ===== -->
+    <div id="toast-container"></div>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+      OreateAI Studio — Educational Purpose Only
+    </footer>
+  </div>
+
+  <script src="src/app.js"></script>
+</body>
+</html>
