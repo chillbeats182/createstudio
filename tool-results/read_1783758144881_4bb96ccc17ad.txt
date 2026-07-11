@@ -1,0 +1,2002 @@
+     1→{
+     2→  "status": {
+     3→    "code": 0,
+     4→    "msg": "success",
+     5→    "errMsg": "success",
+     6→    "sLogid": "3231904622"
+     7→  },
+     8→  "data": {
+     9→    "models": [
+    10→      {
+    11→        "duration": [
+    12→          {
+    13→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+    14→            "value": 5
+    15→          },
+    16→          {
+    17→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+    18→            "value": 10
+    19→          }
+    20→        ],
+    21→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+    22→        "modelName": "Wan 2.7",
+    23→        "description": {
+    24→          "ar": "تحرير محلي دقيق للفيديو",
+    25→          "de": "Präzise lokale Videobearbeitung",
+    26→          "en": "Precise local video editing",
+    27→          "es": "Edición local precisa de video",
+    28→          "fr": "Montage vidéo local précis",
+    29→          "pt": "Edição local precisa de vídeo",
+    30→          "ru": "Точный локальный видеомонтаж",
+    31→          "zh": "视频局部精准编辑",
+    32→          "zh-TW": "影片局部精準編輯"
+    33→        },
+    34→        "pointCostImage": [
+    35→          {
+    36→            "audio": true,
+    37→            "duration": 5,
+    38→            "point": 30,
+    39→            "resolution": "720",
+    40→            "aiType": 14068
+    41→          },
+    42→          {
+    43→            "audio": true,
+    44→            "duration": 5,
+    45→            "point": 55,
+    46→            "resolution": "1080",
+    47→            "aiType": 14069
+    48→          },
+    49→          {
+    50→            "audio": true,
+    51→            "duration": 10,
+    52→            "point": 70,
+    53→            "resolution": "720",
+    54→            "aiType": 14070
+    55→          },
+    56→          {
+    57→            "audio": true,
+    58→            "duration": 10,
+    59→            "point": 115,
+    60→            "resolution": "1080",
+    61→            "aiType": 14071
+    62→          }
+    63→        ],
+    64→        "pointCostReference": [
+    65→          {
+    66→            "duration": 5,
+    67→            "point": 30,
+    68→            "resolution": "720",
+    69→            "aiType": 14130
+    70→          },
+    71→          {
+    72→            "duration": 5,
+    73→            "point": 55,
+    74→            "resolution": "1080",
+    75→            "aiType": 14131
+    76→          },
+    77→          {
+    78→            "duration": 10,
+    79→            "point": 60,
+    80→            "resolution": "720",
+    81→            "aiType": 14132
+    82→          },
+    83→          {
+    84→            "duration": 10,
+    85→            "point": 100,
+    86→            "resolution": "1080",
+    87→            "aiType": 14133
+    88→          }
+    89→        ],
+    90→        "supportAudio": true,
+    91→        "supportModifySize": false,
+    92→        "videoResolution": [
+    93→          "720",
+    94→          "1080"
+    95→        ],
+    96→        "videoSize": [
+    97→          {
+    98→            "icon": "",
+    99→            "ratio": "1:1"
+   100→          },
+   101→          {
+   102→            "icon": "",
+   103→            "ratio": "16:9"
+   104→          },
+   105→          {
+   106→            "icon": "",
+   107→            "ratio": "3:4"
+   108→          },
+   109→          {
+   110→            "icon": "",
+   111→            "ratio": "4:3"
+   112→          },
+   113→          {
+   114→            "icon": "",
+   115→            "ratio": "9:16"
+   116→          }
+   117→        ]
+   118→      },
+   119→      {
+   120→        "duration": [
+   121→          {
+   122→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+   123→            "value": 5
+   124→          },
+   125→          {
+   126→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+   127→            "value": 10
+   128→          }
+   129→        ],
+   130→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+   131→        "modelName": "Seedance 2.0 Mini",
+   132→        "description": {
+   133→          "ar": "سرعة أكبر، قيمة أفضل، لا يدعم الأشخاص الحقيقيين",
+   134→          "de": "Mehr Geschwindigkeit, besseres Preis-Leistungs-Verhältnis, unterstützt keine echten Menschen",
+   135→          "en": "More speed, better value, does not support real people",
+   136→          "es": "Más velocidad, mejor valor, no admite personas reales",
+   137→          "fr": "Plus de vitesse, meilleur rapport qualité-prix, ne supporte pas les personnes réelles",
+   138→          "pt": "Mais velocidade, melhor custo-benefício, não suporta pessoas reais",
+   139→          "ru": "Больше скорости, лучшее соотношение цены и качества, не поддерживает реальных людей",
+   140→          "zh": "更快速度，更高性价比，不支持真人",
+   141→          "zh-TW": "更快速度，更高性價比，不支援真人"
+   142→        },
+   143→        "pointCostImage": [
+   144→          {
+   145→            "audio": false,
+   146→            "duration": 5,
+   147→            "point": 20,
+   148→            "resolution": "480",
+   149→            "aiType": 14198
+   150→          },
+   151→          {
+   152→            "audio": true,
+   153→            "duration": 5,
+   154→            "point": 20,
+   155→            "resolution": "480",
+   156→            "aiType": 14199
+   157→          },
+   158→          {
+   159→            "audio": false,
+   160→            "duration": 5,
+   161→            "point": 45,
+   162→            "resolution": "720",
+   163→            "aiType": 14200
+   164→          },
+   165→          {
+   166→            "audio": true,
+   167→            "duration": 5,
+   168→            "point": 45,
+   169→            "resolution": "720",
+   170→            "aiType": 14201
+   171→          },
+   172→          {
+   173→            "audio": false,
+   174→            "duration": 10,
+   175→            "point": 40,
+   176→            "resolution": "480",
+   177→            "aiType": 14202
+   178→          },
+   179→          {
+   180→            "audio": true,
+   181→            "duration": 10,
+   182→            "point": 40,
+   183→            "resolution": "480",
+   184→            "aiType": 14203
+   185→          },
+   186→          {
+   187→            "audio": false,
+   188→            "duration": 10,
+   189→            "point": 90,
+   190→            "resolution": "720",
+   191→            "aiType": 14204
+   192→          },
+   193→          {
+   194→            "audio": true,
+   195→            "duration": 10,
+   196→            "point": 90,
+   197→            "resolution": "720",
+   198→            "aiType": 14205
+   199→          }
+   200→        ],
+   201→        "pointCostReference": [
+   202→          {
+   203→            "duration": 5,
+   204→            "refDuration": "2-5",
+   205→            "point": 20,
+   206→            "resolution": "480",
+   207→            "aiType": 14206
+   208→          },
+   209→          {
+   210→            "duration": 5,
+   211→            "refDuration": "6-10",
+   212→            "point": 30,
+   213→            "resolution": "480",
+   214→            "aiType": 14207
+   215→          },
+   216→          {
+   217→            "duration": 5,
+   218→            "refDuration": "11-15",
+   219→            "point": 40,
+   220→            "resolution": "480",
+   221→            "aiType": 14208
+   222→          },
+   223→          {
+   224→            "duration": 5,
+   225→            "refDuration": "2-5",
+   226→            "point": 40,
+   227→            "resolution": "720",
+   228→            "aiType": 14209
+   229→          },
+   230→          {
+   231→            "duration": 5,
+   232→            "refDuration": "6-10",
+   233→            "point": 70,
+   234→            "resolution": "720",
+   235→            "aiType": 14210
+   236→          },
+   237→          {
+   238→            "duration": 5,
+   239→            "refDuration": "11-15",
+   240→            "point": 100,
+   241→            "resolution": "720",
+   242→            "aiType": 14211
+   243→          },
+   244→          {
+   245→            "duration": 10,
+   246→            "refDuration": "2-5",
+   247→            "point": 40,
+   248→            "resolution": "480",
+   249→            "aiType": 14212
+   250→          },
+   251→          {
+   252→            "duration": 10,
+   253→            "refDuration": "6-10",
+   254→            "point": 60,
+   255→            "resolution": "480",
+   256→            "aiType": 14213
+   257→          },
+   258→          {
+   259→            "duration": 10,
+   260→            "refDuration": "11-15",
+   261→            "point": 90,
+   262→            "resolution": "480",
+   263→            "aiType": 14214
+   264→          },
+   265→          {
+   266→            "duration": 10,
+   267→            "refDuration": "2-5",
+   268→            "point": 90,
+   269→            "resolution": "720",
+   270→            "aiType": 14215
+   271→          },
+   272→          {
+   273→            "duration": 10,
+   274→            "refDuration": "6-10",
+   275→            "point": 150,
+   276→            "resolution": "720",
+   277→            "aiType": 14216
+   278→          },
+   279→          {
+   280→            "duration": 10,
+   281→            "refDuration": "11-15",
+   282→            "point": 200,
+   283→            "resolution": "720",
+   284→            "aiType": 14217
+   285→          }
+   286→        ],
+   287→        "supportAudio": true,
+   288→        "supportModifySize": true,
+   289→        "videoResolution": [
+   290→          "480",
+   291→          "720"
+   292→        ],
+   293→        "videoSize": [
+   294→          {
+   295→            "icon": "",
+   296→            "ratio": "16:9"
+   297→          },
+   298→          {
+   299→            "icon": "",
+   300→            "ratio": "1:1"
+   301→          },
+   302→          {
+   303→            "icon": "",
+   304→            "ratio": "3:4"
+   305→          },
+   306→          {
+   307→            "icon": "",
+   308→            "ratio": "4:3"
+   309→          },
+   310→          {
+   311→            "icon": "",
+   312→            "ratio": "9:16"
+   313→          },
+   314→          {
+   315→            "icon": "",
+   316→            "ratio": "21:9"
+   317→          }
+   318→        ]
+   319→      },
+   320→      {
+   321→        "duration": [
+   322→          {
+   323→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+   324→            "value": 5
+   325→          },
+   326→          {
+   327→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+   328→            "value": 10
+   329→          }
+   330→        ],
+   331→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+   332→        "modelName": "Seedance 1.5 Pro",
+   333→        "description": {
+   334→          "ar": "تعبيرات دقيقة بمستوى سينمائي",
+   335→          "de": "Filmqualität-Mikroausdrücke",
+   336→          "en": "Film-quality micro-expressions",
+   337→          "es": "Microexpresiones de nivel cinematográfico",
+   338→          "fr": "Micro-expressions de qualité cinématographique",
+   339→          "pt": "Microexpressões de nível cinematográfico",
+   340→          "ru": "Кинематографические микроэкспрессии",
+   341→          "zh": "电影级微表情",
+   342→          "zh-TW": "電影級微表情"
+   343→        },
+   344→        "pointCostImage": [
+   345→          {
+   346→            "audio": true,
+   347→            "duration": 5,
+   348→            "point": 25,
+   349→            "resolution": "720",
+   350→            "aiType": 14004
+   351→          },
+   352→          {
+   353→            "audio": false,
+   354→            "duration": 5,
+   355→            "point": 7,
+   356→            "resolution": "480",
+   357→            "aiType": 14001
+   358→          },
+   359→          {
+   360→            "audio": true,
+   361→            "duration": 5,
+   362→            "point": 10,
+   363→            "resolution": "480",
+   364→            "aiType": 14002
+   365→          },
+   366→          {
+   367→            "audio": false,
+   368→            "duration": 5,
+   369→            "point": 15,
+   370→            "resolution": "720",
+   371→            "aiType": 14003
+   372→          },
+   373→          {
+   374→            "audio": false,
+   375→            "duration": 5,
+   376→            "point": 30,
+   377→            "resolution": "1080",
+   378→            "aiType": 14005
+   379→          },
+   380→          {
+   381→            "audio": true,
+   382→            "duration": 5,
+   383→            "point": 65,
+   384→            "resolution": "1080",
+   385→            "aiType": 14006
+   386→          },
+   387→          {
+   388→            "audio": false,
+   389→            "duration": 10,
+   390→            "point": 14,
+   391→            "resolution": "480",
+   392→            "aiType": 14007
+   393→          },
+   394→          {
+   395→            "audio": true,
+   396→            "duration": 10,
+   397→            "point": 25,
+   398→            "resolution": "480",
+   399→            "aiType": 14008
+   400→          },
+   401→          {
+   402→            "audio": false,
+   403→            "duration": 10,
+   404→            "point": 30,
+   405→            "resolution": "720",
+   406→            "aiType": 14009
+   407→          },
+   408→          {
+   409→            "audio": true,
+   410→            "duration": 10,
+   411→            "point": 60,
+   412→            "resolution": "720",
+   413→            "aiType": 14010
+   414→          },
+   415→          {
+   416→            "audio": false,
+   417→            "duration": 10,
+   418→            "point": 65,
+   419→            "resolution": "1080",
+   420→            "aiType": 14011
+   421→          },
+   422→          {
+   423→            "audio": true,
+   424→            "duration": 10,
+   425→            "point": 135,
+   426→            "resolution": "1080",
+   427→            "aiType": 14012
+   428→          }
+   429→        ],
+   430→        "supportAudio": true,
+   431→        "supportModifySize": true,
+   432→        "videoResolution": [
+   433→          "720",
+   434→          "480",
+   435→          "1080"
+   436→        ],
+   437→        "videoSize": [
+   438→          {
+   439→            "icon": "",
+   440→            "ratio": "16:9"
+   441→          },
+   442→          {
+   443→            "icon": "",
+   444→            "ratio": "1:1"
+   445→          },
+   446→          {
+   447→            "icon": "",
+   448→            "ratio": "3:4"
+   449→          },
+   450→          {
+   451→            "icon": "",
+   452→            "ratio": "4:3"
+   453→          },
+   454→          {
+   455→            "icon": "",
+   456→            "ratio": "9:16"
+   457→          },
+   458→          {
+   459→            "icon": "",
+   460→            "ratio": "21:9"
+   461→          }
+   462→        ]
+   463→      },
+   464→      {
+   465→        "duration": [
+   466→          {
+   467→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+   468→            "value": 5
+   469→          },
+   470→          {
+   471→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+   472→            "value": 10
+   473→          }
+   474→        ],
+   475→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+   476→        "modelName": "Seedance 2.0",
+   477→        "description": {
+   478→          "ar": "نموذج متعدد الوسائط الرائد، لا يدعم الأشخاص الحقيقيين",
+   479→          "de": "Flagship-Multimodal-Modell, unterstützt keine echten Menschen",
+   480→          "en": "Flagship multimodal model, does not support real people",
+   481→          "es": "Modelo multimodal insignia, no admite personas reales",
+   482→          "fr": "Modèle multimodal phare, ne supporte pas les personnes réelles",
+   483→          "pt": "Modelo multimodal premium, não suporta pessoas reais",
+   484→          "ru": "Флагманская мультимодальная модель, не поддерживает реальных людей",
+   485→          "zh": "旗舰多模态模型，不支持真人",
+   486→          "zh-TW": "旗艦多模態模型，不支援真人"
+   487→        },
+   488→        "pointCostImage": [
+   489→          {
+   490→            "audio": false,
+   491→            "duration": 5,
+   492→            "point": 40,
+   493→            "resolution": "480",
+   494→            "aiType": 14080
+   495→          },
+   496→          {
+   497→            "audio": true,
+   498→            "duration": 5,
+   499→            "point": 40,
+   500→            "resolution": "480",
+   501→            "aiType": 14081
+   502→          },
+   503→          {
+   504→            "audio": false,
+   505→            "duration": 5,
+   506→            "point": 90,
+   507→            "resolution": "720",
+   508→            "aiType": 14082
+   509→          },
+   510→          {
+   511→            "audio": true,
+   512→            "duration": 5,
+   513→            "point": 90,
+   514→            "resolution": "720",
+   515→            "aiType": 14083
+   516→          },
+   517→          {
+   518→            "audio": false,
+   519→            "duration": 5,
+   520→            "point": 225,
+   521→            "resolution": "1080",
+   522→            "aiType": 14084
+   523→          },
+   524→          {
+   525→            "audio": true,
+   526→            "duration": 5,
+   527→            "point": 225,
+   528→            "resolution": "1080",
+   529→            "aiType": 14085
+   530→          },
+   531→          {
+   532→            "audio": false,
+   533→            "duration": 10,
+   534→            "point": 80,
+   535→            "resolution": "480",
+   536→            "aiType": 14086
+   537→          },
+   538→          {
+   539→            "audio": true,
+   540→            "duration": 10,
+   541→            "point": 80,
+   542→            "resolution": "480",
+   543→            "aiType": 14087
+   544→          },
+   545→          {
+   546→            "audio": false,
+   547→            "duration": 10,
+   548→            "point": 180,
+   549→            "resolution": "720",
+   550→            "aiType": 14088
+   551→          },
+   552→          {
+   553→            "audio": true,
+   554→            "duration": 10,
+   555→            "point": 180,
+   556→            "resolution": "720",
+   557→            "aiType": 14089
+   558→          },
+   559→          {
+   560→            "audio": false,
+   561→            "duration": 10,
+   562→            "point": 455,
+   563→            "resolution": "1080",
+   564→            "aiType": 14090
+   565→          },
+   566→          {
+   567→            "audio": true,
+   568→            "duration": 10,
+   569→            "point": 455,
+   570→            "resolution": "1080",
+   571→            "aiType": 14091
+   572→          }
+   573→        ],
+   574→        "pointCostReference": [
+   575→          {
+   576→            "duration": 5,
+   577→            "refDuration": "2-5",
+   578→            "point": 40,
+   579→            "resolution": "480",
+   580→            "aiType": 14092
+   581→          },
+   582→          {
+   583→            "duration": 5,
+   584→            "refDuration": "6-10",
+   585→            "point": 65,
+   586→            "resolution": "480",
+   587→            "aiType": 14093
+   588→          },
+   589→          {
+   590→            "duration": 5,
+   591→            "refDuration": "11-15",
+   592→            "point": 95,
+   593→            "resolution": "480",
+   594→            "aiType": 14094
+   595→          },
+   596→          {
+   597→            "duration": 10,
+   598→            "refDuration": "2-5",
+   599→            "point": 80,
+   600→            "resolution": "480",
+   601→            "aiType": 14095
+   602→          },
+   603→          {
+   604→            "duration": 10,
+   605→            "refDuration": "6-10",
+   606→            "point": 135,
+   607→            "resolution": "480",
+   608→            "aiType": 14096
+   609→          },
+   610→          {
+   611→            "duration": 10,
+   612→            "refDuration": "11-15",
+   613→            "point": 190,
+   614→            "resolution": "480",
+   615→            "aiType": 14097
+   616→          },
+   617→          {
+   618→            "duration": 5,
+   619→            "refDuration": "2-5",
+   620→            "point": 90,
+   621→            "resolution": "720",
+   622→            "aiType": 14098
+   623→          },
+   624→          {
+   625→            "duration": 5,
+   626→            "refDuration": "6-10",
+   627→            "point": 140,
+   628→            "resolution": "720",
+   629→            "aiType": 14099
+   630→          },
+   631→          {
+   632→            "duration": 5,
+   633→            "refDuration": "11-15",
+   634→            "point": 200,
+   635→            "resolution": "720",
+   636→            "aiType": 14100
+   637→          },
+   638→          {
+   639→            "duration": 10,
+   640→            "refDuration": "2-5",
+   641→            "point": 180,
+   642→            "resolution": "720",
+   643→            "aiType": 14101
+   644→          },
+   645→          {
+   646→            "duration": 10,
+   647→            "refDuration": "6-10",
+   648→            "point": 290,
+   649→            "resolution": "720",
+   650→            "aiType": 14102
+   651→          },
+   652→          {
+   653→            "duration": 10,
+   654→            "refDuration": "11-15",
+   655→            "point": 400,
+   656→            "resolution": "720",
+   657→            "aiType": 14103
+   658→          },
+   659→          {
+   660→            "duration": 5,
+   661→            "refDuration": "2-5",
+   662→            "point": 230,
+   663→            "resolution": "1080",
+   664→            "aiType": 14104
+   665→          },
+   666→          {
+   667→            "duration": 5,
+   668→            "refDuration": "6-10",
+   669→            "point": 360,
+   670→            "resolution": "1080",
+   671→            "aiType": 14105
+   672→          },
+   673→          {
+   674→            "duration": 5,
+   675→            "refDuration": "11-15",
+   676→            "point": 500,
+   677→            "resolution": "1080",
+   678→            "aiType": 14106
+   679→          },
+   680→          {
+   681→            "duration": 10,
+   682→            "refDuration": "2-5",
+   683→            "point": 450,
+   684→            "resolution": "1080",
+   685→            "aiType": 14107
+   686→          },
+   687→          {
+   688→            "duration": 10,
+   689→            "refDuration": "6-10",
+   690→            "point": 700,
+   691→            "resolution": "1080",
+   692→            "aiType": 14108
+   693→          },
+   694→          {
+   695→            "duration": 10,
+   696→            "refDuration": "11-15",
+   697→            "point": 1000,
+   698→            "resolution": "1080",
+   699→            "aiType": 14109
+   700→          }
+   701→        ],
+   702→        "supportAudio": true,
+   703→        "supportModifySize": true,
+   704→        "videoResolution": [
+   705→          "480",
+   706→          "720",
+   707→          "1080"
+   708→        ],
+   709→        "videoSize": [
+   710→          {
+   711→            "icon": "",
+   712→            "ratio": "1:1"
+   713→          },
+   714→          {
+   715→            "icon": "",
+   716→            "ratio": "16:9"
+   717→          },
+   718→          {
+   719→            "icon": "",
+   720→            "ratio": "3:4"
+   721→          },
+   722→          {
+   723→            "icon": "",
+   724→            "ratio": "4:3"
+   725→          },
+   726→          {
+   727→            "icon": "",
+   728→            "ratio": "9:16"
+   729→          },
+   730→          {
+   731→            "icon": "",
+   732→            "ratio": "21:9"
+   733→          }
+   734→        ]
+   735→      },
+   736→      {
+   737→        "duration": [
+   738→          {
+   739→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+   740→            "value": 5
+   741→          },
+   742→          {
+   743→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+   744→            "value": 10
+   745→          }
+   746→        ],
+   747→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+   748→        "modelName": "Seedance 2.0 Fast",
+   749→        "description": {
+   750→          "ar": "عرض سريع لتأثيرات الرائد، لا يدعم الأشخاص الحقيقيين",
+   751→          "de": "Schnelles Rendern von Flagship-Effekten, unterstützt keine echten Menschen",
+   752→          "en": "Fast rendering of flagship effects, does not support real people",
+   753→          "es": "Renderizado rápido de efectos insignia, no admite personas reales",
+   754→          "fr": "Rendu rapide des effets phare, ne supporte pas les personnes réelles",
+   755→          "pt": "Renderização rápida de efeitos premium, não suporta pessoas reais",
+   756→          "ru": "Быстрый рендеринг флагманских эффектов, не поддерживает реальных людей",
+   757→          "zh": "旗舰效果的快速渲染，不支持真人",
+   758→          "zh-TW": "旗艦效果的快速渲染，不支援真人"
+   759→        },
+   760→        "pointCostImage": [
+   761→          {
+   762→            "audio": false,
+   763→            "duration": 5,
+   764→            "point": 25,
+   765→            "resolution": "480",
+   766→            "aiType": 14072
+   767→          },
+   768→          {
+   769→            "audio": true,
+   770→            "duration": 5,
+   771→            "point": 25,
+   772→            "resolution": "480",
+   773→            "aiType": 14073
+   774→          },
+   775→          {
+   776→            "audio": false,
+   777→            "duration": 5,
+   778→            "point": 70,
+   779→            "resolution": "720",
+   780→            "aiType": 14074
+   781→          },
+   782→          {
+   783→            "audio": true,
+   784→            "duration": 5,
+   785→            "point": 70,
+   786→            "resolution": "720",
+   787→            "aiType": 14075
+   788→          },
+   789→          {
+   790→            "audio": false,
+   791→            "duration": 10,
+   792→            "point": 65,
+   793→            "resolution": "480",
+   794→            "aiType": 14076
+   795→          },
+   796→          {
+   797→            "audio": true,
+   798→            "duration": 10,
+   799→            "point": 65,
+   800→            "resolution": "480",
+   801→            "aiType": 14077
+   802→          },
+   803→          {
+   804→            "audio": false,
+   805→            "duration": 10,
+   806→            "point": 145,
+   807→            "resolution": "720",
+   808→            "aiType": 14078
+   809→          },
+   810→          {
+   811→            "audio": true,
+   812→            "duration": 10,
+   813→            "point": 145,
+   814→            "resolution": "720",
+   815→            "aiType": 14079
+   816→          }
+   817→        ],
+   818→        "pointCostReference": [
+   819→          {
+   820→            "duration": 5,
+   821→            "refDuration": "2-5",
+   822→            "point": 25,
+   823→            "resolution": "480",
+   824→            "aiType": 14110
+   825→          },
+   826→          {
+   827→            "duration": 5,
+   828→            "refDuration": "6-10",
+   829→            "point": 50,
+   830→            "resolution": "480",
+   831→            "aiType": 14111
+   832→          },
+   833→          {
+   834→            "duration": 5,
+   835→            "refDuration": "11-15",
+   836→            "point": 75,
+   837→            "resolution": "480",
+   838→            "aiType": 14112
+   839→          },
+   840→          {
+   841→            "duration": 10,
+   842→            "refDuration": "2-5",
+   843→            "point": 65,
+   844→            "resolution": "480",
+   845→            "aiType": 14113
+   846→          },
+   847→          {
+   848→            "duration": 10,
+   849→            "refDuration": "6-10",
+   850→            "point": 110,
+   851→            "resolution": "480",
+   852→            "aiType": 14114
+   853→          },
+   854→          {
+   855→            "duration": 10,
+   856→            "refDuration": "11-15",
+   857→            "point": 150,
+   858→            "resolution": "480",
+   859→            "aiType": 14115
+   860→          },
+   861→          {
+   862→            "duration": 5,
+   863→            "refDuration": "2-5",
+   864→            "point": 70,
+   865→            "resolution": "720",
+   866→            "aiType": 14116
+   867→          },
+   868→          {
+   869→            "duration": 5,
+   870→            "refDuration": "6-10",
+   871→            "point": 115,
+   872→            "resolution": "720",
+   873→            "aiType": 14117
+   874→          },
+   875→          {
+   876→            "duration": 5,
+   877→            "refDuration": "11-15",
+   878→            "point": 160,
+   879→            "resolution": "720",
+   880→            "aiType": 14118
+   881→          },
+   882→          {
+   883→            "duration": 10,
+   884→            "refDuration": "2-5",
+   885→            "point": 140,
+   886→            "resolution": "720",
+   887→            "aiType": 14119
+   888→          },
+   889→          {
+   890→            "duration": 10,
+   891→            "refDuration": "6-10",
+   892→            "point": 230,
+   893→            "resolution": "720",
+   894→            "aiType": 14120
+   895→          },
+   896→          {
+   897→            "duration": 10,
+   898→            "refDuration": "11-15",
+   899→            "point": 320,
+   900→            "resolution": "720",
+   901→            "aiType": 14121
+   902→          }
+   903→        ],
+   904→        "supportAudio": true,
+   905→        "supportModifySize": true,
+   906→        "videoResolution": [
+   907→          "480",
+   908→          "720"
+   909→        ],
+   910→        "videoSize": [
+   911→          {
+   912→            "icon": "",
+   913→            "ratio": "16:9"
+   914→          },
+   915→          {
+   916→            "icon": "",
+   917→            "ratio": "1:1"
+   918→          },
+   919→          {
+   920→            "icon": "",
+   921→            "ratio": "3:4"
+   922→          },
+   923→          {
+   924→            "icon": "",
+   925→            "ratio": "4:3"
+   926→          },
+   927→          {
+   928→            "icon": "",
+   929→            "ratio": "9:16"
+   930→          },
+   931→          {
+   932→            "icon": "",
+   933→            "ratio": "21:9"
+   934→          }
+   935→        ]
+   936→      },
+   937→      {
+   938→        "duration": [
+   939→          {
+   940→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+   941→            "value": 5
+   942→          },
+   943→          {
+   944→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+   945→            "value": 10
+   946→          }
+   947→        ],
+   948→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+   949→        "modelName": "Kling 3.0",
+   950→        "description": {
+   951→          "ar": "لوحة قصة سينمائية ممتدة",
+   952→          "de": "Filmstil-Extended-Storyboard",
+   953→          "en": "Film-style storyboard",
+   954→          "es": "Storyboard cinematográfico extendido",
+   955→          "fr": "Storyboard cinématographique étendu",
+   956→          "pt": "Storyboard cinematográfico estendido",
+   957→          "ru": "Кинематографический расширенный сториборд",
+   958→          "zh": "电影感超长分镜",
+   959→          "zh-TW": "電影感超長分鏡"
+   960→        },
+   961→        "pointCostImage": [
+   962→          {
+   963→            "audio": false,
+   964→            "duration": 5,
+   965→            "point": 30,
+   966→            "resolution": "720",
+   967→            "aiType": 14013
+   968→          },
+   969→          {
+   970→            "audio": true,
+   971→            "duration": 5,
+   972→            "point": 45,
+   973→            "resolution": "720",
+   974→            "aiType": 14014
+   975→          },
+   976→          {
+   977→            "audio": false,
+   978→            "duration": 5,
+   979→            "point": 40,
+   980→            "resolution": "1080",
+   981→            "aiType": 14015
+   982→          },
+   983→          {
+   984→            "audio": true,
+   985→            "duration": 5,
+   986→            "point": 65,
+   987→            "resolution": "1080",
+   988→            "aiType": 14016
+   989→          },
+   990→          {
+   991→            "audio": false,
+   992→            "duration": 10,
+   993→            "point": 65,
+   994→            "resolution": "720",
+   995→            "aiType": 14017
+   996→          },
+   997→          {
+   998→            "audio": true,
+   999→            "duration": 10,
+  1000→            "point": 95,
+  1001→            "resolution": "720",
+  1002→            "aiType": 14018
+  1003→          },
+  1004→          {
+  1005→            "audio": false,
+  1006→            "duration": 10,
+  1007→            "point": 85,
+  1008→            "resolution": "1080",
+  1009→            "aiType": 14019
+  1010→          },
+  1011→          {
+  1012→            "audio": true,
+  1013→            "duration": 10,
+  1014→            "point": 130,
+  1015→            "resolution": "1080",
+  1016→            "aiType": 14020
+  1017→          }
+  1018→        ],
+  1019→        "pointCostMotion": [
+  1020→          {
+  1021→            "motDuration": 3,
+  1022→            "point": 25,
+  1023→            "resolution": "720",
+  1024→            "aiType": 14146
+  1025→          },
+  1026→          {
+  1027→            "motDuration": 3,
+  1028→            "point": 35,
+  1029→            "resolution": "1080",
+  1030→            "aiType": 14147
+  1031→          },
+  1032→          {
+  1033→            "motDuration": 4,
+  1034→            "point": 35,
+  1035→            "resolution": "720",
+  1036→            "aiType": 14148
+  1037→          },
+  1038→          {
+  1039→            "motDuration": 4,
+  1040→            "point": 50,
+  1041→            "resolution": "1080",
+  1042→            "aiType": 14149
+  1043→          },
+  1044→          {
+  1045→            "motDuration": 5,
+  1046→            "point": 45,
+  1047→            "resolution": "720",
+  1048→            "aiType": 14150
+  1049→          },
+  1050→          {
+  1051→            "motDuration": 5,
+  1052→            "point": 60,
+  1053→            "resolution": "1080",
+  1054→            "aiType": 14151
+  1055→          },
+  1056→          {
+  1057→            "motDuration": 6,
+  1058→            "point": 55,
+  1059→            "resolution": "720",
+  1060→            "aiType": 14152
+  1061→          },
+  1062→          {
+  1063→            "motDuration": 6,
+  1064→            "point": 75,
+  1065→            "resolution": "1080",
+  1066→            "aiType": 14153
+  1067→          },
+  1068→          {
+  1069→            "motDuration": 7,
+  1070→            "point": 65,
+  1071→            "resolution": "720",
+  1072→            "aiType": 14154
+  1073→          },
+  1074→          {
+  1075→            "motDuration": 7,
+  1076→            "point": 90,
+  1077→            "resolution": "1080",
+  1078→            "aiType": 14155
+  1079→          },
+  1080→          {
+  1081→            "motDuration": 8,
+  1082→            "point": 75,
+  1083→            "resolution": "720",
+  1084→            "aiType": 14156
+  1085→          },
+  1086→          {
+  1087→            "motDuration": 8,
+  1088→            "point": 100,
+  1089→            "resolution": "1080",
+  1090→            "aiType": 14157
+  1091→          },
+  1092→          {
+  1093→            "motDuration": 9,
+  1094→            "point": 85,
+  1095→            "resolution": "720",
+  1096→            "aiType": 14158
+  1097→          },
+  1098→          {
+  1099→            "motDuration": 9,
+  1100→            "point": 115,
+  1101→            "resolution": "1080",
+  1102→            "aiType": 14159
+  1103→          },
+  1104→          {
+  1105→            "motDuration": 10,
+  1106→            "point": 95,
+  1107→            "resolution": "720",
+  1108→            "aiType": 14160
+  1109→          },
+  1110→          {
+  1111→            "motDuration": 10,
+  1112→            "point": 130,
+  1113→            "resolution": "1080",
+  1114→            "aiType": 14161
+  1115→          },
+  1116→          {
+  1117→            "motDuration": 11,
+  1118→            "point": 105,
+  1119→            "resolution": "720",
+  1120→            "aiType": 14162
+  1121→          },
+  1122→          {
+  1123→            "motDuration": 11,
+  1124→            "point": 140,
+  1125→            "resolution": "1080",
+  1126→            "aiType": 14163
+  1127→          },
+  1128→          {
+  1129→            "motDuration": 12,
+  1130→            "point": 115,
+  1131→            "resolution": "720",
+  1132→            "aiType": 14164
+  1133→          },
+  1134→          {
+  1135→            "motDuration": 12,
+  1136→            "point": 155,
+  1137→            "resolution": "1080",
+  1138→            "aiType": 14165
+  1139→          },
+  1140→          {
+  1141→            "motDuration": 13,
+  1142→            "point": 125,
+  1143→            "resolution": "720",
+  1144→            "aiType": 14166
+  1145→          },
+  1146→          {
+  1147→            "motDuration": 13,
+  1148→            "point": 170,
+  1149→            "resolution": "1080",
+  1150→            "aiType": 14167
+  1151→          },
+  1152→          {
+  1153→            "motDuration": 14,
+  1154→            "point": 135,
+  1155→            "resolution": "720",
+  1156→            "aiType": 14168
+  1157→          },
+  1158→          {
+  1159→            "motDuration": 14,
+  1160→            "point": 180,
+  1161→            "resolution": "1080",
+  1162→            "aiType": 14169
+  1163→          },
+  1164→          {
+  1165→            "motDuration": 15,
+  1166→            "point": 145,
+  1167→            "resolution": "720",
+  1168→            "aiType": 14170
+  1169→          },
+  1170→          {
+  1171→            "motDuration": 15,
+  1172→            "point": 195,
+  1173→            "resolution": "1080",
+  1174→            "aiType": 14171
+  1175→          }
+  1176→        ],
+  1177→        "supportAudio": true,
+  1178→        "supportModifySize": false,
+  1179→        "videoResolution": [
+  1180→          "720",
+  1181→          "1080"
+  1182→        ],
+  1183→        "videoSize": [
+  1184→          {
+  1185→            "icon": "",
+  1186→            "ratio": "16:9"
+  1187→          },
+  1188→          {
+  1189→            "icon": "",
+  1190→            "ratio": "9:16"
+  1191→          },
+  1192→          {
+  1193→            "icon": "",
+  1194→            "ratio": "1:1"
+  1195→          }
+  1196→        ]
+  1197→      },
+  1198→      {
+  1199→        "duration": [
+  1200→          {
+  1201→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1202→            "value": 5
+  1203→          },
+  1204→          {
+  1205→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1206→            "value": 10
+  1207→          }
+  1208→        ],
+  1209→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+  1210→        "modelName": "Kling 3.0 Omni",
+  1211→        "description": {
+  1212→          "ar": "اتساق أدوات الشخصيات",
+  1213→          "de": "Konsistenz der Charakter-Requisiten",
+  1214→          "en": "Consistency of character props",
+  1215→          "es": "Consistencia de accesorios de personajes",
+  1216→          "fr": "Cohérence des accessoires de personnages",
+  1217→          "pt": "Consistência de adereços de personagens",
+  1218→          "ru": "Согласованность реквизита персонажей",
+  1219→          "zh": "角色道具一致性",
+  1220→          "zh-TW": "角色道具一致性"
+  1221→        },
+  1222→        "pointCostImage": [
+  1223→          {
+  1224→            "audio": false,
+  1225→            "duration": 5,
+  1226→            "point": 30,
+  1227→            "resolution": "720",
+  1228→            "aiType": 14021
+  1229→          },
+  1230→          {
+  1231→            "audio": true,
+  1232→            "duration": 5,
+  1233→            "point": 40,
+  1234→            "resolution": "720",
+  1235→            "aiType": 14022
+  1236→          },
+  1237→          {
+  1238→            "audio": false,
+  1239→            "duration": 5,
+  1240→            "point": 40,
+  1241→            "resolution": "1080",
+  1242→            "aiType": 14023
+  1243→          },
+  1244→          {
+  1245→            "audio": true,
+  1246→            "duration": 5,
+  1247→            "point": 50,
+  1248→            "resolution": "1080",
+  1249→            "aiType": 14024
+  1250→          },
+  1251→          {
+  1252→            "audio": false,
+  1253→            "duration": 10,
+  1254→            "point": 65,
+  1255→            "resolution": "720",
+  1256→            "aiType": 14025
+  1257→          },
+  1258→          {
+  1259→            "audio": true,
+  1260→            "duration": 10,
+  1261→            "point": 85,
+  1262→            "resolution": "720",
+  1263→            "aiType": 14026
+  1264→          },
+  1265→          {
+  1266→            "audio": false,
+  1267→            "duration": 10,
+  1268→            "point": 85,
+  1269→            "resolution": "1080",
+  1270→            "aiType": 14027
+  1271→          },
+  1272→          {
+  1273→            "audio": true,
+  1274→            "duration": 10,
+  1275→            "point": 105,
+  1276→            "resolution": "1080",
+  1277→            "aiType": 14028
+  1278→          }
+  1279→        ],
+  1280→        "pointCostReference": [
+  1281→          {
+  1282→            "duration": 5,
+  1283→            "point": 45,
+  1284→            "resolution": "720",
+  1285→            "aiType": 14122
+  1286→          },
+  1287→          {
+  1288→            "duration": 5,
+  1289→            "point": 60,
+  1290→            "resolution": "1080",
+  1291→            "aiType": 14123
+  1292→          },
+  1293→          {
+  1294→            "duration": 10,
+  1295→            "point": 90,
+  1296→            "resolution": "720",
+  1297→            "aiType": 14124
+  1298→          },
+  1299→          {
+  1300→            "duration": 10,
+  1301→            "point": 120,
+  1302→            "resolution": "1080",
+  1303→            "aiType": 14125
+  1304→          }
+  1305→        ],
+  1306→        "supportAudio": true,
+  1307→        "supportModifySize": false,
+  1308→        "videoResolution": [
+  1309→          "720",
+  1310→          "1080"
+  1311→        ],
+  1312→        "videoSize": [
+  1313→          {
+  1314→            "icon": "",
+  1315→            "ratio": "16:9"
+  1316→          },
+  1317→          {
+  1318→            "icon": "",
+  1319→            "ratio": "9:16"
+  1320→          },
+  1321→          {
+  1322→            "icon": "",
+  1323→            "ratio": "1:1"
+  1324→          }
+  1325→        ]
+  1326→      },
+  1327→      {
+  1328→        "duration": [
+  1329→          {
+  1330→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1331→            "value": 5
+  1332→          },
+  1333→          {
+  1334→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1335→            "value": 10
+  1336→          }
+  1337→        ],
+  1338→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+  1339→        "modelName": "Kling 2.6",
+  1340→        "description": {
+  1341→          "ar": "حركات معقدة وصوت عالي الدقة",
+  1342→          "de": "Komplexe Action & HiFi-Audio",
+  1343→          "en": "Complex action & high-fidelity audio",
+  1344→          "es": "Acciones complejas y audio de alta fidelidad",
+  1345→          "fr": "Actions complexes et audio haute fidélité",
+  1346→          "pt": "Ações complexas e áudio de alta fidelidade",
+  1347→          "ru": "Сложные действия и аудио высокой четкости",
+  1348→          "zh": "高难动作与高保真配音",
+  1349→          "zh-TW": "高難動作與高保真配音"
+  1350→        },
+  1351→        "pointCostImage": [
+  1352→          {
+  1353→            "audio": false,
+  1354→            "duration": 5,
+  1355→            "point": 15,
+  1356→            "resolution": "720",
+  1357→            "aiType": 14032
+  1358→          },
+  1359→          {
+  1360→            "audio": false,
+  1361→            "duration": 5,
+  1362→            "point": 25,
+  1363→            "resolution": "1080",
+  1364→            "aiType": 14029
+  1365→          },
+  1366→          {
+  1367→            "audio": false,
+  1368→            "duration": 10,
+  1369→            "point": 30,
+  1370→            "resolution": "720",
+  1371→            "aiType": 14034
+  1372→          },
+  1373→          {
+  1374→            "audio": false,
+  1375→            "duration": 10,
+  1376→            "point": 50,
+  1377→            "resolution": "1080",
+  1378→            "aiType": 14030
+  1379→          }
+  1380→        ],
+  1381→        "pointCostMotion": [
+  1382→          {
+  1383→            "motDuration": 3,
+  1384→            "point": 15,
+  1385→            "resolution": "720",
+  1386→            "aiType": 14172
+  1387→          },
+  1388→          {
+  1389→            "motDuration": 3,
+  1390→            "point": 25,
+  1391→            "resolution": "1080",
+  1392→            "aiType": 14173
+  1393→          },
+  1394→          {
+  1395→            "motDuration": 4,
+  1396→            "point": 20,
+  1397→            "resolution": "720",
+  1398→            "aiType": 14174
+  1399→          },
+  1400→          {
+  1401→            "motDuration": 4,
+  1402→            "point": 30,
+  1403→            "resolution": "1080",
+  1404→            "aiType": 14175
+  1405→          },
+  1406→          {
+  1407→            "motDuration": 5,
+  1408→            "point": 25,
+  1409→            "resolution": "720",
+  1410→            "aiType": 14176
+  1411→          },
+  1412→          {
+  1413→            "motDuration": 5,
+  1414→            "point": 40,
+  1415→            "resolution": "1080",
+  1416→            "aiType": 14177
+  1417→          },
+  1418→          {
+  1419→            "motDuration": 6,
+  1420→            "point": 30,
+  1421→            "resolution": "720",
+  1422→            "aiType": 14178
+  1423→          },
+  1424→          {
+  1425→            "motDuration": 6,
+  1426→            "point": 50,
+  1427→            "resolution": "1080",
+  1428→            "aiType": 14179
+  1429→          },
+  1430→          {
+  1431→            "motDuration": 7,
+  1432→            "point": 35,
+  1433→            "resolution": "720",
+  1434→            "aiType": 14180
+  1435→          },
+  1436→          {
+  1437→            "motDuration": 7,
+  1438→            "point": 60,
+  1439→            "resolution": "1080",
+  1440→            "aiType": 14181
+  1441→          },
+  1442→          {
+  1443→            "motDuration": 8,
+  1444→            "point": 40,
+  1445→            "resolution": "720",
+  1446→            "aiType": 14182
+  1447→          },
+  1448→          {
+  1449→            "motDuration": 8,
+  1450→            "point": 70,
+  1451→            "resolution": "1080",
+  1452→            "aiType": 14183
+  1453→          },
+  1454→          {
+  1455→            "motDuration": 9,
+  1456→            "point": 45,
+  1457→            "resolution": "720",
+  1458→            "aiType": 14184
+  1459→          },
+  1460→          {
+  1461→            "motDuration": 9,
+  1462→            "point": 75,
+  1463→            "resolution": "1080",
+  1464→            "aiType": 14185
+  1465→          },
+  1466→          {
+  1467→            "motDuration": 10,
+  1468→            "point": 50,
+  1469→            "resolution": "720",
+  1470→            "aiType": 14186
+  1471→          },
+  1472→          {
+  1473→            "motDuration": 10,
+  1474→            "point": 80,
+  1475→            "resolution": "1080",
+  1476→            "aiType": 14187
+  1477→          },
+  1478→          {
+  1479→            "motDuration": 11,
+  1480→            "point": 60,
+  1481→            "resolution": "720",
+  1482→            "aiType": 14188
+  1483→          },
+  1484→          {
+  1485→            "motDuration": 11,
+  1486→            "point": 90,
+  1487→            "resolution": "1080",
+  1488→            "aiType": 14189
+  1489→          },
+  1490→          {
+  1491→            "motDuration": 12,
+  1492→            "point": 60,
+  1493→            "resolution": "720",
+  1494→            "aiType": 14190
+  1495→          },
+  1496→          {
+  1497→            "motDuration": 12,
+  1498→            "point": 100,
+  1499→            "resolution": "1080",
+  1500→            "aiType": 14191
+  1501→          },
+  1502→          {
+  1503→            "motDuration": 13,
+  1504→            "point": 70,
+  1505→            "resolution": "720",
+  1506→            "aiType": 14192
+  1507→          },
+  1508→          {
+  1509→            "motDuration": 13,
+  1510→            "point": 100,
+  1511→            "resolution": "1080",
+  1512→            "aiType": 14193
+  1513→          },
+  1514→          {
+  1515→            "motDuration": 14,
+  1516→            "point": 70,
+  1517→            "resolution": "720",
+  1518→            "aiType": 14194
+  1519→          },
+  1520→          {
+  1521→            "motDuration": 14,
+  1522→            "point": 120,
+  1523→            "resolution": "1080",
+  1524→            "aiType": 14195
+  1525→          },
+  1526→          {
+  1527→            "motDuration": 15,
+  1528→            "point": 80,
+  1529→            "resolution": "720",
+  1530→            "aiType": 14196
+  1531→          },
+  1532→          {
+  1533→            "motDuration": 15,
+  1534→            "point": 130,
+  1535→            "resolution": "1080",
+  1536→            "aiType": 14197
+  1537→          }
+  1538→        ],
+  1539→        "supportAudio": false,
+  1540→        "supportModifySize": false,
+  1541→        "videoResolution": [
+  1542→          "720",
+  1543→          "1080"
+  1544→        ],
+  1545→        "videoSize": [
+  1546→          {
+  1547→            "icon": "",
+  1548→            "ratio": "16:9"
+  1549→          },
+  1550→          {
+  1551→            "icon": "",
+  1552→            "ratio": "9:16"
+  1553→          },
+  1554→          {
+  1555→            "icon": "",
+  1556→            "ratio": "1:1"
+  1557→          }
+  1558→        ]
+  1559→      },
+  1560→      {
+  1561→        "duration": [
+  1562→          {
+  1563→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1564→            "value": 5
+  1565→          },
+  1566→          {
+  1567→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1568→            "value": 10
+  1569→          }
+  1570→        ],
+  1571→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+  1572→        "modelName": "Kling o1",
+  1573→        "description": {
+  1574→          "ar": "تحرير الفيديو بالتعليمات",
+  1575→          "de": "Anweisungsbasierte Videobearbeitung",
+  1576→          "en": "Instruction-based video editing",
+  1577→          "es": "Edición de video basada en instrucciones",
+  1578→          "fr": "Montage vidéo par instructions",
+  1579→          "pt": "Edição de vídeo baseada em instruções",
+  1580→          "ru": "Видеомонтаж на основе инструкций",
+  1581→          "zh": "文本指令视频编辑",
+  1582→          "zh-TW": "文本指令影片編輯"
+  1583→        },
+  1584→        "pointCostImage": [
+  1585→          {
+  1586→            "audio": false,
+  1587→            "duration": 5,
+  1588→            "point": 40,
+  1589→            "resolution": "1080",
+  1590→            "aiType": 14031
+  1591→          },
+  1592→          {
+  1593→            "audio": false,
+  1594→            "duration": 10,
+  1595→            "point": 85,
+  1596→            "resolution": "1080",
+  1597→            "aiType": 14033
+  1598→          }
+  1599→        ],
+  1600→        "pointCostReference": [
+  1601→          {
+  1602→            "duration": 5,
+  1603→            "point": 45,
+  1604→            "resolution": "720",
+  1605→            "aiType": 14126
+  1606→          },
+  1607→          {
+  1608→            "duration": 5,
+  1609→            "point": 60,
+  1610→            "resolution": "1080",
+  1611→            "aiType": 14127
+  1612→          },
+  1613→          {
+  1614→            "duration": 10,
+  1615→            "point": 90,
+  1616→            "resolution": "720",
+  1617→            "aiType": 14128
+  1618→          },
+  1619→          {
+  1620→            "duration": 10,
+  1621→            "point": 120,
+  1622→            "resolution": "1080",
+  1623→            "aiType": 14129
+  1624→          }
+  1625→        ],
+  1626→        "supportAudio": false,
+  1627→        "supportModifySize": false,
+  1628→        "videoResolution": [
+  1629→          "1080"
+  1630→        ],
+  1631→        "videoSize": [
+  1632→          {
+  1633→            "icon": "",
+  1634→            "ratio": "16:9"
+  1635→          },
+  1636→          {
+  1637→            "icon": "",
+  1638→            "ratio": "9:16"
+  1639→          },
+  1640→          {
+  1641→            "icon": "",
+  1642→            "ratio": "1:1"
+  1643→          }
+  1644→        ]
+  1645→      },
+  1646→      {
+  1647→        "duration": [
+  1648→          {
+  1649→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1650→            "value": 5
+  1651→          },
+  1652→          {
+  1653→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1654→            "value": 10
+  1655→          }
+  1656→        ],
+  1657→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+  1658→        "modelName": "Kling 2.5",
+  1659→        "description": {
+  1660→          "ar": "خيار كلاسيكي ومستقر",
+  1661→          "de": "Klassische & stabile Wahl",
+  1662→          "en": "Classic & stable choice",
+  1663→          "es": "Opción clásica y estable",
+  1664→          "fr": "Choix classique et stable",
+  1665→          "pt": "Escolha clássica e estável",
+  1666→          "ru": "Классический и стабильный выбор",
+  1667→          "zh": "经典稳定首选",
+  1668→          "zh-TW": "經典穩定首選"
+  1669→        },
+  1670→        "pointCostImage": [
+  1671→          {
+  1672→            "audio": false,
+  1673→            "duration": 5,
+  1674→            "point": 25,
+  1675→            "resolution": "1080",
+  1676→            "aiType": 14035
+  1677→          },
+  1678→          {
+  1679→            "audio": false,
+  1680→            "duration": 10,
+  1681→            "point": 50,
+  1682→            "resolution": "1080",
+  1683→            "aiType": 14036
+  1684→          }
+  1685→        ],
+  1686→        "supportAudio": false,
+  1687→        "supportModifySize": false,
+  1688→        "videoResolution": [
+  1689→          "1080"
+  1690→        ],
+  1691→        "videoSize": [
+  1692→          {
+  1693→            "icon": "",
+  1694→            "ratio": "16:9"
+  1695→          },
+  1696→          {
+  1697→            "icon": "",
+  1698→            "ratio": "9:16"
+  1699→          },
+  1700→          {
+  1701→            "icon": "",
+  1702→            "ratio": "1:1"
+  1703→          }
+  1704→        ]
+  1705→      },
+  1706→      {
+  1707→        "duration": [
+  1708→          {
+  1709→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1710→            "value": 5
+  1711→          },
+  1712→          {
+  1713→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1714→            "value": 10
+  1715→          }
+  1716→        ],
+  1717→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+  1718→        "modelName": "Veo 3.1",
+  1719→        "description": {
+  1720→          "ar": "واقعية مفرطة فائقة الدقة",
+  1721→          "de": "Ultrapräziser Hyperrealismus",
+  1722→          "en": "Ultra-precise hyper-realism",
+  1723→          "es": "Hiperrealismo de ultra precisión",
+  1724→          "fr": "Hyperréalisme ultra-précis",
+  1725→          "pt": "Hiper-realismo de ultra precisão",
+  1726→          "ru": "Ультраточный гиперреализм",
+  1727→          "zh": "极高精度超写实",
+  1728→          "zh-TW": "極高精度超寫實"
+  1729→        },
+  1730→        "pointCostImage": [
+  1731→          {
+  1732→            "audio": false,
+  1733→            "duration": 5,
+  1734→            "point": 100,
+  1735→            "resolution": "720",
+  1736→            "aiType": 14041
+  1737→          },
+  1738→          {
+  1739→            "audio": true,
+  1740→            "duration": 5,
+  1741→            "point": 200,
+  1742→            "resolution": "720",
+  1743→            "aiType": 14042
+  1744→          },
+  1745→          {
+  1746→            "audio": false,
+  1747→            "duration": 5,
+  1748→            "point": 100,
+  1749→            "resolution": "1080",
+  1750→            "aiType": 14043
+  1751→          },
+  1752→          {
+  1753→            "audio": true,
+  1754→            "duration": 5,
+  1755→            "point": 200,
+  1756→            "resolution": "1080",
+  1757→            "aiType": 14044
+  1758→          },
+  1759→          {
+  1760→            "audio": false,
+  1761→            "duration": 5,
+  1762→            "point": 200,
+  1763→            "resolution": "4K",
+  1764→            "aiType": 14045
+  1765→          },
+  1766→          {
+  1767→            "audio": true,
+  1768→            "duration": 5,
+  1769→            "point": 300,
+  1770→            "resolution": "4K",
+  1771→            "aiType": 14046
+  1772→          },
+  1773→          {
+  1774→            "audio": false,
+  1775→            "duration": 10,
+  1776→            "point": 200,
+  1777→            "resolution": "720",
+  1778→            "aiType": 14047
+  1779→          },
+  1780→          {
+  1781→            "audio": true,
+  1782→            "duration": 10,
+  1783→            "point": 400,
+  1784→            "resolution": "720",
+  1785→            "aiType": 14048
+  1786→          },
+  1787→          {
+  1788→            "audio": false,
+  1789→            "duration": 10,
+  1790→            "point": 200,
+  1791→            "resolution": "1080",
+  1792→            "aiType": 14049
+  1793→          },
+  1794→          {
+  1795→            "audio": true,
+  1796→            "duration": 10,
+  1797→            "point": 400,
+  1798→            "resolution": "1080",
+  1799→            "aiType": 14050
+  1800→          },
+  1801→          {
+  1802→            "audio": false,
+  1803→            "duration": 10,
+  1804→            "point": 400,
+  1805→            "resolution": "4K",
+  1806→            "aiType": 14051
+  1807→          },
+  1808→          {
+  1809→            "audio": true,
+  1810→            "duration": 10,
+  1811→            "point": 600,
+  1812→            "resolution": "4K",
+  1813→            "aiType": 14052
+  1814→          }
+  1815→        ],
+  1816→        "supportAudio": true,
+  1817→        "supportModifySize": true,
+  1818→        "videoResolution": [
+  1819→          "720",
+  1820→          "1080",
+  1821→          "4K"
+  1822→        ],
+  1823→        "videoSize": [
+  1824→          {
+  1825→            "icon": "",
+  1826→            "ratio": "16:9"
+  1827→          },
+  1828→          {
+  1829→            "icon": "",
+  1830→            "ratio": "9:16"
+  1831→          }
+  1832→        ]
+  1833→      },
+  1834→      {
+  1835→        "duration": [
+  1836→          {
+  1837→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1838→            "value": 5
+  1839→          },
+  1840→          {
+  1841→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+  1842→            "value": 10
+  1843→          }
+  1844→        ],
+  1845→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+  1846→        "modelName": "Veo 3",
+  1847→        "description": {
+  1848→          "ar": "تركيب الصوت المحيطي الأصلي",
+  1849→          "de": "Native Ambient-Audio-Synthese",
+  1850→          "en": "Native ambient audio synthesis",
+  1851→          "es": "Síntesis de audio ambiental nativo",
+  1852→          "fr": "Synthèse audio ambiante native",
+  1853→          "pt": "Síntese de áudio ambiente nativo",
+  1854→          "ru": "Нативный синтез пространственного звука",
+  1855→          "zh": "原生环境音合成",
+  1856→          "zh-TW": "原生環境音合成"
+  1857→        },
+  1858→        "pointCostImage": [
+  1859→          {
+  1860→            "audio": false,
+  1861→            "duration": 5,
+  1862→            "point": 100,
+  1863→            "resolution": "720",
+  1864→            "aiType": 14053
+  1865→          },
+  1866→          {
+  1867→            "audio": true,
+  1868→            "duration": 5,
+  1869→            "point": 200,
+  1870→            "resolution": "720",
+  1871→            "aiType": 14054
+  1872→          },
+  1873→          {
+  1874→            "audio": false,
+  1875→            "duration": 5,
+  1876→            "point": 100,
+  1877→            "resolution": "1080",
+  1878→            "aiType": 14055
+  1879→          },
+  1880→          {
+  1881→            "audio": true,
+  1882→            "duration": 5,
+  1883→            "point": 200,
+  1884→            "resolution": "1080",
+  1885→            "aiType": 14056
+  1886→          },
+  1887→          {
+  1888→            "audio": false,
+  1889→            "duration": 10,
+  1890→            "point": 200,
+  1891→            "resolution": "720",
+  1892→            "aiType": 14057
+  1893→          },
+  1894→          {
+  1895→            "audio": true,
+  1896→            "duration": 10,
+  1897→            "point": 400,
+  1898→            "resolution": "720",
+  1899→            "aiType": 14058
+  1900→          },
+  1901→          {
+  1902→            "audio": false,
+  1903→            "duration": 10,
+  1904→            "point": 200,
+  1905→            "resolution": "1080",
+  1906→            "aiType": 14059
+  1907→          },
+  1908→          {
+  1909→            "audio": true,
+  1910→            "duration": 10,
+  1911→            "point": 400,
+  1912→            "resolution": "1080",
+  1913→            "aiType": 14060
+  1914→          }
+  1915→        ],
+  1916→        "supportAudio": true,
+  1917→        "supportModifySize": true,
+  1918→        "videoResolution": [
+  1919→          "720",
+  1920→          "1080"
+  1921→        ],
+  1922→        "videoSize": [
+  1923→          {
+  1924→            "icon": "",
+  1925→            "ratio": "16:9"
+  1926→          },
+  1927→          {
+  1928→            "icon": "",
+  1929→            "ratio": "9:16"
+  1930→          }
+  1931→        ]
+  1932→      },
+  1933→      {
+  1934→        "duration": [
+  1935→          {
+  1936→            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+  1937→            "value": 5
+  1938→          }
+  1939→        ],
+  1940→        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-pixverse-1778726804315-2128.png",
+  1941→        "modelName": "Pixverse V5",
+  1942→        "description": {
+  1943→          "ar": "تأثيرات عصرية وتوليد سريع",
+  1944→          "de": "Trend-Effekte & schnelle Generierung",
+  1945→          "en": "Trendy effects & fast generation",
+  1946→          "es": "Efectos de tendencia y generación rápida",
+  1947→          "fr": "Effets tendance et génération rapide",
+  1948→          "pt": "Efeitos tendência e geração rápida",
+  1949→          "ru": "Модные эффекты и быстрая генерация",
+  1950→          "zh": "潮流特效极速生成",
+  1951→          "zh-TW": "潮流特效極速生成"
+  1952→        },
+  1953→        "pointCostImage": [
+  1954→          {
+  1955→            "audio": false,
+  1956→            "duration": 5,
+  1957→            "point": 5,
+  1958→            "resolution": "360",
+  1959→            "aiType": 14065
+  1960→          },
+  1961→          {
+  1962→            "audio": false,
+  1963→            "duration": 5,
+  1964→            "point": 7,
+  1965→            "resolution": "720",
+  1966→            "aiType": 14066
+  1967→          },
+  1968→          {
+  1969→            "audio": false,
+  1970→            "duration": 5,
+  1971→            "point": 13,
+  1972→            "resolution": "1080",
+  1973→            "aiType": 14067
+  1974→          }
+  1975→        ],
+  1976→        "supportAudio": false,
+  1977→        "supportModifySize": false,
+  1978→        "videoResolution": [
+  1979→          "360",
+  1980→          "720",
+  1981→          "1080"
+  1982→        ],
+  1983→        "videoSize": [
+  1984→          {
+  1985→            "icon": "",
+  1986→            "ratio": "1:1"
+  1987→          },
+  1988→          {
+  1989→            "icon": "",
+  1990→            "ratio": "16:9"
+  1991→          },
+  1992→          {
+  1993→            "icon": "",
+  1994→            "ratio": "3:4"
+  1995→          },
+  1996→          {
+  1997→            "icon": "",
+  1998→            "ratio": "4:3"
+  1999→          },
+  2000→          {
+
+[showing lines 1-2000 of 2200; use offset=2001 with limit to continue reading]
