@@ -1,0 +1,110 @@
+{
+  "homepage": {
+    "url": "https://www.oreateai.com",
+    "status_code": "200",
+    "response_time_ms": "298",
+    "content_length": "15884",
+    "redirects": "0",
+    "final_url": "https://www.oreateai.com/"
+  },
+  "ai_video_page": {
+    "url": "https://www.oreateai.com/home/vertical/aiVideo",
+    "status_code": "200",
+    "response_time_ms": "141",
+    "content_length": "185460",
+    "redirects": "0",
+    "final_url": "https://www.oreateai.com/home/vertical/aiVideo",
+    "auth_valid": true,
+    "content_checks": {
+      "AI Video text": true,
+      "Motion Mimicry": false,
+      "Kling model": false,
+      "720P option": false,
+      "Credits text": false,
+      "Add Motion btn": false,
+      "Character btn": false
+    },
+    "title": "AI Generated Videos - Create Videos from Text or Images"
+  },
+  "user_api": {
+    "/api/user/info": {
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/user/profile": {
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/v1/user/info": {
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/user/getInfo": {
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/account/info": {
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    }
+  },
+  "ai_video_api": {
+    "/api/ai/video/config": {
+      "method": "GET",
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/aiVideo/config": {
+      "method": "GET",
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/video/models": {
+      "method": "GET",
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/ai/video/models": {
+      "method": "GET",
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    },
+    "/api/aiVideo/modelList": {
+      "method": "GET",
+      "status": "777",
+      "time_ms": "57",
+      "body_preview": "(empty)"
+    }
+  },
+  "credits": {
+    "/api/user/credits": {
+      "status": "777",
+      "body_preview": "(empty)"
+    },
+    "/api/user/balance": {
+      "status": "777",
+      "body_preview": "(empty)"
+    },
+    "/api/credits/balance": {
+      "status": "777",
+      "body_preview": "(empty)"
+    },
+    "/api/aiVideo/quota": {
+      "status": "777",
+      "body_preview": "(empty)"
+    },
+    "/api/user/quota": {
+      "status": "777",
+      "body_preview": "(empty)"
+    }
+  }
+}
