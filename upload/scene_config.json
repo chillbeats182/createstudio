@@ -1,0 +1,344 @@
+{
+  "status": {
+    "code": 0,
+    "msg": "success",
+    "errMsg": "success",
+    "sLogid": "4222381862"
+  },
+  "data": {
+    "scenes": [
+      {
+        "sceneId": "text_or_image",
+        "sceneName": {
+          "ar": "نص/صورة إلى فيديو",
+          "de": "Text/Bild zu Video",
+          "en": "Text/Image to Video",
+          "es": "Texto/Imagen a Vídeo",
+          "fr": "Texte/Image vers Vidéo",
+          "pt": "Texto/Imagem para Vídeo",
+          "ru": "Текст/Изображение в Видео",
+          "zh": "文/图生视频",
+          "zh-TW": "文/圖生影片"
+        },
+        "sceneIcon": "https://cdn.oreateai.com/static/assets/home/imageToVideo-1782120278359-8164.svg",
+        "description": {
+          "ar": "إنشاء فيديو من نص أو صور",
+          "de": "Erstelle ein Video aus Text oder Bildern",
+          "en": "Generate video from text or images",
+          "es": "Generar vídeos a partir de texto o imágenes",
+          "fr": "Générer une vidéo à partir de textes ou d'images",
+          "pt": "Gerar vídeo a partir de texto ou imagens",
+          "ru": "Создание видео из текста или изображений",
+          "zh": "通过文本或图片生成视频",
+          "zh-TW": "透過文字或圖片生成影片"
+        },
+        "factory": [
+          {
+            "modelFactoryName": "Wan",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+            "models": [
+              {
+                "modelName": "Wan 2.7",
+                "restrictions": "{\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              },
+              {
+                "modelName": "Wan 2.6",
+                "restrictions": "{\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              },
+              {
+                "modelName": "Wan 2.5",
+                "restrictions": "{\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Seedance",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+            "models": [
+              {
+                "modelName": "Seedance 2.0 Mini",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 2.0 Fast",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 1.5 Pro",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 2.0",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Kling",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+            "models": [
+              {
+                "modelName": "Kling 3.0",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling 3.0 Omni",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling 2.6",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling o1",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling 2.5",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Veo",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+            "models": [
+              {
+                "modelName": "Veo 3.1",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Veo 3",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Pixverse",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-pixverse-1778726804315-2128.png",
+            "models": [
+              {
+                "modelName": "Pixverse V5",
+                "restrictions": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "sceneId": "frame_based",
+        "sceneName": {
+          "ar": "الإطار الأول والأخير إلى فيديو",
+          "de": "Erstes und letztes Frame zu Video",
+          "en": "First & Last Frame to Video",
+          "es": "Primer y Último Fotograma a Vídeo",
+          "fr": "Première et Dernière Image vers Vidéo",
+          "pt": "Primeiro e Último Quadro para Vídeo",
+          "ru": "Первый и последний кадр в видео",
+          "zh": "首尾帧生视频",
+          "zh-TW": "首尾幀生影片"
+        },
+        "sceneIcon": "https://cdn.oreateai.com/static/assets/home/frameToVideo-1782120278018-3665.svg",
+        "description": {
+          "ar": "إنشاء فيديو بتحديد الإطار الأول والأخير",
+          "de": "Erstelle ein Video durch Angabe des ersten und letzten Frames",
+          "en": "Generate video by specifying the first and last frames",
+          "es": "Generar vídeo especificando el primer y último fotograma",
+          "fr": "Générer une vidéo en spécifiant la première et la dernière image",
+          "pt": "Gere vídeo especificando o primeiro e o último quadro",
+          "ru": "Создайте видео, указав первый и последний кадры",
+          "zh": "指定首帧和尾帧生成视频",
+          "zh-TW": "指定首幀和尾幀生成影片"
+        },
+        "factory": [
+          {
+            "modelFactoryName": "Wan",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+            "models": [
+              {
+                "modelName": "Wan 2.7",
+                "restrictions": "{\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Seedance",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+            "models": [
+              {
+                "modelName": "Seedance 2.0 Mini",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 2.0 Fast",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 1.5 Pro",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Seedance 2.0",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Kling",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+            "models": [
+              {
+                "modelName": "Kling 3.0",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling 3.0 Omni",
+                "restrictions": ""
+              },
+              {
+                "modelName": "Kling o1",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Veo",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+            "models": [
+              {
+                "modelName": "Veo 3.1",
+                "restrictions": ""
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Pixverse",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-pixverse-1778726804315-2128.png",
+            "models": [
+              {
+                "modelName": "Pixverse V5",
+                "restrictions": ""
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "sceneId": "reference",
+        "sceneName": {
+          "ar": "مرجع إلى فيديو",
+          "de": "Referenz zu Video",
+          "en": "Reference to Video",
+          "es": "Referencia a Vídeo",
+          "fr": "Référence vers Vidéo",
+          "pt": "Referência para Vídeo",
+          "ru": "Референс в Видео",
+          "zh": "参考生视频",
+          "zh-TW": "參考生影片"
+        },
+        "sceneIcon": "https://cdn.oreateai.com/static/assets/home/refToVideo-1782120279048-2590.svg",
+        "description": {
+          "ar": "إنشاء فيديو بناءً على صورة مرجعية",
+          "de": "Erstelle ein Video anhand eines Referenzbilds",
+          "en": "Generate video based on reference image",
+          "es": "Generar vídeo basado en imagen de referencia",
+          "fr": "Générer une vidéo basée sur une image de référence",
+          "pt": "Gerar vídeo com base em uma imagem de referência",
+          "ru": "Создание видео на основе референсного изображения",
+          "zh": "基于参考图生成视频",
+          "zh-TW": "基於參考圖生成影片"
+        },
+        "factory": [
+          {
+            "modelFactoryName": "Wan",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+            "models": [
+              {
+                "modelName": "Wan 2.7",
+                "restrictions": "{\"inputGroups\":[{\"min\":1,\"max\":5,\"slots\":[\"image\",\"video\"]}],\"inputSlots\":{\"video\":{\"durationSec\":[1,5],\"totalDurationSecMax\":5}},\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              },
+              {
+                "modelName": "Wan 2.6",
+                "restrictions": "{\"inputGroups\":[{\"min\":1,\"max\":5,\"slots\":[\"image\",\"video\"]}],\"inputSlots\":{\"video\":{\"durationSec\":[1,5],\"totalDurationSecMax\":5}},\"paramsOverride\":{\"supportAudio\":{\"values\":[true]}}}"
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Seedance",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+            "models": [
+              {
+                "modelName": "Seedance 2.0 Mini",
+                "restrictions": "{\"inputSlots\":{\"video\":{\"min\":0,\"max\":3,\"totalDurationSecMax\":15,\"totalDurationSecMin\":2},\"image\":{\"min\":0,\"max\":9}}}"
+              },
+              {
+                "modelName": "Seedance 2.0 Fast",
+                "restrictions": "{\"inputSlots\":{\"video\":{\"min\":0,\"max\":3,\"totalDurationSecMax\":15,\"totalDurationSecMin\":2},\"image\":{\"min\":0,\"max\":9}}}"
+              },
+              {
+                "modelName": "Seedance 2.0",
+                "restrictions": "{\"inputSlots\":{\"video\":{\"min\":0,\"max\":3,\"totalDurationSecMax\":15,\"totalDurationSecMin\":2},\"image\":{\"min\":0,\"max\":9}}}"
+              }
+            ]
+          },
+          {
+            "modelFactoryName": "Kling",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+            "models": [
+              {
+                "modelName": "Kling 3.0 Omni",
+                "restrictions": "{\"promptMaxChars\":2500,\"inputSlots\":{\"video\":{\"min\":0,\"max\":1,\"pixelRange\":[720,2160],\"durationSec\":[3,10]},\"image\":{\"min\":0,\"max\":7}},\"slotRules\":[{\"when\":{\"video\":\">=1\"},\"then\":{\"image.max\":3}},{\"when\":{\"image\":\">=4\"},\"then\":{\"video.max\":0}}],\"paramsOverride\":{\"videoResolution\":{\"values\":[\"720\",\"1080\"]},\"supportModifySize\":{\"values\":true},\"supportAudio\":{\"valuesWhen\":[{\"when\":{\"video\":\">=1\"},\"values\":[]}]},\"keepOriginalSound\":{\"valuesWhen\":[{\"when\":{\"video\":\">=1\"},\"values\":[true,false]}]}}}"
+              },
+              {
+                "modelName": "Kling o1",
+                "restrictions": "{\"promptMaxChars\":2500,\"inputSlots\":{\"video\":{\"min\":0,\"max\":1,\"pixelRange\":[720,2160],\"durationSec\":[3,10]},\"image\":{\"min\":0,\"max\":7}},\"slotRules\":[{\"when\":{\"video\":\">=1\"},\"then\":{\"image.max\":3}},{\"when\":{\"image\":\">=4\"},\"then\":{\"video.max\":0}}],\"paramsOverride\":{\"videoResolution\":{\"values\":[\"720\",\"1080\"]},\"supportModifySize\":{\"values\":true},\"supportAudio\":{\"valuesWhen\":[{\"when\":{\"video\":\">=1\"},\"values\":[]}]},\"keepOriginalSound\":{\"valuesWhen\":[{\"when\":{\"video\":\">=1\"},\"values\":[true,false]}]}}}"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "sceneId": "motion",
+        "sceneName": {
+          "ar": "محاكاة الحركة",
+          "de": "Bewegungsimitation",
+          "en": "Motion Mimicry",
+          "es": "Imitación de Movimiento",
+          "fr": "Imitation du Mouvement",
+          "pt": "Mímica de Movimento",
+          "ru": "Имитация движения",
+          "zh": "动作模仿",
+          "zh-TW": "動作模仿"
+        },
+        "sceneIcon": "https://cdn.oreateai.com/static/assets/home/motionToVideo-1782120278715-2327.svg",
+        "description": {
+          "ar": "محاكاة حركة الفيديو المرجعي",
+          "de": "Imitiere die Bewegung des Referenzvideos",
+          "en": "Mimic the motion of the reference video",
+          "es": "Imitar el movimiento del vídeo de referencia",
+          "fr": "Imiter le mouvement de la vidéo de référence",
+          "pt": "Imite o movimento do vídeo de referência",
+          "ru": "Копируй движение из референсного видео",
+          "zh": "模仿参考视频的动作",
+          "zh-TW": "模仿參考影片的動作"
+        },
+        "factory": [
+          {
+            "modelFactoryName": "Kling",
+            "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+            "models": [
+              {
+                "modelName": "Kling 3.0",
+                "restrictions": "{\"promptMaxChars\":2500,\"inputSlots\":{\"imitationVideo\":{\"fileSizeMaxMB\":100,\"pixelRange\":[340,3850],\"durationSec\":[3,15]}},\"paramsOverride\":{\"duration\":{\"values\":[]},\"videoSize\":{\"values\":[]},\"supportAudio\":{\"values\":[]},\"keepOriginalSound\":{\"valuesWhen\":[{\"when\":{\"imitationVideo\":\">=1\"},\"values\":[true,false]}]}}}"
+              },
+              {
+                "modelName": "Kling 2.6",
+                "restrictions": "{\"promptMaxChars\":2500,\"inputSlots\":{\"imitationVideo\":{\"fileSizeMaxMB\":100,\"pixelRange\":[340,3850],\"durationSec\":[3,15]}},\"paramsOverride\":{\"duration\":{\"values\":[]},\"videoSize\":{\"values\":[]},\"supportAudio\":{\"values\":[]},\"keepOriginalSound\":{\"valuesWhen\":[{\"when\":{\"imitationVideo\":\">=1\"},\"values\":[true,false]}]}}}"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,2200 @@
+{
+  "status": {
+    "code": 0,
+    "msg": "success",
+    "errMsg": "success",
+    "sLogid": "3231904622"
+  },
+  "data": {
+    "models": [
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+        "modelName": "Wan 2.7",
+        "description": {
+          "ar": "تحرير محلي دقيق للفيديو",
+          "de": "Präzise lokale Videobearbeitung",
+          "en": "Precise local video editing",
+          "es": "Edición local precisa de video",
+          "fr": "Montage vidéo local précis",
+          "pt": "Edição local precisa de vídeo",
+          "ru": "Точный локальный видеомонтаж",
+          "zh": "视频局部精准编辑",
+          "zh-TW": "影片局部精準編輯"
+        },
+        "pointCostImage": [
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14068
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 55,
+            "resolution": "1080",
+            "aiType": 14069
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14070
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 115,
+            "resolution": "1080",
+            "aiType": 14071
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14130
+          },
+          {
+            "duration": 5,
+            "point": 55,
+            "resolution": "1080",
+            "aiType": 14131
+          },
+          {
+            "duration": 10,
+            "point": 60,
+            "resolution": "720",
+            "aiType": 14132
+          },
+          {
+            "duration": 10,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14133
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+        "modelName": "Seedance 2.0 Mini",
+        "description": {
+          "ar": "سرعة أكبر، قيمة أفضل، لا يدعم الأشخاص الحقيقيين",
+          "de": "Mehr Geschwindigkeit, besseres Preis-Leistungs-Verhältnis, unterstützt keine echten Menschen",
+          "en": "More speed, better value, does not support real people",
+          "es": "Más velocidad, mejor valor, no admite personas reales",
+          "fr": "Plus de vitesse, meilleur rapport qualité-prix, ne supporte pas les personnes réelles",
+          "pt": "Mais velocidade, melhor custo-benefício, não suporta pessoas reais",
+          "ru": "Больше скорости, лучшее соотношение цены и качества, не поддерживает реальных людей",
+          "zh": "更快速度，更高性价比，不支持真人",
+          "zh-TW": "更快速度，更高性價比，不支援真人"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 20,
+            "resolution": "480",
+            "aiType": 14198
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 20,
+            "resolution": "480",
+            "aiType": 14199
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14200
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14201
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14202
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14203
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14204
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14205
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 20,
+            "resolution": "480",
+            "aiType": 14206
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 30,
+            "resolution": "480",
+            "aiType": 14207
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14208
+          },
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 40,
+            "resolution": "720",
+            "aiType": 14209
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14210
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 100,
+            "resolution": "720",
+            "aiType": 14211
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14212
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 60,
+            "resolution": "480",
+            "aiType": 14213
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 90,
+            "resolution": "480",
+            "aiType": 14214
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14215
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 150,
+            "resolution": "720",
+            "aiType": 14216
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14217
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "480",
+          "720"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "21:9"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+        "modelName": "Seedance 1.5 Pro",
+        "description": {
+          "ar": "تعبيرات دقيقة بمستوى سينمائي",
+          "de": "Filmqualität-Mikroausdrücke",
+          "en": "Film-quality micro-expressions",
+          "es": "Microexpresiones de nivel cinematográfico",
+          "fr": "Micro-expressions de qualité cinématographique",
+          "pt": "Microexpressões de nível cinematográfico",
+          "ru": "Кинематографические микроэкспрессии",
+          "zh": "电影级微表情",
+          "zh-TW": "電影級微表情"
+        },
+        "pointCostImage": [
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 25,
+            "resolution": "720",
+            "aiType": 14004
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 7,
+            "resolution": "480",
+            "aiType": 14001
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 10,
+            "resolution": "480",
+            "aiType": 14002
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 15,
+            "resolution": "720",
+            "aiType": 14003
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 30,
+            "resolution": "1080",
+            "aiType": 14005
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 65,
+            "resolution": "1080",
+            "aiType": 14006
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 14,
+            "resolution": "480",
+            "aiType": 14007
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 25,
+            "resolution": "480",
+            "aiType": 14008
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14009
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 60,
+            "resolution": "720",
+            "aiType": 14010
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 65,
+            "resolution": "1080",
+            "aiType": 14011
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 135,
+            "resolution": "1080",
+            "aiType": 14012
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "720",
+          "480",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "21:9"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+        "modelName": "Seedance 2.0",
+        "description": {
+          "ar": "نموذج متعدد الوسائط الرائد، لا يدعم الأشخاص الحقيقيين",
+          "de": "Flagship-Multimodal-Modell, unterstützt keine echten Menschen",
+          "en": "Flagship multimodal model, does not support real people",
+          "es": "Modelo multimodal insignia, no admite personas reales",
+          "fr": "Modèle multimodal phare, ne supporte pas les personnes réelles",
+          "pt": "Modelo multimodal premium, não suporta pessoas reais",
+          "ru": "Флагманская мультимодальная модель, не поддерживает реальных людей",
+          "zh": "旗舰多模态模型，不支持真人",
+          "zh-TW": "旗艦多模態模型，不支援真人"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14080
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14081
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14082
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14083
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 225,
+            "resolution": "1080",
+            "aiType": 14084
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 225,
+            "resolution": "1080",
+            "aiType": 14085
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 80,
+            "resolution": "480",
+            "aiType": 14086
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 80,
+            "resolution": "480",
+            "aiType": 14087
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 180,
+            "resolution": "720",
+            "aiType": 14088
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 180,
+            "resolution": "720",
+            "aiType": 14089
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 455,
+            "resolution": "1080",
+            "aiType": 14090
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 455,
+            "resolution": "1080",
+            "aiType": 14091
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 40,
+            "resolution": "480",
+            "aiType": 14092
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 65,
+            "resolution": "480",
+            "aiType": 14093
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 95,
+            "resolution": "480",
+            "aiType": 14094
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 80,
+            "resolution": "480",
+            "aiType": 14095
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 135,
+            "resolution": "480",
+            "aiType": 14096
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 190,
+            "resolution": "480",
+            "aiType": 14097
+          },
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14098
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 140,
+            "resolution": "720",
+            "aiType": 14099
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14100
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 180,
+            "resolution": "720",
+            "aiType": 14101
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 290,
+            "resolution": "720",
+            "aiType": 14102
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 400,
+            "resolution": "720",
+            "aiType": 14103
+          },
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 230,
+            "resolution": "1080",
+            "aiType": 14104
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 360,
+            "resolution": "1080",
+            "aiType": 14105
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 500,
+            "resolution": "1080",
+            "aiType": 14106
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 450,
+            "resolution": "1080",
+            "aiType": 14107
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 700,
+            "resolution": "1080",
+            "aiType": 14108
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 1000,
+            "resolution": "1080",
+            "aiType": 14109
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "480",
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "21:9"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-seedance-1776234178727-7483.svg",
+        "modelName": "Seedance 2.0 Fast",
+        "description": {
+          "ar": "عرض سريع لتأثيرات الرائد، لا يدعم الأشخاص الحقيقيين",
+          "de": "Schnelles Rendern von Flagship-Effekten, unterstützt keine echten Menschen",
+          "en": "Fast rendering of flagship effects, does not support real people",
+          "es": "Renderizado rápido de efectos insignia, no admite personas reales",
+          "fr": "Rendu rapide des effets phare, ne supporte pas les personnes réelles",
+          "pt": "Renderização rápida de efeitos premium, não suporta pessoas reais",
+          "ru": "Быстрый рендеринг флагманских эффектов, не поддерживает реальных людей",
+          "zh": "旗舰效果的快速渲染，不支持真人",
+          "zh-TW": "旗艦效果的快速渲染，不支援真人"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 25,
+            "resolution": "480",
+            "aiType": 14072
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 25,
+            "resolution": "480",
+            "aiType": 14073
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14074
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14075
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 65,
+            "resolution": "480",
+            "aiType": 14076
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 65,
+            "resolution": "480",
+            "aiType": 14077
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 145,
+            "resolution": "720",
+            "aiType": 14078
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 145,
+            "resolution": "720",
+            "aiType": 14079
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 25,
+            "resolution": "480",
+            "aiType": 14110
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 50,
+            "resolution": "480",
+            "aiType": 14111
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 75,
+            "resolution": "480",
+            "aiType": 14112
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 65,
+            "resolution": "480",
+            "aiType": 14113
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 110,
+            "resolution": "480",
+            "aiType": 14114
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 150,
+            "resolution": "480",
+            "aiType": 14115
+          },
+          {
+            "duration": 5,
+            "refDuration": "2-5",
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14116
+          },
+          {
+            "duration": 5,
+            "refDuration": "6-10",
+            "point": 115,
+            "resolution": "720",
+            "aiType": 14117
+          },
+          {
+            "duration": 5,
+            "refDuration": "11-15",
+            "point": 160,
+            "resolution": "720",
+            "aiType": 14118
+          },
+          {
+            "duration": 10,
+            "refDuration": "2-5",
+            "point": 140,
+            "resolution": "720",
+            "aiType": 14119
+          },
+          {
+            "duration": 10,
+            "refDuration": "6-10",
+            "point": 230,
+            "resolution": "720",
+            "aiType": 14120
+          },
+          {
+            "duration": 10,
+            "refDuration": "11-15",
+            "point": 320,
+            "resolution": "720",
+            "aiType": 14121
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "480",
+          "720"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "21:9"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+        "modelName": "Kling 3.0",
+        "description": {
+          "ar": "لوحة قصة سينمائية ممتدة",
+          "de": "Filmstil-Extended-Storyboard",
+          "en": "Film-style storyboard",
+          "es": "Storyboard cinematográfico extendido",
+          "fr": "Storyboard cinématographique étendu",
+          "pt": "Storyboard cinematográfico estendido",
+          "ru": "Кинематографический расширенный сториборд",
+          "zh": "电影感超长分镜",
+          "zh-TW": "電影感超長分鏡"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14013
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14014
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 40,
+            "resolution": "1080",
+            "aiType": 14015
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 65,
+            "resolution": "1080",
+            "aiType": 14016
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 65,
+            "resolution": "720",
+            "aiType": 14017
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 95,
+            "resolution": "720",
+            "aiType": 14018
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 85,
+            "resolution": "1080",
+            "aiType": 14019
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 130,
+            "resolution": "1080",
+            "aiType": 14020
+          }
+        ],
+        "pointCostMotion": [
+          {
+            "motDuration": 3,
+            "point": 25,
+            "resolution": "720",
+            "aiType": 14146
+          },
+          {
+            "motDuration": 3,
+            "point": 35,
+            "resolution": "1080",
+            "aiType": 14147
+          },
+          {
+            "motDuration": 4,
+            "point": 35,
+            "resolution": "720",
+            "aiType": 14148
+          },
+          {
+            "motDuration": 4,
+            "point": 50,
+            "resolution": "1080",
+            "aiType": 14149
+          },
+          {
+            "motDuration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14150
+          },
+          {
+            "motDuration": 5,
+            "point": 60,
+            "resolution": "1080",
+            "aiType": 14151
+          },
+          {
+            "motDuration": 6,
+            "point": 55,
+            "resolution": "720",
+            "aiType": 14152
+          },
+          {
+            "motDuration": 6,
+            "point": 75,
+            "resolution": "1080",
+            "aiType": 14153
+          },
+          {
+            "motDuration": 7,
+            "point": 65,
+            "resolution": "720",
+            "aiType": 14154
+          },
+          {
+            "motDuration": 7,
+            "point": 90,
+            "resolution": "1080",
+            "aiType": 14155
+          },
+          {
+            "motDuration": 8,
+            "point": 75,
+            "resolution": "720",
+            "aiType": 14156
+          },
+          {
+            "motDuration": 8,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14157
+          },
+          {
+            "motDuration": 9,
+            "point": 85,
+            "resolution": "720",
+            "aiType": 14158
+          },
+          {
+            "motDuration": 9,
+            "point": 115,
+            "resolution": "1080",
+            "aiType": 14159
+          },
+          {
+            "motDuration": 10,
+            "point": 95,
+            "resolution": "720",
+            "aiType": 14160
+          },
+          {
+            "motDuration": 10,
+            "point": 130,
+            "resolution": "1080",
+            "aiType": 14161
+          },
+          {
+            "motDuration": 11,
+            "point": 105,
+            "resolution": "720",
+            "aiType": 14162
+          },
+          {
+            "motDuration": 11,
+            "point": 140,
+            "resolution": "1080",
+            "aiType": 14163
+          },
+          {
+            "motDuration": 12,
+            "point": 115,
+            "resolution": "720",
+            "aiType": 14164
+          },
+          {
+            "motDuration": 12,
+            "point": 155,
+            "resolution": "1080",
+            "aiType": 14165
+          },
+          {
+            "motDuration": 13,
+            "point": 125,
+            "resolution": "720",
+            "aiType": 14166
+          },
+          {
+            "motDuration": 13,
+            "point": 170,
+            "resolution": "1080",
+            "aiType": 14167
+          },
+          {
+            "motDuration": 14,
+            "point": 135,
+            "resolution": "720",
+            "aiType": 14168
+          },
+          {
+            "motDuration": 14,
+            "point": 180,
+            "resolution": "1080",
+            "aiType": 14169
+          },
+          {
+            "motDuration": 15,
+            "point": 145,
+            "resolution": "720",
+            "aiType": 14170
+          },
+          {
+            "motDuration": 15,
+            "point": 195,
+            "resolution": "1080",
+            "aiType": 14171
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+        "modelName": "Kling 3.0 Omni",
+        "description": {
+          "ar": "اتساق أدوات الشخصيات",
+          "de": "Konsistenz der Charakter-Requisiten",
+          "en": "Consistency of character props",
+          "es": "Consistencia de accesorios de personajes",
+          "fr": "Cohérence des accessoires de personnages",
+          "pt": "Consistência de adereços de personagens",
+          "ru": "Согласованность реквизита персонажей",
+          "zh": "角色道具一致性",
+          "zh-TW": "角色道具一致性"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14021
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 40,
+            "resolution": "720",
+            "aiType": 14022
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 40,
+            "resolution": "1080",
+            "aiType": 14023
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 50,
+            "resolution": "1080",
+            "aiType": 14024
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 65,
+            "resolution": "720",
+            "aiType": 14025
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 85,
+            "resolution": "720",
+            "aiType": 14026
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 85,
+            "resolution": "1080",
+            "aiType": 14027
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 105,
+            "resolution": "1080",
+            "aiType": 14028
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14122
+          },
+          {
+            "duration": 5,
+            "point": 60,
+            "resolution": "1080",
+            "aiType": 14123
+          },
+          {
+            "duration": 10,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14124
+          },
+          {
+            "duration": 10,
+            "point": 120,
+            "resolution": "1080",
+            "aiType": 14125
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+        "modelName": "Kling 2.6",
+        "description": {
+          "ar": "حركات معقدة وصوت عالي الدقة",
+          "de": "Komplexe Action & HiFi-Audio",
+          "en": "Complex action & high-fidelity audio",
+          "es": "Acciones complejas y audio de alta fidelidad",
+          "fr": "Actions complexes et audio haute fidélité",
+          "pt": "Ações complexas e áudio de alta fidelidade",
+          "ru": "Сложные действия и аудио высокой четкости",
+          "zh": "高难动作与高保真配音",
+          "zh-TW": "高難動作與高保真配音"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 15,
+            "resolution": "720",
+            "aiType": 14032
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 25,
+            "resolution": "1080",
+            "aiType": 14029
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14034
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 50,
+            "resolution": "1080",
+            "aiType": 14030
+          }
+        ],
+        "pointCostMotion": [
+          {
+            "motDuration": 3,
+            "point": 15,
+            "resolution": "720",
+            "aiType": 14172
+          },
+          {
+            "motDuration": 3,
+            "point": 25,
+            "resolution": "1080",
+            "aiType": 14173
+          },
+          {
+            "motDuration": 4,
+            "point": 20,
+            "resolution": "720",
+            "aiType": 14174
+          },
+          {
+            "motDuration": 4,
+            "point": 30,
+            "resolution": "1080",
+            "aiType": 14175
+          },
+          {
+            "motDuration": 5,
+            "point": 25,
+            "resolution": "720",
+            "aiType": 14176
+          },
+          {
+            "motDuration": 5,
+            "point": 40,
+            "resolution": "1080",
+            "aiType": 14177
+          },
+          {
+            "motDuration": 6,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14178
+          },
+          {
+            "motDuration": 6,
+            "point": 50,
+            "resolution": "1080",
+            "aiType": 14179
+          },
+          {
+            "motDuration": 7,
+            "point": 35,
+            "resolution": "720",
+            "aiType": 14180
+          },
+          {
+            "motDuration": 7,
+            "point": 60,
+            "resolution": "1080",
+            "aiType": 14181
+          },
+          {
+            "motDuration": 8,
+            "point": 40,
+            "resolution": "720",
+            "aiType": 14182
+          },
+          {
+            "motDuration": 8,
+            "point": 70,
+            "resolution": "1080",
+            "aiType": 14183
+          },
+          {
+            "motDuration": 9,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14184
+          },
+          {
+            "motDuration": 9,
+            "point": 75,
+            "resolution": "1080",
+            "aiType": 14185
+          },
+          {
+            "motDuration": 10,
+            "point": 50,
+            "resolution": "720",
+            "aiType": 14186
+          },
+          {
+            "motDuration": 10,
+            "point": 80,
+            "resolution": "1080",
+            "aiType": 14187
+          },
+          {
+            "motDuration": 11,
+            "point": 60,
+            "resolution": "720",
+            "aiType": 14188
+          },
+          {
+            "motDuration": 11,
+            "point": 90,
+            "resolution": "1080",
+            "aiType": 14189
+          },
+          {
+            "motDuration": 12,
+            "point": 60,
+            "resolution": "720",
+            "aiType": 14190
+          },
+          {
+            "motDuration": 12,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14191
+          },
+          {
+            "motDuration": 13,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14192
+          },
+          {
+            "motDuration": 13,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14193
+          },
+          {
+            "motDuration": 14,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14194
+          },
+          {
+            "motDuration": 14,
+            "point": 120,
+            "resolution": "1080",
+            "aiType": 14195
+          },
+          {
+            "motDuration": 15,
+            "point": 80,
+            "resolution": "720",
+            "aiType": 14196
+          },
+          {
+            "motDuration": 15,
+            "point": 130,
+            "resolution": "1080",
+            "aiType": 14197
+          }
+        ],
+        "supportAudio": false,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+        "modelName": "Kling o1",
+        "description": {
+          "ar": "تحرير الفيديو بالتعليمات",
+          "de": "Anweisungsbasierte Videobearbeitung",
+          "en": "Instruction-based video editing",
+          "es": "Edición de video basada en instrucciones",
+          "fr": "Montage vidéo par instructions",
+          "pt": "Edição de vídeo baseada em instruções",
+          "ru": "Видеомонтаж на основе инструкций",
+          "zh": "文本指令视频编辑",
+          "zh-TW": "文本指令影片編輯"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 40,
+            "resolution": "1080",
+            "aiType": 14031
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 85,
+            "resolution": "1080",
+            "aiType": 14033
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "point": 45,
+            "resolution": "720",
+            "aiType": 14126
+          },
+          {
+            "duration": 5,
+            "point": 60,
+            "resolution": "1080",
+            "aiType": 14127
+          },
+          {
+            "duration": 10,
+            "point": 90,
+            "resolution": "720",
+            "aiType": 14128
+          },
+          {
+            "duration": 10,
+            "point": 120,
+            "resolution": "1080",
+            "aiType": 14129
+          }
+        ],
+        "supportAudio": false,
+        "supportModifySize": false,
+        "videoResolution": [
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-kling-1776234176802-6712.svg",
+        "modelName": "Kling 2.5",
+        "description": {
+          "ar": "خيار كلاسيكي ومستقر",
+          "de": "Klassische & stabile Wahl",
+          "en": "Classic & stable choice",
+          "es": "Opción clásica y estable",
+          "fr": "Choix classique et stable",
+          "pt": "Escolha clássica e estável",
+          "ru": "Классический и стабильный выбор",
+          "zh": "经典稳定首选",
+          "zh-TW": "經典穩定首選"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 25,
+            "resolution": "1080",
+            "aiType": 14035
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 50,
+            "resolution": "1080",
+            "aiType": 14036
+          }
+        ],
+        "supportAudio": false,
+        "supportModifySize": false,
+        "videoResolution": [
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          },
+          {
+            "icon": "",
+            "ratio": "1:1"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+        "modelName": "Veo 3.1",
+        "description": {
+          "ar": "واقعية مفرطة فائقة الدقة",
+          "de": "Ultrapräziser Hyperrealismus",
+          "en": "Ultra-precise hyper-realism",
+          "es": "Hiperrealismo de ultra precisión",
+          "fr": "Hyperréalisme ultra-précis",
+          "pt": "Hiper-realismo de ultra precisão",
+          "ru": "Ультраточный гиперреализм",
+          "zh": "极高精度超写实",
+          "zh-TW": "極高精度超寫實"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 100,
+            "resolution": "720",
+            "aiType": 14041
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14042
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14043
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 200,
+            "resolution": "1080",
+            "aiType": 14044
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 200,
+            "resolution": "4K",
+            "aiType": 14045
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 300,
+            "resolution": "4K",
+            "aiType": 14046
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14047
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 400,
+            "resolution": "720",
+            "aiType": 14048
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 200,
+            "resolution": "1080",
+            "aiType": 14049
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 400,
+            "resolution": "1080",
+            "aiType": 14050
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 400,
+            "resolution": "4K",
+            "aiType": 14051
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 600,
+            "resolution": "4K",
+            "aiType": 14052
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "720",
+          "1080",
+          "4K"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-veo-1778726728699-8248.png",
+        "modelName": "Veo 3",
+        "description": {
+          "ar": "تركيب الصوت المحيطي الأصلي",
+          "de": "Native Ambient-Audio-Synthese",
+          "en": "Native ambient audio synthesis",
+          "es": "Síntesis de audio ambiental nativo",
+          "fr": "Synthèse audio ambiante native",
+          "pt": "Síntese de áudio ambiente nativo",
+          "ru": "Нативный синтез пространственного звука",
+          "zh": "原生环境音合成",
+          "zh-TW": "原生環境音合成"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 100,
+            "resolution": "720",
+            "aiType": 14053
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14054
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14055
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 200,
+            "resolution": "1080",
+            "aiType": 14056
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 200,
+            "resolution": "720",
+            "aiType": 14057
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 400,
+            "resolution": "720",
+            "aiType": 14058
+          },
+          {
+            "audio": false,
+            "duration": 10,
+            "point": 200,
+            "resolution": "1080",
+            "aiType": 14059
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 400,
+            "resolution": "1080",
+            "aiType": 14060
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": true,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-pixverse-1778726804315-2128.png",
+        "modelName": "Pixverse V5",
+        "description": {
+          "ar": "تأثيرات عصرية وتوليد سريع",
+          "de": "Trend-Effekte & schnelle Generierung",
+          "en": "Trendy effects & fast generation",
+          "es": "Efectos de tendencia y generación rápida",
+          "fr": "Effets tendance et génération rapide",
+          "pt": "Efeitos tendência e geração rápida",
+          "ru": "Модные эффекты и быстрая генерация",
+          "zh": "潮流特效极速生成",
+          "zh-TW": "潮流特效極速生成"
+        },
+        "pointCostImage": [
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 5,
+            "resolution": "360",
+            "aiType": 14065
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 7,
+            "resolution": "720",
+            "aiType": 14066
+          },
+          {
+            "audio": false,
+            "duration": 5,
+            "point": 13,
+            "resolution": "1080",
+            "aiType": 14067
+          }
+        ],
+        "supportAudio": false,
+        "supportModifySize": false,
+        "videoResolution": [
+          "360",
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+        "modelName": "Wan 2.6",
+        "description": {
+          "ar": "مزامنة شفاه واقعية ولوحات قصة",
+          "de": "Realistischer Lip-Sync & Storyboards",
+          "en": "Realistic lip-sync & storyboards",
+          "es": "Sincronización labial realista y storyboards",
+          "fr": "Lip-sync réaliste et storyboards",
+          "pt": "Sincronização labial realista e storyboards",
+          "ru": "Реалистичный липсинк и сториборды",
+          "zh": "拟真口型与分镜",
+          "zh-TW": "擬真口型與分鏡"
+        },
+        "pointCostImage": [
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14061
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 55,
+            "resolution": "1080",
+            "aiType": 14062
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14063
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 115,
+            "resolution": "1080",
+            "aiType": 14064
+          }
+        ],
+        "pointCostReference": [
+          {
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14134
+          },
+          {
+            "duration": 5,
+            "point": 55,
+            "resolution": "1080",
+            "aiType": 14135
+          },
+          {
+            "duration": 10,
+            "point": 60,
+            "resolution": "720",
+            "aiType": 14136
+          },
+          {
+            "duration": 10,
+            "point": 100,
+            "resolution": "1080",
+            "aiType": 14137
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      },
+      {
+        "duration": [
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg",
+            "value": 5
+          },
+          {
+            "icon": "https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg",
+            "value": 10
+          }
+        ],
+        "modelIcon": "https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png",
+        "modelName": "Wan 2.5",
+        "description": {
+          "ar": "قاعدة واقعية سينمائية",
+          "de": "Kinematografische fotorealistische Basis",
+          "en": "Cinematic photorealistic base",
+          "es": "Base fotorrealista cinematográfica",
+          "fr": "Base photoréaliste cinématographique",
+          "pt": "Base fotorrealista cinematográfica",
+          "ru": "Кинематографическая фотореалистичная база",
+          "zh": "电影感写实画面基座",
+          "zh-TW": "電影感寫實畫面基座"
+        },
+        "pointCostImage": [
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 30,
+            "resolution": "720",
+            "aiType": 14037
+          },
+          {
+            "audio": true,
+            "duration": 5,
+            "point": 55,
+            "resolution": "1080",
+            "aiType": 14038
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 70,
+            "resolution": "720",
+            "aiType": 14039
+          },
+          {
+            "audio": true,
+            "duration": 10,
+            "point": 115,
+            "resolution": "1080",
+            "aiType": 14040
+          }
+        ],
+        "supportAudio": true,
+        "supportModifySize": false,
+        "videoResolution": [
+          "720",
+          "1080"
+        ],
+        "videoSize": [
+          {
+            "icon": "",
+            "ratio": "1:1"
+          },
+          {
+            "icon": "",
+            "ratio": "16:9"
+          },
+          {
+            "icon": "",
+            "ratio": "3:4"
+          },
+          {
+            "icon": "",
+            "ratio": "4:3"
+          },
+          {
+            "icon": "",
+            "ratio": "9:16"
+          }
+        ]
+      }
+    ]
+  }
+}

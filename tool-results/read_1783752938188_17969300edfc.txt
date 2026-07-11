@@ -1,0 +1,838 @@
+     1→     1→package main
+     2→     2→
+     3→     3→import (
+     4→     4→        "bytes"
+     5→     5→        "encoding/json"
+     6→     6→        "fmt"
+     7→     7→        "io"
+     8→     8→        "mime/multipart"
+     9→     9→        "net/http"
+    10→    10→        "net/url"
+    11→    11→        "os"
+    12→    12→        "path/filepath"
+    13→    13→        "strings"
+    14→    14→        "time"
+    15→    15→)
+    16→    16→
+    17→    17→const (
+    18→    18→        BaseURL    = "https://www.oreateai.com"
+    19→    19→        APIPrefix  = "/oreate"
+    20→    20→        BizAPIPrefix = "/bizapi"
+    21→    21→)
+    22→    22→
+    23→    23→// ==================== Data Types ====================
+    24→    24→
+    25→    25→type CookieItem struct {
+    26→    26→        Name           string  `json:"name"`
+    27→    27→        Value          string  `json:"value"`
+    28→    28→        Domain         string  `json:"domain,omitempty"`
+    29→    29→        Path           string  `json:"path,omitempty"`
+    30→    30→        ExpirationDate float64 `json:"expirationDate,omitempty"`
+    31→    31→}
+    32→    32→
+    33→    33→type APIStatus struct {
+    34→    34→        Code    int    `json:"code"`
+    35→    35→        Msg     string `json:"msg"`
+    36→    36→        ErrMsg  string `json:"errMsg"`
+    37→    37→        SLogid  string `json:"sLogid"`
+    38→    38→}
+    39→    39→
+    40→    40→type UserInfo struct {
+    41→    41→        Status APIStatus `json:"status"`
+    42→    42→        Data   struct {
+    43→    43→                BasicInfo struct {
+    44→    44→                        Avatar     string `json:"avatar"`
+    45→    45→                        Email      string `json:"email"`
+    46→    46→                        IsLogin    bool   `json:"isLogin"`
+    47→    47→                        Way        int    `json:"way"`
+    48→    48→                        CreateTime int64  `json:"createTime"`
+    49→    49→                        IsNewUser  bool   `json:"isNewUser"`
+    50→    50→                } `json:"basicInfo"`
+    51→    51→                VipInfo struct {
+    52→    52→                        Etime              int64  `json:"etime"`
+    53→    53→                        HasContractPay     bool   `json:"hasContractPay"`
+    54→    54→                        HasEverBoughtExpCard bool `json:"hasEverBoughtExpCard"`
+    55→    55→                        Stime              int64  `json:"stime"`
+    56→    56→                        VipType            int    `json:"vipType"`
+    57→    57→                } `json:"vipInfo"`
+    58→    58→        } `json:"data"`
+    59→    59→}
+    60→    60→
+    61→    61→type RestPoints struct {
+    62→    62→        Status APIStatus `json:"status"`
+    63→    63→        Data   struct {
+    64→    64→                RestPoint int `json:"restPoint"`
+    65→    65→        } `json:"data"`
+    66→    66→}
+    67→    67→
+    68→    68→type ModelConfig struct {
+    69→    69→        Status APIStatus `json:"status"`
+    70→    70→        Data   struct {
+    71→    71→                Models []ModelItem `json:"models"`
+    72→    72→        } `json:"data"`
+    73→    73→}
+    74→    74→
+    75→    75→type ModelItem struct {
+    76→    76→        ModelName    string      `json:"modelName"`
+    77→    77→        ModelIcon    string      `json:"modelIcon"`
+    78→    78→        Description  interface{} `json:"description"`
+    79→    79→        Duration     []Duration  `json:"duration"`
+    80→    80→        Resolution   []Resolution `json:"resolution"`
+    81→    81→        Ratio        []Ratio     `json:"ratio"`
+    82→    82→        SupportAudio interface{} `json:"supportAudio"`
+    83→    83→        PointCost    interface{} `json:"pointCost"`
+    84→    84→}
+    85→    85→
+    86→    86→type Duration struct {
+    87→    87→        Icon  string `json:"icon"`
+    88→    88→        Value int    `json:"value"`
+    89→    89→}
+    90→    90→
+    91→    91→type Resolution struct {
+    92→    92→        Icon  string      `json:"icon"`
+    93→    93→        Value interface{} `json:"value"`
+    94→    94→        Label string      `json:"label"`
+    95→    95→}
+    96→    96→
+    97→    97→type Ratio struct {
+    98→    98→        Icon  string `json:"icon"`
+    99→    99→        Value string `json:"value"`
+   100→   100→        Label string `json:"label"`
+   101→   101→}
+   102→   102→
+   103→   103→type SceneConfig struct {
+   104→   104→        Status APIStatus `json:"status"`
+   105→   105→        Data   struct {
+   106→   106→                Scenes []SceneItem `json:"scenes"`
+   107→   107→        } `json:"data"`
+   108→   108→}
+   109→   109→
+   110→   110→type SceneItem struct {
+   111→   111→        SceneID     string      `json:"sceneId"`
+   112→   112→        SceneName   interface{} `json:"sceneName"`
+   113→   113→        SceneIcon   string      `json:"sceneIcon"`
+   114→   114→        Description interface{} `json:"description"`
+   115→   115→        Slots       interface{} `json:"slots"`
+   116→   116→        Params      SceneParams `json:"params"`
+   117→   117→}
+   118→   118→
+   119→   119→type SceneParams struct {
+   120→   120→        Sizes       ParamGroup `json:"sizes"`
+   121→   121→        Durations   ParamGroup `json:"durations"`
+   122→   122→        Resolutions ParamGroup `json:"resolutions"`
+   123→   123→        SupportAudio ParamGroup `json:"supportAudio"`
+   124→   124→}
+   125→   125→
+   126→   126→type ParamGroup struct {
+   127→   127→        Label interface{} `json:"label"`
+   128→   128→        Values interface{} `json:"values"`
+   129→   129→}
+   130→   130→
+   131→   131→type ChatListItem struct {
+   132→   132→        ChatID   string `json:"chatId"`
+   133→   133→        Title    string `json:"title"`
+   134→   134→        Mode     string `json:"mode"`
+   135→   135→        UpdateAt int64  `json:"updateAt"`
+   136→   136→        CreateTime int64 `json:"createTime"`
+   137→   137→}
+   138→   138→
+   139→   139→type ChatListResponse struct {
+   140→   140→        Status APIStatus `json:"status"`
+   141→   141→        Data   struct {
+   142→   142→                List     []ChatListItem `json:"list"`
+   143→   143→                Total    int            `json:"total"`
+   144→   144→                Page     int            `json:"page"`
+   145→   145→                PageSize int            `json:"pageSize"`
+   146→   146→        } `json:"data"`
+   147→   147→}
+   148→   148→
+   149→   149→type MessageItem struct {
+   150→   150→        ID          string      `json:"id"`
+   151→   151→        Role        string      `json:"role"`
+   152→   152→        Content     string      `json:"content"`
+   153→   153→        ResourceURL string      `json:"resourceURL"`
+   154→   154→        PicWhRate   string      `json:"picWhRate"`
+   155→   155→        CreateTime  int64       `json:"createTime"`
+   156→   156→        Status      int         `json:"status"`
+   157→   157→        Detail      interface{} `json:"detail"`
+   158→   158→}
+   159→   159→
+   160→   160→type MessageListResponse struct {
+   161→   161→        Status APIStatus `json:"status"`
+   162→   162→        Data   struct {
+   163→   163→                List     []MessageItem `json:"list"`
+   164→   164→                Total    int           `json:"total"`
+   165→   165→        } `json:"data"`
+   166→   166→}
+   167→   167→
+   168→   168→type UploadTokenResponse struct {
+   169→   169→        Status APIStatus `json:"status"`
+   170→   170→        Data   struct {
+   171→   171→                KeyList map[string]UploadTokenItem `json:"KeyList"`
+   172→   172→        } `json:"data"`
+   173→   173→}
+   174→   174→
+   175→   175→type UploadTokenItem struct {
+   176→   176→        Bucket     string `json:"bucket"`
+   177→   177→        ObjectPath string `json:"objectPath"`
+   178→   178→        Sessionkey string `json:"sessionkey"`
+   179→   179→}
+   180→   180→
+   181→   181→type PointRecord struct {
+   182→   182→        ID          int    `json:"id"`
+   183→   183→        Type        int    `json:"type"`
+   184→   184→        Points      int    `json:"points"`
+   185→   185→        Description string `json:"description"`
+   186→   186→        CreateTime  int64  `json:"createTime"`
+   187→   187→}
+   188→   188→
+   189→   189→type PointRecordResponse struct {
+   190→   190→        Status APIStatus `json:"status"`
+   191→   191→        Data   struct {
+   192→   192→                List     []PointRecord `json:"list"`
+   193→   193→                Total    int           `json:"total"`
+   194→   194→                Page     int           `json:"page"`
+   195→   195→                PageSize int           `json:"pageSize"`
+   196→   196→        } `json:"data"`
+   197→   197→}
+   198→   198→
+   199→   199→// ==================== API Client ====================
+   200→   200→
+   201→   201→type OreateClient struct {
+   202→   202→        httpClient *http.Client
+   203→   203→        cookies    map[string]string
+   204→   204→        UserAgent  string
+   205→   205→}
+   206→   206→
+   207→   207→func NewOreateClient() *OreateClient {
+   208→   208→        return &OreateClient{
+   209→   209→                httpClient: &http.Client{Timeout: 30 * time.Second},
+   210→   210→                cookies:    make(map[string]string),
+   211→   211→                UserAgent:  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+   212→   212→        }
+   213→   213→}
+   214→   214→
+   215→   215→func (c *OreateClient) SetCookies(cookieJSON string) error {
+   216→   216→        var cookies []CookieItem
+   217→   217→        if err := json.Unmarshal([]byte(cookieJSON), &cookies); err != nil {
+   218→   218→                // Try as name=value;name=value format
+   219→   219→                pairs := strings.Split(cookieJSON, ";")
+   220→   220→                for _, pair := range pairs {
+   221→   221→                        pair = strings.TrimSpace(pair)
+   222→   222→                        parts := strings.SplitN(pair, "=", 2)
+   223→   223→                        if len(parts) == 2 {
+   224→   224→                                c.cookies[parts[0]] = parts[1]
+   225→   225→                        }
+   226→   226→                }
+   227→   227→                return nil
+   228→   228→        }
+   229→   229→        for _, cookie := range cookies {
+   230→   230→                c.cookies[cookie.Name] = cookie.Value
+   231→   231→        }
+   232→   232→        return nil
+   233→   233→}
+   234→   234→
+   235→   235→func (c *OreateClient) newRequest(method, path string, body io.Reader) (*http.Request, error) {
+   236→   236→        req, err := http.NewRequest(method, BaseURL+path, body)
+   237→   237→        if err != nil {
+   238→   238→                return nil, err
+   239→   239→        }
+   240→   240→        req.Header.Set("User-Agent", c.UserAgent)
+   241→   241→        req.Header.Set("Accept", "application/json, text/plain, */*")
+   242→   242→        req.Header.Set("Referer", BaseURL+"/home/vertical/aiVideo")
+   243→   243→        req.Header.Set("Origin", BaseURL)
+   244→   244→        if body != nil {
+   245→   245→                req.Header.Set("Content-Type", "application/json")
+   246→   246→        }
+   247→   247→        for name, value := range c.cookies {
+   248→   248→                req.AddCookie(&http.Cookie{Name: name, Value: value})
+   249→   249→        }
+   250→   250→        return req, nil
+   251→   251→}
+   252→   252→
+   253→   253→func (c *OreateClient) get(path string, params map[string]string) ([]byte, error) {
+   254→   254→        fullPath := path
+   255→   255→        if len(params) > 0 {
+   256→   256→                values := url.Values{}
+   257→   257→                for k, v := range params {
+   258→   258→                        values.Set(k, v)
+   259→   259→                }
+   260→   260→                fullPath = path + "?" + values.Encode()
+   261→   261→        }
+   262→   262→        req, err := c.newRequest("GET", fullPath, nil)
+   263→   263→        if err != nil {
+   264→   264→                return nil, err
+   265→   265→        }
+   266→   266→        resp, err := c.httpClient.Do(req)
+   267→   267→        if err != nil {
+   268→   268→                return nil, err
+   269→   269→        }
+   270→   270→        defer resp.Body.Close()
+   271→   271→        return io.ReadAll(resp.Body)
+   272→   272→}
+   273→   273→
+   274→   274→func (c *OreateClient) postJSON(path string, body interface{}) ([]byte, error) {
+   275→   275→        jsonBody, err := json.Marshal(body)
+   276→   276→        if err != nil {
+   277→   277→                return nil, err
+   278→   278→        }
+   279→   279→        req, err := c.newRequest("POST", path, bytes.NewReader(jsonBody))
+   280→   280→        if err != nil {
+   281→   281→                return nil, err
+   282→   282→        }
+   283→   283→        resp, err := c.httpClient.Do(req)
+   284→   284→        if err != nil {
+   285→   285→                return nil, err
+   286→   286→        }
+   287→   287→        defer resp.Body.Close()
+   288→   288→        return io.ReadAll(resp.Body)
+   289→   289→}
+   290→   290→
+   291→   291→// ==================== API Methods ====================
+   292→   292→
+   293→   293→func (c *OreateClient) GetUserInfo() (*UserInfo, error) {
+   294→   294→        data, err := c.get(APIPrefix+"/user/getuserinfo", nil)
+   295→   295→        if err != nil {
+   296→   296→                return nil, err
+   297→   297→        }
+   298→   298→        var result UserInfo
+   299→   299→        if err := json.Unmarshal(data, &result); err != nil {
+   300→   300→                return nil, err
+   301→   301→        }
+   302→   302→        return &result, nil
+   303→   303→}
+   304→   304→
+   305→   305→func (c *OreateClient) GetRestPoints() (*RestPoints, error) {
+   306→   306→        data, err := c.get(BizAPIPrefix+"/point/getrestpoints", nil)
+   307→   307→        if err != nil {
+   308→   308→                return nil, err
+   309→   309→        }
+   310→   310→        var result RestPoints
+   311→   311→        if err := json.Unmarshal(data, &result); err != nil {
+   312→   312→                return nil, err
+   313→   313→        }
+   314→   314→        return &result, nil
+   315→   315→}
+   316→   316→
+   317→   317→func (c *OreateClient) GetModelConfig() (*ModelConfig, error) {
+   318→   318→        data, err := c.get(APIPrefix+"/aivideo/getmodelconfigv3", nil)
+   319→   319→        if err != nil {
+   320→   320→                return nil, err
+   321→   321→        }
+   322→   322→        var result ModelConfig
+   323→   323→        if err := json.Unmarshal(data, &result); err != nil {
+   324→   324→                return nil, err
+   325→   325→        }
+   326→   326→        return &result, nil
+   327→   327→}
+   328→   328→
+   329→   329→func (c *OreateClient) GetSceneConfig() (*SceneConfig, error) {
+   330→   330→        data, err := c.get(APIPrefix+"/aivideo/getsceneconfig", nil)
+   331→   331→        if err != nil {
+   332→   332→                return nil, err
+   333→   333→        }
+   334→   334→        var result SceneConfig
+   335→   335→        if err := json.Unmarshal(data, &result); err != nil {
+   336→   336→                return nil, err
+   337→   337→        }
+   338→   338→        return &result, nil
+   339→   339→}
+   340→   340→
+   341→   341→func (c *OreateClient) GetChatList(page, pageSize int) (*ChatListResponse, error) {
+   342→   342→        data, err := c.get(APIPrefix+"/memory/getchatlist", map[string]string{
+   343→   343→                "page":     fmt.Sprintf("%d", page),
+   344→   344→                "pageSize": fmt.Sprintf("%d", pageSize),
+   345→   345→        })
+   346→   346→        if err != nil {
+   347→   347→                return nil, err
+   348→   348→        }
+   349→   349→        var result ChatListResponse
+   350→   350→        if err := json.Unmarshal(data, &result); err != nil {
+   351→   351→                return nil, err
+   352→   352→        }
+   353→   353→        return &result, nil
+   354→   354→}
+   355→   355→
+   356→   356→func (c *OreateClient) GetMessageList(chatID string, page, pageSize int) (*MessageListResponse, error) {
+   357→   357→        data, err := c.get(APIPrefix+"/memory/getmessagelist", map[string]string{
+   358→   358→                "chatId":   chatID,
+   359→   359→                "page":     fmt.Sprintf("%d", page),
+   360→   360→                "pageSize": fmt.Sprintf("%d", pageSize),
+   361→   361→        })
+   362→   362→        if err != nil {
+   363→   363→                return nil, err
+   364→   364→        }
+   365→   365→        var result MessageListResponse
+   366→   366→        if err := json.Unmarshal(data, &result); err != nil {
+   367→   367→                return nil, err
+   368→   368→        }
+   369→   369→        return &result, nil
+   370→   370→}
+   371→   371→
+   372→   372→func (c *OreateClient) GetPointRecord(page, pageSize int) (*PointRecordResponse, error) {
+   373→   373→        data, err := c.get(APIPrefix+"/account/getpointrecord", map[string]string{
+   374→   374→                "page":     fmt.Sprintf("%d", page),
+   375→   375→                "pageSize": fmt.Sprintf("%d", pageSize),
+   376→   376→        })
+   377→   377→        if err != nil {
+   378→   378→                return nil, err
+   379→   379→        }
+   380→   380→        var result PointRecordResponse
+   381→   381→        if err := json.Unmarshal(data, &result); err != nil {
+   382→   382→                return nil, err
+   383→   383→        }
+   384→   384→        return &result, nil
+   385→   385→}
+   386→   386→
+   387→   387→func (c *OreateClient) GetUploadToken(filePath string) (*UploadTokenResponse, error) {
+   388→   388→        ext := strings.ToLower(filepath.Ext(filePath))
+   389→   389→        fileName := filepath.Base(filePath)
+   390→   390→        nameWithoutExt := strings.TrimSuffix(fileName, ext)
+   391→   391→        
+   392→   392→        fileInfo, err := os.Stat(filePath)
+   393→   393→        if err != nil {
+   394→   394→                return nil, fmt.Errorf("cannot stat file: %w", err)
+   395→   395→        }
+   396→   396→        
+   397→   397→        body := map[string]interface{}{
+   398→   398→                "mFileList": []map[string]interface{}{
+   399→   399→                        {
+   400→   400→                                "filename": nameWithoutExt,
+   401→   401→                                "fileExt":  strings.TrimPrefix(ext, "."),
+   402→   402→                                "size":     fileInfo.Size(),
+   403→   403→                        },
+   404→   404→                },
+   405→   405→        }
+   406→   406→        
+   407→   407→        // Add source for image files
+   408→   408→        if ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".webp" {
+   409→   409→                body["source"] = "aiImage"
+   410→   410→        }
+   411→   411→        
+   412→   412→        data, err := c.postJSON(APIPrefix+"/convert/getuploadbostoken", body)
+   413→   413→        if err != nil {
+   414→   414→                return nil, err
+   415→   415→        }
+   416→   416→        var result UploadTokenResponse
+   417→   417→        if err := json.Unmarshal(data, &result); err != nil {
+   418→   418→                return nil, err
+   419→   419→        }
+   420→   420→        return &result, nil
+   421→   421→}
+   422→   422→
+   423→   423→func (c *OreateClient) UploadFileToGCS(filePath string, tokenItem UploadTokenItem) error {
+   424→   424→        file, err := os.Open(filePath)
+   425→   425→        if err != nil {
+   426→   426→                return err
+   427→   427→        }
+   428→   428→        defer file.Close()
+   429→   429→        
+   430→   430→        fileInfo, _ := file.Stat()
+   431→   431→        fileSize := fileInfo.Size()
+   432→   432→        
+   433→   433→        // Step 1: Initiate resumable upload
+   434→   434→        uploadURL := fmt.Sprintf("https://%s.storage.googleapis.com/%s", tokenItem.Bucket, tokenItem.ObjectPath)
+   435→   435→        
+   436→   436→        initReq, err := http.NewRequest("POST", uploadURL+"?uploads=", nil)
+   437→   437→        if err != nil {
+   438→   438→                return err
+   439→   439→        }
+   440→   440→        initReq.Header.Set("Authorization", "Bearer "+tokenItem.Sessionkey)
+   441→   441→        initReq.Header.Set("Content-Type", "application/octet-stream")
+   442→   442→        initReq.Header.Set("x-goog-resumable", "start")
+   443→   443→        
+   444→   444→        resp, err := c.httpClient.Do(initReq)
+   445→   445→        if err != nil {
+   446→   446→                return fmt.Errorf("init upload failed: %w", err)
+   447→   447→        }
+   448→   448→        location := resp.Header.Get("Location")
+   449→   449→        resp.Body.Close()
+   450→   450→        if location == "" {
+   451→   451→                return fmt.Errorf("no upload location returned, status: %d", resp.StatusCode)
+   452→   452→        }
+   453→   453→        
+   454→   454→        // Step 2: Upload the file data (single chunk for simplicity)
+   455→   455→        uploadReq, err := http.NewRequest("PUT", location, file)
+   456→   456→        if err != nil {
+   457→   457→                return err
+   458→   458→        }
+   459→   459→        uploadReq.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", fileSize-1, fileSize))
+   460→   460→        uploadReq.Header.Set("Content-Length", fmt.Sprintf("%d", fileSize))
+   461→   461→        
+   462→   462→        uploadResp, err := c.httpClient.Do(uploadReq)
+   463→   463→        if err != nil {
+   464→   464→                return fmt.Errorf("upload data failed: %w", err)
+   465→   465→        }
+   466→   466→        defer uploadResp.Body.Close()
+   467→   467→        
+   468→   468→        if uploadResp.StatusCode != 200 {
+   469→   469→                body, _ := io.ReadAll(uploadResp.Body)
+   470→   470→                return fmt.Errorf("upload failed with status %d: %s", uploadResp.StatusCode, string(body))
+   471→   471→        }
+   472→   472→        
+   473→   473→        return nil
+   474→   474→}
+   475→   475→
+   476→   476→func (c *OreateClient) CreateChat(mode string) (string, error) {
+   477→   477→        bodyData := map[string]interface{}{
+   478→   478→                "mode": mode,
+   479→   479→        }
+   480→   480→        data, err := c.postJSON(APIPrefix+"/create/chat", bodyData)
+   481→   481→        if err != nil {
+   482→   482→                return "", err
+   483→   483→        }
+   484→   484→        var result struct {
+   485→   485→                Status APIStatus `json:"status"`
+   486→   486→                Data   struct {
+   487→   487→                        ChatID string `json:"chatId"`
+   488→   488→                } `json:"data"`
+   489→   489→        }
+   490→   490→        if err := json.Unmarshal(data, &result); err != nil {
+   491→   491→                return "", err
+   492→   492→        }
+   493→   493→        if result.Status.Code != 0 {
+   494→   494→                return "", fmt.Errorf("create chat failed: %s", result.Status.Msg)
+   495→   495→        }
+   496→   496→        return result.Data.ChatID, nil
+   497→   497→}
+   498→   498→
+   499→   499→// VideoConfig represents the video generation configuration
+   500→   500→type VideoConfig struct {
+   501→   501→        ModelName  string `json:"modelName"`
+   502→   502→        Ratio      string `json:"ratio,omitempty"`
+   503→   503→        Resolution string `json:"resolution,omitempty"`
+   504→   504→        Duration   int    `json:"duration,omitempty"`
+   505→   505→        IsAudio    bool   `json:"isAudio"`
+   506→   506→        AiType     int    `json:"aiType"`
+   507→   507→        Scene      string `json:"scene"`
+   508→   508→        Motion     *MotionConfig `json:"motion,omitempty"`
+   509→   509→}
+   510→   510→
+   511→   511→type MotionConfig struct {
+   512→   512→        CharacterImage    string `json:"characterImage"`
+   513→   513→        MotionVideo       string `json:"motionVideo"`
+   514→   514→        MotDuration       string `json:"motDuration"`
+   515→   515→        KeepOriginalSound bool   `json:"keepOriginalSound"`
+   516→   516→}
+   517→   517→
+   518→   518→// SSEEvent represents an SSE event from the stream
+   519→   519→type SSEEvent struct {
+   520→   520→        Event string          `json:"event"`
+   521→   521→        Data  json.RawMessage `json:"data"`
+   522→   522→}
+   523→   523→
+   524→   524→// SendMessage submits a video generation request
+   525→   525→func (c *OreateClient) SendMessage(chatID string, prompt string, videoConfig VideoConfig) error {
+   526→   526→        bodyData := map[string]interface{}{
+   527→   527→                "chatId": chatID,
+   528→   528→                "content": prompt,
+   529→   529→                "videoConfig": videoConfig,
+   530→   530→        }
+   531→   531→        
+   532→   532→        data, err := c.postJSON(APIPrefix+"/memory/createmessage", bodyData)
+   533→   533→        if err != nil {
+   534→   534→                return err
+   535→   535→        }
+   536→   536→        
+   537→   537→        var result struct {
+   538→   538→                Status APIStatus `json:"status"`
+   539→   539→                Data   struct {
+   540→   540→                        MessageID string `json:"messageId"`
+   541→   541→                } `json:"data"`
+   542→   542→        }
+   543→   543→        if err := json.Unmarshal(data, &result); err != nil {
+   544→   544→                return err
+   545→   545→        }
+   546→   546→        if result.Status.Code != 0 {
+   547→   547→                return fmt.Errorf("send message failed: %s", result.Status.Msg)
+   548→   548→        }
+   549→   549→        return nil
+   550→   550→}
+   551→   551→
+   552→   552→// StreamSSE connects to the SSE stream and returns events via channel
+   553→   553→func (c *OreateClient) StreamSSE(chatID string, reqData map[string]interface{}, events chan<- SSEEvent, done chan<- struct{}) {
+   554→   554→        defer close(events)
+   555→   555→        defer close(done)
+   556→   556→        
+   557→   557→        jsonBody, _ := json.Marshal(reqData)
+   558→   558→        
+   559→   559→        req, err := http.NewRequest("GET", BaseURL+APIPrefix+"/sse/stream?chatId="+chatID, bytes.NewReader(jsonBody))
+   560→   560→        if err != nil {
+   561→   561→                events <- SSEEvent{Event: "error", Data: []byte(`{"error":"failed to create request"}`)}
+   562→   562→                return
+   563→   563→        }
+   564→   564→        req.Header.Set("User-Agent", c.UserAgent)
+   565→   565→        req.Header.Set("Accept", "text/event-stream")
+   566→   566→        req.Header.Set("Referer", BaseURL+"/home/vertical/aiVideo")
+   567→   567→        req.Header.Set("Origin", BaseURL)
+   568→   568→        for name, value := range c.cookies {
+   569→   569→                req.AddCookie(&http.Cookie{Name: name, Value: value})
+   570→   570→        }
+   571→   571→        
+   572→   572→        resp, err := c.httpClient.Do(req)
+   573→   573→        if err != nil {
+   574→   574→                events <- SSEEvent{Event: "error", Data: []byte(`{"error":"connection failed"}`)}
+   575→   575→                return
+   576→   576→        }
+   577→   577→        defer resp.Body.Close()
+   578→   578→        
+   579→   579→        decoder := json.NewDecoder(resp.Body)
+   580→   580→        for {
+   581→   581→                var event SSEEvent
+   582→   582→                if err := decoder.Decode(&event); err != nil {
+   583→   583→                        if err != io.EOF {
+   584→   584→                                events <- SSEEvent{Event: "error", Data: []byte(fmt.Sprintf(`{"error":"%s"}`, err.Error()))}
+   585→   585→                        }
+   586→   586→                        break
+   587→   587→                }
+   588→   588→                events <- event
+   589→   589→                if event.Event == "done" || event.Event == "error" {
+   590→   590→                        break
+   591→   591→                }
+   592→   592→        }
+   593→   593→        done <- struct{}{}
+   594→   594→}
+   595→   595→
+   596→   596→// UploadAndGenerate does the full flow: get token, upload, create chat, send message
+   597→   597→func (c *OreateClient) UploadAndGenerate(imagePath, videoPath, prompt, modelName, resolution, duration string, events chan<- string) error {
+   598→   598→        // Step 1: Get upload tokens for both files
+   599→   599→        var imageObjectPath, videoObjectPath string
+   600→   600→        
+   601→   601→        if imagePath != "" {
+   602→   602→                imgTokenResp, err := c.GetUploadToken(imagePath)
+   603→   603→                if err != nil {
+   604→   604→                        return fmt.Errorf("failed to get image upload token: %w", err)
+   605→   605→                }
+   606→   606→                if imgTokenResp.Status.Code != 0 {
+   607→   607→                        return fmt.Errorf("image token error: %s", imgTokenResp.Status.Msg)
+   608→   608→                }
+   609→   609→                // Get the first (only) token item
+   610→   610→                for _, item := range imgTokenResp.Data.KeyList {
+   611→   611→                        events <- fmt.Sprintf("Uploading image to %s/%s...", item.Bucket, item.ObjectPath)
+   612→   612→                        if err := c.UploadFileToGCS(imagePath, item); err != nil {
+   613→   613→                                return fmt.Errorf("failed to upload image: %w", err)
+   614→   614→                        }
+   615→   615→                        imageObjectPath = item.ObjectPath
+   616→   616→                        break
+   617→   617→                }
+   618→   618→                events <- "Image uploaded successfully!"
+   619→   619→        }
+   620→   620→        
+   621→   621→        if videoPath != "" {
+   622→   622→                vidTokenResp, err := c.GetUploadToken(videoPath)
+   623→   623→                if err != nil {
+   624→   624→                        return fmt.Errorf("failed to get video upload token: %w", err)
+   625→   625→                }
+   626→   626→                if vidTokenResp.Status.Code != 0 {
+   627→   627→                        return fmt.Errorf("video token error: %s", vidTokenResp.Status.Msg)
+   628→   628→                }
+   629→   629→                for _, item := range vidTokenResp.Data.KeyList {
+   630→   630→                        events <- fmt.Sprintf("Uploading video to %s/%s...", item.Bucket, item.ObjectPath)
+   631→   631→                        if err := c.UploadFileToGCS(videoPath, item); err != nil {
+   632→   632→                                return fmt.Errorf("failed to upload video: %w", err)
+   633→   633→                        }
+   634→   634→                        videoObjectPath = item.ObjectPath
+   635→   635→                        break
+   636→   636→                }
+   637→   637→                events <- "Video uploaded successfully!"
+   638→   638→        }
+   639→   639→        
+   640→   640→        // Step 2: Create chat
+   641→   641→        events <- "Creating chat session..."
+   642→   642→        chatID, err := c.CreateChat("chat_video")
+   643→   643→        if err != nil {
+   644→   644→                return fmt.Errorf("failed to create chat: %w", err)
+   645→   645→        }
+   646→   646→        events <- fmt.Sprintf("Chat created: %s", chatID)
+   647→   647→        
+   648→   648→        // Step 3: Build video config
+   649→   649→        durationInt := 5
+   650→   650→        if duration != "" {
+   651→   651→                fmt.Sscanf(duration, "%d", &durationInt)
+   652→   652→        }
+   653→   653→        
+   654→   654→        videoConfig := VideoConfig{
+   655→   655→                ModelName:  modelName,
+   656→   656→                Resolution: resolution,
+   657→   657→                Duration:   durationInt,
+   658→   658→                IsAudio:    false,
+   659→   659→                AiType:     0,
+   660→   660→                Scene:      "motion",
+   661→   661→                Motion: &MotionConfig{
+   662→   662→                        CharacterImage:    imageObjectPath,
+   663→   663→                        MotionVideo:       videoObjectPath,
+   664→   664→                        MotDuration:       "15",
+   665→   665→                        KeepOriginalSound: false,
+   666→   666→                },
+   667→   667→        }
+   668→   668→        
+   669→   669→        // Step 4: Send message
+   670→   670→        events <- "Submitting generation request..."
+   671→   671→        if err := c.SendMessage(chatID, prompt, videoConfig); err != nil {
+   672→   672→                return fmt.Errorf("failed to send message: %w", err)
+   673→   673→        }
+   674→   674→        events <- "Generation request submitted! Waiting for result..."
+   675→   675→        
+   676→   676→        return nil
+   677→   677→}
+   678→   678→
+   679→   679→// FullMultipartUpload handles large file uploads with multipart chunks
+   680→   680→func (c *OreateClient) FullMultipartUpload(filePath string, tokenItem UploadTokenItem) error {
+   681→   681→        file, err := os.Open(filePath)
+   682→   682→        if err != nil {
+   683→   683→                return err
+   684→   684→        }
+   685→   685→        defer file.Close()
+   686→   686→        
+   687→   687→        fileInfo, _ := file.Stat()
+   688→   688→        fileSize := fileInfo.Size()
+   689→   689→        ext := strings.ToLower(filepath.Ext(filePath))
+   690→   690→        
+   691→   691→        // Determine content type
+   692→   692→        contentType := "application/octet-stream"
+   693→   693→        switch ext {
+   694→   694→        case ".mp4":
+   695→   695→                contentType = "video/mp4"
+   696→   696→        case ".jpg", ".jpeg":
+   697→   697→                contentType = "image/jpeg"
+   698→   698→        case ".png":
+   699→   699→                contentType = "image/png"
+   700→   700→        case ".webp":
+   701→   701→                contentType = "image/webp"
+   702→   702→        }
+   703→   703→        
+   704→   704→        // Step 1: Initiate resumable upload
+   705→   705→        uploadURL := fmt.Sprintf("https://%s.storage.googleapis.com/%s", tokenItem.Bucket, tokenItem.ObjectPath)
+   706→   706→        
+   707→   707→        initReq, err := http.NewRequest("POST", uploadURL+"?uploads=", nil)
+   708→   708→        if err != nil {
+   709→   709→                return err
+   710→   710→        }
+   711→   711→        initReq.Header.Set("Authorization", "Bearer "+tokenItem.Sessionkey)
+   712→   712→        initReq.Header.Set("Content-Type", contentType)
+   713→   713→        initReq.Header.Set("x-goog-resumable", "start")
+   714→   714→        
+   715→   715→        resp, err := c.httpClient.Do(initReq)
+   716→   716→        if err != nil {
+   717→   717→                return fmt.Errorf("init upload failed: %w", err)
+   718→   718→        }
+   719→   719→        location := resp.Header.Get("Location")
+   720→   720→        resp.Body.Close()
+   721→   721→        if location == "" {
+   722→   722→                return fmt.Errorf("no upload location returned, status: %d", resp.StatusCode)
+   723→   723→        }
+   724→   724→        
+   725→   725→        // Step 2: Upload file in a single request
+   726→   726→        file.Seek(0, 0)
+   727→   727→        uploadReq, err := http.NewRequest("PUT", location, file)
+   728→   728→        if err != nil {
+   729→   729→                return err
+   730→   730→        }
+   731→   731→        uploadReq.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", fileSize-1, fileSize))
+   732→   732→        uploadReq.Header.Set("Content-Length", fmt.Sprintf("%d", fileSize))
+   733→   733→        uploadReq.Header.Set("Content-Type", contentType)
+   734→   734→        
+   735→   735→        uploadResp, err := c.httpClient.Do(uploadReq)
+   736→   736→        if err != nil {
+   737→   737→                return fmt.Errorf("upload data failed: %w", err)
+   738→   738→        }
+   739→   739→        defer uploadResp.Body.Close()
+   740→   740→        
+   741→   741→        if uploadResp.StatusCode != 200 {
+   742→   742→                body, _ := io.ReadAll(uploadResp.Body)
+   743→   743→                return fmt.Errorf("upload failed with status %d: %s", uploadResp.StatusCode, string(body))
+   744→   744→        }
+   745→   745→        
+   746→   746→        return nil
+   747→   747→}
+   748→   748→
+   749→   749→// UploadFile is a convenience method that gets token and uploads
+   750→   750→func (c *OreateClient) UploadFile(filePath string) (string, error) {
+   751→   751→        tokenResp, err := c.GetUploadToken(filePath)
+   752→   752→        if err != nil {
+   753→   753→                return "", err
+   754→   754→        }
+   755→   755→        if tokenResp.Status.Code != 0 {
+   756→   756→                return "", fmt.Errorf("token error: %s", tokenResp.Status.Msg)
+   757→   757→        }
+   758→   758→        
+   759→   759→        for _, item := range tokenResp.Data.KeyList {
+   760→   760→                if err := c.FullMultipartUpload(filePath, item); err != nil {
+   761→   761→                        return "", err
+   762→   762→                }
+   763→   763→                return item.ObjectPath, nil
+   764→   764→        }
+   765→   765→        
+   766→   766→        return "", fmt.Errorf("no upload token received")
+   767→   767→}
+   768→   768→
+   769→   769→// DownloadFile downloads a file from URL to local path
+   770→   770→func DownloadFile(fileURL, localPath string) error {
+   771→   771→        resp, err := http.Get(fileURL)
+   772→   772→        if err != nil {
+   773→   773→                return err
+   774→   774→        }
+   775→   775→        defer resp.Body.Close()
+   776→   776→        
+   777→   777→        if resp.StatusCode != 200 {
+   778→   778→                return fmt.Errorf("download failed with status %d", resp.StatusCode)
+   779→   779→        }
+   780→   780→        
+   781→   781→        out, err := os.Create(localPath)
+   782→   782→        if err != nil {
+   783→   783→                return err
+   784→   784→        }
+   785→   785→        defer out.Close()
+   786→   786→        
+   787→   787→        _, err = io.Copy(out, resp.Body)
+   788→   788→        return err
+   789→   789→}
+   790→   790→
+   791→   791→// MultipartUploadFile handles file upload using multipart form (alternative method)
+   792→   792→func MultipartUploadFile(filePath string, uploadURL, token string) error {
+   793→   793→        file, err := os.Open(filePath)
+   794→   794→        if err != nil {
+   795→   795→                return err
+   796→   796→        }
+   797→   797→        defer file.Close()
+   798→   798→        
+   799→   799→        fileInfo, _ := file.Stat()
+   800→   800→        
+   801→   801→        body := &bytes.Buffer{}
+   802→   802→        writer := multipart.NewWriter(body)
+   803→   803→        
+   804→   804→        part, err := writer.CreateFormFile("file", filepath.Base(filePath))
+   805→   805→        if err != nil {
+   806→   806→                return err
+   807→   807→        }
+   808→   808→        
+   809→   809→        _, err = io.Copy(part, file)
+   810→   810→        if err != nil {
+   811→   811→                return err
+   812→   812→        }
+   813→   813→        
+   814→   814→        writer.Close()
+   815→   815→        
+   816→   816→        req, err := http.NewRequest("POST", uploadURL, body)
+   817→   817→        if err != nil {
+   818→   818→                return err
+   819→   819→        }
+   820→   820→        req.Header.Set("Authorization", "Bearer "+token)
+   821→   821→        req.Header.Set("Content-Type", writer.FormDataContentType())
+   822→   822→        req.ContentLength = int64(body.Len())
+   823→   823→        
+   824→   824→        client := &http.Client{Timeout: 300 * time.Second}
+   825→   825→        resp, err := client.Do(req)
+   826→   826→        if err != nil {
+   827→   827→                return err
+   828→   828→        }
+   829→   829→        defer resp.Body.Close()
+   830→   830→        
+   831→   831→        if resp.StatusCode != 200 {
+   832→   832→                respBody, _ := io.ReadAll(resp.Body)
+   833→   833→                return fmt.Errorf("upload failed with status %d: %s", resp.StatusCode, string(respBody))
+   834→   834→        }
+   835→   835→        
+   836→   836→        _ = fileInfo // suppress unused warning
+   837→   837→        return nil
+   838→   838→}

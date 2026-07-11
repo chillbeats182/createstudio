@@ -1,0 +1,26 @@
+{
+  "/oreate/user/getuserinfo": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":0,\"msg\":\"success\",\"errMsg\":\"success\",\"sLogid\":\"1396604348\",\"exptinfo\":[{\"id\":\"20604_2\"}]},\"data\":{\"basicInfo\":{\"avatar\":\"https://cdn.oreateai.com/static/v1/img/defaultavatar.png\",\"email\":\"b3upmgoo6@mozmail.com\",\"isLogin\":true,\"way\":2,\"createTime\":1783743348,\"isNewUser\":true},\"vipInfo\":{\"etime\":0,\"hasContractPay\":false,\"hasEverBoughtExpCard\":false,\"stime\":0,\"vipType\":0}}}"
+  },
+  "/bizapi/point/getrestpoints": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":0,\"msg\":\"success\",\"errMsg\":\"success\",\"sLogid\":\"1354300329\"},\"data\":{\"restPoint\":70}}"
+  },
+  "/oreate/aivideo/getmodelconfigv3": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":0,\"msg\":\"success\",\"errMsg\":\"success\",\"sLogid\":\"2499431370\"},\"data\":{\"models\":[{\"duration\":[{\"icon\":\"https://cdn.oreateai.com/static/assets/home/video/time-5s-1776234186513-4717.svg\",\"value\":5},{\"icon\":\"https://cdn.oreateai.com/static/assets/home/video/time-10s-1776234187024-7534.svg\",\"value\":10}],\"modelIcon\":\"https://cdn.oreateai.com/static/assets/home/video/model-van-1778726778386-5359.png\",\"modelName\":\"Wan 2.7\",\"description\":{\"ar\":\"تحرير محلي دقيق للفيديو\",\"de\":\"Präzise lokal"
+  },
+  "/oreate/aivideo/getsceneconfig": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":0,\"msg\":\"success\",\"errMsg\":\"success\",\"sLogid\":\"2006911880\"},\"data\":{\"scenes\":[{\"sceneId\":\"text_or_image\",\"sceneName\":{\"ar\":\"نص/صورة إلى فيديو\",\"de\":\"Text/Bild zu Video\",\"en\":\"Text/Image to Video\",\"es\":\"Texto/Imagen a Vídeo\",\"fr\":\"Texte/Image vers Vidéo\",\"pt\":\"Texto/Imagem para Vídeo\",\"ru\":\"Текст/Изображение в Видео\",\"zh\":\"文/图生视频\",\"zh-TW\":\"文/圖生影片\"},\"sceneIcon\":\"https://cdn.oreateai.com/static/assets/home/imageToVideo-1782120278359-8164.svg\",\"description\":{\"ar\":\"إنشاء فيديو من نص"
+  },
+  "/oreate/memory/getchatlist": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":200002,\"msg\":\"params error\",\"errMsg\":\"params error\",\"sLogid\":\"4138148693\"}}"
+  },
+  "/oreate/convert/getuploadbostoken": {
+    "status": 200,
+    "body": "{\"status\":{\"code\":200002,\"msg\":\"params error\",\"errMsg\":\"params error\",\"sLogid\":\"2250758088\"}}"
+  }
+}
