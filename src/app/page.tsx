@@ -529,10 +529,11 @@ function GenerateTab() {
     return 'text';
   }, [isMotion, imageFile]);
 
-  // Upload file to get BOS URL
+  // Upload file: get GCS token then upload via backend proxy
   const uploadFile = useCallback(
     async (file: File, fileName: string, fileExt: string) => {
-      const res = await fetch('/api/oreate/upload-token', {
+      // Step 1: Get upload credentials
+      const tokenRes = await fetch('/api/oreate/upload-token', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -540,25 +541,29 @@ function GenerateTab() {
           files: [{ name: fileName, size: file.size, fileExt, fileName }],
         }),
       });
-      if (!res.ok) throw new Error('Failed to get upload token');
-      const data = await res.json();
-      const cred = data.KeyList?.[fileName];
+      if (!tokenRes.ok) throw new Error('Failed to get upload token');
+      const tokenData = await tokenRes.json();
+      const cred = tokenData.KeyList?.[fileName];
       if (!cred) throw new Error('No upload credential returned');
 
-      // Upload directly to BOS
+      // Step 2: Upload to GCS via backend proxy (avoids CORS)
       const formData = new FormData();
-      formData.append('key', cred.objectPath);
-      formData.append('sessionkey', cred.sessionkey);
       formData.append('file', file);
+      formData.append('bucket', cred.bucket);
+      formData.append('objectPath', cred.objectPath);
+      formData.append('sessionkey', cred.sessionkey);
 
-      const uploadRes = await fetch(`https://${cred.bucket}.bj.bcebos.com`, {
+      const uploadRes = await fetch('/api/oreate/upload-file', {
         method: 'POST',
         body: formData,
       });
       if (!uploadRes.ok) throw new Error('File upload failed');
+      const uploadData = await uploadRes.json();
+
+      const bosUrl = uploadData.url || `https://storage.googleapis.com/${cred.bucket}/${cred.objectPath}`;
 
       return {
-        bos_url: `https://${cred.bucket}.bj.bcebos.com/${cred.objectPath}`,
+        bos_url: bosUrl,
         fileName,
         fileExt,
         size: file.size,
