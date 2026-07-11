@@ -38,6 +38,9 @@
     history: [],
   };
 
+  // Detect if running inside Wails
+  const isWails = !!window.runtime;
+
   // ============================================================
   //  DOM References
   // ============================================================
@@ -113,11 +116,12 @@
   //  Toast Notification
   // ============================================================
   function toast(message, type = 'info') {
+    console.log(`[Toast] ${type}: ${message}`);
     const el = document.createElement('div');
     el.className = 'toast ' + type;
     el.textContent = message;
     $('#toast-container').appendChild(el);
-    setTimeout(() => el.remove(), 4000);
+    setTimeout(() => el.remove(), 5000);
   }
 
   // ============================================================
@@ -151,18 +155,15 @@
     btnConnect.disabled = true;
 
     try {
-      // Use Wails binding
-      let result;
-      if (window.go) {
-        result = await window.go.main.App.Authenticate(raw);
-      } else {
-        // Dev fallback (when opened in browser, not Wails)
-        toast('Running in browser mode — Wails bindings unavailable', 'error');
+      if (!isWails || !window.go) {
+        toast('Running in browser mode — Wails bindings unavailable. Run as desktop app.', 'error');
         connectText.textContent = 'Connect';
         connectSpinner.style.display = 'none';
         btnConnect.disabled = false;
         return;
       }
+
+      const result = await window.go.main.App.Authenticate(raw);
 
       if (result.error) {
         connectError.textContent = result.error;
@@ -179,12 +180,14 @@
       state.restPoint = result.restPoint;
 
       // Load models
-      let modelsResult;
       try {
-        modelsResult = await window.go.main.App.GetModels();
+        const modelsResult = await window.go.main.App.GetModels();
         if (!modelsResult.error) {
           state.models = modelsResult.models || [];
           state.scenes = modelsResult.scenes || [];
+          console.log(`[Models] Loaded ${state.models.length} models, ${state.scenes.length} scenes`);
+        } else {
+          console.error('[Models] Error:', modelsResult.error);
         }
       } catch (e) {
         console.error('Failed to load models:', e);
@@ -262,19 +265,10 @@
   });
 
   function updateSceneUI() {
-    // Show/hide video upload & motion controls
     const isMotion = state.sceneId === 'motion';
     const isReference = state.sceneId === 'reference';
     zoneVideo.style.display = (isMotion || isReference) ? 'flex' : 'none';
     motionControls.style.display = isMotion ? 'block' : 'none';
-
-    // Update upload row layout
-    if (isMotion || isReference) {
-      $('#upload-row').style.display = 'flex';
-    } else {
-      $('#upload-row').style.display = 'flex';
-      zoneVideo.style.display = 'none';
-    }
   }
 
   // ============================================================
@@ -313,6 +307,7 @@
         groupDuration.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         state.duration = d.value;
+        selectAiType(model);
       });
       groupDuration.appendChild(btn);
     });
@@ -328,6 +323,7 @@
         groupResolution.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         state.resolution = r;
+        selectAiType(model);
       });
       groupResolution.appendChild(btn);
     });
@@ -359,6 +355,7 @@
           groupMotDuration.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
           btn.classList.add('active');
           state.motDuration = String(md);
+          selectAiType(model);
         });
         groupMotDuration.appendChild(btn);
       });
@@ -386,6 +383,7 @@
       );
       if (match) state.aiType = match.aiType;
     }
+    console.log(`[Config] aiType=${state.aiType} (scene=${state.sceneId}, duration=${state.duration}, res=${state.resolution})`);
   }
 
   // Keep sound toggle
@@ -394,60 +392,105 @@
   });
 
   // ============================================================
-  //  File Upload (using Wails file dialog)
+  //  File Upload — Wails vs Browser
   // ============================================================
 
   // --- Image Upload ---
-  zoneImage.addEventListener('click', () => fileImage.click());
-  zoneImage.addEventListener('dragover', (e) => { e.preventDefault(); zoneImage.classList.add('drag-over'); });
-  zoneImage.addEventListener('dragleave', () => zoneImage.classList.remove('drag-over'));
-  zoneImage.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zoneImage.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) handleImageFile(file);
-  });
-  fileImage.addEventListener('change', (e) => {
-    if (e.target.files[0]) handleImageFile(e.target.files[0]);
-  });
-  btnClearImage.addEventListener('click', (e) => {
-    e.stopPropagation();
-    clearImage();
-  });
-
-  function handleImageFile(file) {
-    // In Wails, we get the file path from the native dialog
-    // For browser fallback, use URL.createObjectURL
-    if (window.runtime) {
+  function pickImage() {
+    if (isWails && window.go) {
+      // Wails mode: use native file dialog
       window.runtime.OpenFileDialog({
         Title: 'Select Source Image',
-        Filters: [{ Pattern: '*.png;*.jpg;*.jpeg;*.webp', Description: 'Image files' }],
+        Filters: [{ Pattern: '*.png;*.jpg;*.jpeg;*.webp;*.gif', Description: 'Image files' }],
       }).then((path) => {
         if (path) {
+          console.log('[Upload] Image selected (Wails):', path);
           state.imageFilePath = path;
-          // Read and preview
-          window.go.main.App.ReadFileAsBase64(path).then((data) => {
-            if (data) {
-              previewImage.src = 'data:image/png;base64,' + btoa(data);
+          // Read file and preview via Go backend (returns data URL)
+          window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
+            if (dataURL) {
+              previewImage.src = dataURL; // Already a complete data:image/...;base64,... URL
               previewImage.style.display = 'block';
               btnClearImage.style.display = 'flex';
               zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+            } else {
+              console.error('[Upload] Failed to read image file for preview');
+              toast('Failed to preview image', 'error');
             }
+          }).catch((err) => {
+            console.error('[Upload] ReadFileAsDataURL error:', err);
           });
         }
+      }).catch((err) => {
+        console.error('[Upload] OpenFileDialog error:', err);
       });
     } else {
-      // Browser fallback
+      // Browser fallback: trigger hidden file input
+      fileImage.click();
+    }
+  }
+
+  zoneImage.addEventListener('click', (e) => {
+    // Don't trigger if clicking the clear button
+    if (e.target.closest('#btn-clear-image')) return;
+    pickImage();
+  });
+
+  // Browser fallback: handle file input change
+  fileImage.addEventListener('change', (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0];
+      console.log('[Upload] Image selected (browser):', file.name, file.type, file.size);
+      // In browser mode we can't get a real file path, store the File object
+      state.imageFilePath = ''; // Can't use in Wails GenerateVideo
+      state._imageFile = file;
       const url = URL.createObjectURL(file);
       previewImage.src = url;
       previewImage.style.display = 'block';
       btnClearImage.style.display = 'flex';
       zoneImage.querySelector('.upload-placeholder').style.display = 'none';
-      // Store file reference for later
-      state._imageFile = file;
-      state.imageFilePath = file.name;
     }
-  }
+  });
+
+  // Drag-and-drop (works in both modes)
+  zoneImage.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zoneImage.classList.add('drag-over');
+  });
+  zoneImage.addEventListener('dragleave', () => zoneImage.classList.remove('drag-over'));
+  zoneImage.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zoneImage.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) {
+      if (isWails) {
+        // In Wails, drag-and-drop from OS gives us a file path via a different mechanism
+        // For now, use the file object as fallback
+        console.log('[Upload] Image dropped (Wails):', file.name);
+        // The browser File object won't have a real path, show preview only
+        state._imageFile = file;
+        state.imageFilePath = file.name; // Note: this is just the name, not a real path
+        const url = URL.createObjectURL(file);
+        previewImage.src = url;
+        previewImage.style.display = 'block';
+        btnClearImage.style.display = 'flex';
+        zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+        toast('Dropped files may not work for upload. Use the file picker button instead.', 'info');
+      } else {
+        state._imageFile = file;
+        const url = URL.createObjectURL(file);
+        previewImage.src = url;
+        previewImage.style.display = 'block';
+        btnClearImage.style.display = 'flex';
+        zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+      }
+    }
+  });
+
+  btnClearImage.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearImage();
+  });
 
   function clearImage() {
     previewImage.src = '';
@@ -460,49 +503,88 @@
   }
 
   // --- Video Upload ---
-  zoneVideo.addEventListener('click', () => fileVideo.click());
-  zoneVideo.addEventListener('dragover', (e) => { e.preventDefault(); zoneVideo.classList.add('drag-over'); });
-  zoneVideo.addEventListener('dragleave', () => zoneVideo.classList.remove('drag-over'));
-  zoneVideo.addEventListener('drop', (e) => {
-    e.preventDefault();
-    zoneVideo.classList.remove('drag-over');
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith('video/')) handleVideoFile(file);
-  });
-  fileVideo.addEventListener('change', (e) => {
-    if (e.target.files[0]) handleVideoFile(e.target.files[0]);
-  });
-  btnClearVideo.addEventListener('click', (e) => {
-    e.stopPropagation();
-    clearVideo();
-  });
-
-  function handleVideoFile(file) {
-    if (window.runtime) {
+  function pickVideo() {
+    if (isWails && window.go) {
       window.runtime.OpenFileDialog({
         Title: 'Select Motion Video',
         Filters: [{ Pattern: '*.mp4;*.mov;*.avi;*.webm', Description: 'Video files' }],
       }).then((path) => {
         if (path) {
+          console.log('[Upload] Video selected (Wails):', path);
           state.videoFilePath = path;
-          previewVideo.src = 'file://' + path;
-          previewVideo.style.display = 'block';
-          btnClearVideo.style.display = 'flex';
-          zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
-          previewVideo.play().catch(() => {});
+          // For video preview, use Wails asset protocol or data URL
+          window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
+            if (dataURL) {
+              previewVideo.src = dataURL;
+              previewVideo.style.display = 'block';
+              btnClearVideo.style.display = 'flex';
+              zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+              previewVideo.play().catch(() => {});
+            }
+          }).catch((err) => {
+            console.error('[Upload] ReadFileAsDataURL error:', err);
+            // Fallback: just store the path, don't show preview
+            btnClearVideo.style.display = 'flex';
+            zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+          });
         }
+      }).catch((err) => {
+        console.error('[Upload] OpenFileDialog error:', err);
       });
     } else {
+      fileVideo.click();
+    }
+  }
+
+  zoneVideo.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-clear-video')) return;
+    pickVideo();
+  });
+
+  fileVideo.addEventListener('change', (e) => {
+    if (e.target.files[0]) {
+      const file = e.target.files[0];
+      console.log('[Upload] Video selected (browser):', file.name);
+      state.videoFilePath = '';
+      state._videoFile = file;
       const url = URL.createObjectURL(file);
       previewVideo.src = url;
       previewVideo.style.display = 'block';
       btnClearVideo.style.display = 'flex';
       zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
       previewVideo.play().catch(() => {});
-      state._videoFile = file;
-      state.videoFilePath = file.name;
     }
-  }
+  });
+
+  zoneVideo.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    zoneVideo.classList.add('drag-over');
+  });
+  zoneVideo.addEventListener('dragleave', () => zoneVideo.classList.remove('drag-over'));
+  zoneVideo.addEventListener('drop', (e) => {
+    e.preventDefault();
+    zoneVideo.classList.remove('drag-over');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('video/')) {
+      if (isWails) {
+        console.log('[Upload] Video dropped (Wails):', file.name);
+        state._videoFile = file;
+        state.videoFilePath = file.name;
+        toast('Dropped files may not work for upload. Use the file picker button instead.', 'info');
+      }
+      const url = URL.createObjectURL(file);
+      previewVideo.src = url;
+      previewVideo.style.display = 'block';
+      btnClearVideo.style.display = 'flex';
+      zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+      previewVideo.play().catch(() => {});
+    }
+  });
+
+  btnClearVideo.addEventListener('click', (e) => {
+    e.stopPropagation();
+    clearVideo();
+  });
 
   function clearVideo() {
     previewVideo.src = '';
@@ -522,10 +604,27 @@
   async function startGeneration() {
     if (state.isGenerating) return;
 
-    // In browser mode, files are blob-based (need FormData upload)
-    // In Wails mode, files are local paths (Go reads them directly)
-    if (!window.go) {
+    if (!isWails || !window.go) {
       toast('Wails bindings required — run as desktop app', 'error');
+      return;
+    }
+
+    // Validate inputs
+    if (!state.modelName) {
+      toast('Please select a model', 'error');
+      return;
+    }
+
+    const needsImage = state.sceneId === 'text_or_image' || state.sceneId === 'reference' || state.sceneId === 'motion';
+    const needsVideo = state.sceneId === 'motion' || state.sceneId === 'reference';
+
+    if (needsImage && !state.imageFilePath) {
+      toast('Please upload a source image', 'error');
+      return;
+    }
+
+    if (needsVideo && !state.videoFilePath) {
+      toast('Please upload a motion/reference video', 'error');
       return;
     }
 
@@ -536,11 +635,24 @@
     progressSection.style.display = 'block';
     resultSection.style.display = 'none';
     progressFill.style.width = '0%';
+    progressFill.style.background = '';
     progressText.textContent = 'Uploading files…';
 
     try {
       const model = state.models.find((m) => m.modelName === state.modelName);
-      selectAiType(model);
+      if (model) selectAiType(model);
+
+      console.log('[Generate] Starting generation with:', {
+        sceneId: state.sceneId,
+        modelName: state.modelName,
+        duration: state.duration,
+        resolution: state.resolution,
+        videoSize: state.videoSize,
+        aiType: state.aiType,
+        image: state.imageFilePath || '(none)',
+        video: state.videoFilePath || '(none)',
+        prompt: inputPrompt.value || '(empty)',
+      });
 
       const result = await window.go.main.App.GenerateVideo(
         state.imageFilePath || '',
@@ -556,9 +668,13 @@
         state.keepOriginalSound
       );
 
+      console.log('[Generate] Result:', result);
+
       if (result.error) {
         toast('Generation failed: ' + result.error, 'error');
         progressText.textContent = 'Failed: ' + result.error;
+        progressFill.style.width = '100%';
+        progressFill.style.background = 'var(--danger)';
         return;
       }
 
@@ -567,14 +683,19 @@
         progressText.textContent = 'Task submitted — processing…';
         progressFill.style.width = '20%';
         startPolling();
-        toast('Task submitted!', 'success');
+        toast('Task submitted! Waiting for result...', 'success');
       } else {
-        toast('Task submitted (no docId returned)', 'info');
-        progressText.textContent = 'Submitted (polling not available)';
+        // No docId but no error either — check submitResult for clues
+        console.warn('[Generate] No docId returned. submitResult:', result.submitResult);
+        toast('Task submitted but no docId received. Check Go console for details.', 'info');
+        progressText.textContent = 'Submitted (no docId — check console)';
       }
     } catch (err) {
+      console.error('[Generate] Exception:', err);
       toast('Error: ' + (err.message || 'Unknown error'), 'error');
       progressText.textContent = 'Error: ' + (err.message || 'Unknown');
+      progressFill.style.width = '100%';
+      progressFill.style.background = 'var(--danger)';
     } finally {
       state.isGenerating = false;
       btnGenerate.disabled = false;
@@ -589,6 +710,7 @@
   function startPolling() {
     stopPolling();
     state.pollInterval = setInterval(pollTaskStatus, 3000);
+    // Poll immediately
     pollTaskStatus();
   }
 
@@ -608,18 +730,21 @@
       if (result.error) {
         stopPolling();
         progressText.textContent = 'Polling error: ' + result.error;
+        progressFill.style.background = 'var(--danger)';
+        toast('Polling error: ' + result.error, 'error');
         return;
       }
 
       const statusData = result.data || {};
       const status = statusData.status;
 
-      // Update progress
+      console.log(`[Poll] docId=${state.currentDocId} status=${status} progress=${statusData.progress}`);
+
       if (status === 1) {
         // Processing
         const progress = statusData.progress || 50;
         progressFill.style.width = Math.min(90, 20 + progress * 0.7) + '%';
-        progressText.textContent = 'Processing… ' + (progress || '') + '%';
+        progressText.textContent = 'Processing… ' + (progress ? progress + '%' : '');
       } else if (status === 2) {
         // Completed
         stopPolling();
@@ -630,9 +755,10 @@
         if (videoUrl) {
           resultVideo.src = videoUrl;
           resultSection.style.display = 'block';
-          toast('Video generated!', 'success');
+          toast('Video generated successfully!', 'success');
         } else {
-          toast('Completed but no video URL found', 'info');
+          toast('Completed but no video URL in response', 'info');
+          console.log('[Poll] Completed status data:', statusData);
         }
 
         // Update credits
@@ -647,17 +773,19 @@
 
         // Refresh history
         loadHistory();
-      } else if (status === 3 || status === -1) {
+      } else if (status === 3 || status === -1 || status === 4) {
         // Failed
         stopPolling();
         progressFill.style.width = '100%';
         progressFill.style.background = 'var(--danger)';
-        progressText.textContent = 'Failed: ' + (statusData.errorMsg || statusData.error || 'Unknown error');
-        toast('Generation failed', 'error');
-        setTimeout(() => { progressFill.style.background = ''; }, 2000);
+        const errMsg = statusData.errorMsg || statusData.error || statusData.errMsg || 'Unknown error';
+        progressText.textContent = 'Failed: ' + errMsg;
+        toast('Generation failed: ' + errMsg, 'error');
+        console.error('[Poll] Failed status data:', statusData);
+        setTimeout(() => { progressFill.style.background = ''; }, 3000);
       }
     } catch (err) {
-      console.error('Poll error:', err);
+      console.error('[Poll] Error:', err);
     }
   }
 
@@ -722,6 +850,7 @@
         historyList.appendChild(el);
       });
     } catch (e) {
+      console.error('[History] Error:', e);
       historyEmpty.style.display = 'block';
     } finally {
       btnRefreshHistory.disabled = false;
@@ -763,6 +892,8 @@
     state.history = [];
     state.imageFilePath = '';
     state.videoFilePath = '';
+    state._imageFile = null;
+    state._videoFile = null;
     clearImage();
     clearVideo();
     inputPrompt.value = '';
@@ -791,4 +922,5 @@
     }
   });
 
+  console.log('[App] OreateAI Studio frontend loaded. Wails mode:', isWails);
 })();

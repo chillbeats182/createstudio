@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"log"
@@ -56,6 +57,3 @@ func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	fmt.Println("OreateAI Studio started")
 }
-
-// context type alias for Wails
-type context = wails.Context

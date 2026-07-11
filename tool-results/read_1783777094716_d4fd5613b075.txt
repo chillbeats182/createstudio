@@ -1,0 +1,931 @@
+     1→package main
+     2→
+     3→import (
+     4→        "bytes"
+     5→        "encoding/json"
+     6→        "fmt"
+     7→        "io"
+     8→        "mime/multipart"
+     9→        "net/http"
+    10→        "net/url"
+    11→        "os"
+    12→        "path/filepath"
+    13→        "strings"
+    14→        "time"
+    15→)
+    16→
+    17→// ====================================================================
+    18→//  Constants
+    19→// ====================================================================
+    20→
+    21→const (
+    22→        BaseURL = "https://www.oreateai.com"
+    23→        GCSBase = "https://storage.googleapis.com"
+    24→        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    25→)
+    26→
+    27→// ====================================================================
+    28→//  Data Types
+    29→// ====================================================================
+    30→
+    31→// CookieEntry represents a browser cookie
+    32→type CookieEntry struct {
+    33→        Domain        string `json:"domain"`
+    34→        Name          string `json:"name"`
+    35→        Value         string `json:"value"`
+    36→        Path          string `json:"path"`
+    37→        HttpOnly      bool   `json:"httpOnly"`
+    38→        Secure        bool   `json:"secure"`
+    39→        ExpirationDate float64 `json:"expirationDate,omitempty"`
+    40→}
+    41→
+    42→// UserInfo holds user account info
+    43→type UserInfo struct {
+    44→        Avatar    string `json:"avatar"`
+    45→        Email     string `json:"email"`
+    46→        IsLogin   bool   `json:"isLogin"`
+    47→        Way       int    `json:"way"`
+    48→        CreateTime int64 `json:"createTime"`
+    49→        IsNewUser bool   `json:"isNewUser"`
+    50→}
+    51→
+    52→// VipInfo holds VIP subscription info
+    53→type VipInfo struct {
+    54→        Etime               int64 `json:"etime"`
+    55→        HasContractPay      bool  `json:"hasContractPay"`
+    56→        HasEverBoughtExpCard bool `json:"hasEverBoughtExpCard"`
+    57→        Stime               int64 `json:"stime"`
+    58→        VipType             int   `json:"vipType"`
+    59→}
+    60→
+    61→// AuthResult combines user info, VIP info and credits
+    62→type AuthResult struct {
+    63→        UserInfo  UserInfo `json:"userInfo"`
+    64→        VipInfo   VipInfo  `json:"vipInfo"`
+    65→        RestPoint int      `json:"restPoint"`
+    66→        Error     string   `json:"error,omitempty"`
+    67→}
+    68→
+    69→// PointCost represents credit cost for a model configuration
+    70→type PointCost struct {
+    71→        Audio       bool   `json:"audio,omitempty"`
+    72→        Duration    int    `json:"duration,omitempty"`
+    73→        MotDuration int    `json:"motDuration,omitempty"`
+    74→        Point       int    `json:"point"`
+    75→        Resolution  string `json:"resolution"`
+    76→        AiType      int    `json:"aiType"`
+    77→}
+    78→
+    79→// VideoSizeOption represents a video aspect ratio option
+    80→type VideoSizeOption struct {
+    81→        Icon  string `json:"icon"`
+    82→        Ratio string `json:"ratio"`
+    83→}
+    84→
+    85→// DurationOption represents a duration choice
+    86→type DurationOption struct {
+    87→        Icon  string `json:"icon"`
+    88→        Value int    `json:"value"`
+    89→}
+    90→
+    91→// ModelConfig represents a single model's configuration
+    92→type ModelConfig struct {
+    93→        Duration           []DurationOption  `json:"duration"`
+    94→        ModelIcon          string            `json:"modelIcon"`
+    95→        ModelName          string            `json:"modelName"`
+    96→        Description        map[string]string `json:"description"`
+    97→        PointCostImage     []PointCost       `json:"pointCostImage"`
+    98→        PointCostMotion    []PointCost       `json:"pointCostMotion"`
+    99→        PointCostReference []PointCost       `json:"pointCostReference"`
+   100→        SupportAudio       bool              `json:"supportAudio"`
+   101→        SupportModifySize  bool              `json:"supportModifySize"`
+   102→        VideoResolution    []string          `json:"videoResolution"`
+   103→        VideoSize          []VideoSizeOption `json:"videoSize"`
+   104→}
+   105→
+   106→// SceneModel represents a model within a scene's factory
+   107→type SceneModel struct {
+   108→        ModelName   string `json:"modelName"`
+   109→        Restrictions string `json:"restrictions"`
+   110→}
+   111→
+   112→// SceneFactory represents a model factory for a scene
+   113→type SceneFactory struct {
+   114→        ModelFactoryName string        `json:"modelFactoryName"`
+   115→        ModelIcon        string        `json:"modelIcon"`
+   116→        Models           []SceneModel  `json:"models"`
+   117→}
+   118→
+   119→// Scene represents a generation scene
+   120→type Scene struct {
+   121→        SceneID      string                 `json:"sceneId"`
+   122→        SceneName    map[string]string      `json:"sceneName"`
+   123→        SceneIcon    string                 `json:"sceneIcon"`
+   124→        Description  map[string]string      `json:"description"`
+   125→        Factory      []SceneFactory         `json:"factory"`
+   126→}
+   127→
+   128→// ModelsResult holds model and scene configs
+   129→type ModelsResult struct {
+   130→        Models []ModelConfig `json:"models"`
+   131→        Scenes []Scene       `json:"scenes"`
+   132→        Error  string        `json:"error,omitempty"`
+   133→}
+   134→
+   135→// UploadFileMeta is the metadata for a file to upload
+   136→type UploadFileMeta struct {
+   137→        Name     string `json:"name"`
+   138→        Size     int64  `json:"size"`
+   139→        FileExt  string `json:"fileExt"`
+   140→        FileName string `json:"fileName"`
+   141→}
+   142→
+   143→// UploadCredential holds GCS upload info for one file
+   144→type UploadCredential struct {
+   145→        Bucket     string `json:"bucket"`
+   146→        ObjectPath string `json:"objectPath"`
+   147→        SessionKey string `json:"sessionkey"`
+   148→}
+   149→
+   150→// UploadTokenResult holds the upload token response
+   151→type UploadTokenResult struct {
+   152→        KeyList map[string]UploadCredential `json:"KeyList"`
+   153→        Error   string                      `json:"error,omitempty"`
+   154→}
+   155→
+   156→// Attachment represents a file attachment in generation request
+   157→type Attachment struct {
+   158→        BosURL    string `json:"bos_url"`
+   159→        FileName  string `json:"fileName"`
+   160→        FileExt   string `json:"fileExt"`
+   161→        Size      int64  `json:"size"`
+   162→        DocTitle  string `json:"doc_title"`
+   163→        DocType   string `json:"doc_type"`
+   164→        OriginSize int64 `json:"originSize"`
+   165→}
+   166→
+   167→// VideoConfig holds the video generation configuration
+   168→type VideoConfig struct {
+   169→        SceneID    string `json:"sceneId"`
+   170→        ModelName  string `json:"modelName"`
+   171→        Duration   int    `json:"duration"`
+   172→        Resolution string `json:"resolution"`
+   173→        VideoSize  string `json:"videoSize"`
+   174→        AiType     int    `json:"aiType"`
+   175→}
+   176→
+   177→// MotionConfig holds motion-specific configuration
+   178→type MotionConfig struct {
+   179→        CharacterImage     string `json:"characterImage"`
+   180→        MotionVideo        string `json:"motionVideo"`
+   181→        MotDuration        string `json:"motDuration"`
+   182→        KeepOriginalSound  bool   `json:"keepOriginalSound"`
+   183→}
+   184→
+   185→// GenerateRequest is the full generation payload
+   186→type GenerateRequest struct {
+   187→        Mode        string          `json:"mode"`
+   188→        Query       string          `json:"query"`
+   189→        Attachments []Attachment    `json:"attachments"`
+   190→        Motion      *MotionConfig   `json:"motion,omitempty"`
+   191→        HtmlTplID   string          `json:"htmlTplId"`
+   192→        VideoConfig VideoConfig     `json:"videoConfig"`
+   193→}
+   194→
+   195→// GenerateResult holds the generation response
+   196→type GenerateResult struct {
+   197→        Success      bool                   `json:"success"`
+   198→        DocID        string                 `json:"docId"`
+   199→        SubmitResult map[string]interface{} `json:"submitResult"`
+   200→        Error        string                 `json:"error,omitempty"`
+   201→}
+   202→
+   203→// TaskStatusResult holds task polling result
+   204→type TaskStatusResult struct {
+   205→        Status map[string]interface{} `json:"status"`
+   206→        Data   map[string]interface{} `json:"data"`
+   207→        Error  string                 `json:"error,omitempty"`
+   208→}
+   209→
+   210→// HistoryItem represents a single history entry
+   211→type HistoryItem struct {
+   212→        DocID        string                 `json:"docId"`
+   213→        ChatID       string                 `json:"chatId"`
+   214→        Title        string                 `json:"title"`
+   215→        CreateTime   int64                  `json:"createTime"`
+   216→        Status       int                    `json:"status"`
+   217→        VideoURL     string                 `json:"videoUrl,omitempty"`
+   218→        ThumbnailURL string                 `json:"thumbnailUrl,omitempty"`
+   219→        Prompt       string                 `json:"prompt,omitempty"`
+   220→        ModelName    string                 `json:"modelName,omitempty"`
+   221→}
+   222→
+   223→// HistoryResult holds the history response
+   224→type HistoryResult struct {
+   225→        Items    []HistoryItem `json:"items"`
+   226→        Total    int           `json:"total"`
+   227→        Error    string        `json:"error,omitempty"`
+   228→}
+   229→
+   230→// ====================================================================
+   231→//  API Response envelope
+   232→// ====================================================================
+   233→
+   234→type apiStatus struct {
+   235→        Code   int    `json:"code"`
+   236→        Msg    string `json:"msg"`
+   237→        ErrMsg string `json:"errMsg"`
+   238→}
+   239→
+   240→type apiResponse struct {
+   241→        Status apiStatus               `json:"status"`
+   242→        Data   json.RawMessage         `json:"data"`
+   243→}
+   244→
+   245→type authData struct {
+   246→        BasicInfo UserInfo `json:"basicInfo"`
+   247→        VipInfo  VipInfo  `json:"vipInfo"`
+   248→}
+   249→
+   250→type pointsData struct {
+   251→        RestPoint int `json:"restPoint"`
+   252→}
+   253→
+   254→type modelsData struct {
+   255→        Models []ModelConfig `json:"models"`
+   256→}
+   257→
+   258→type scenesData struct {
+   259→        Scenes []Scene `json:"scenes"`
+   260→}
+   261→
+   262→type uploadTokenData struct {
+   263→        KeyList map[string]UploadCredential `json:"KeyList"`
+   264→}
+   265→
+   266→type historyListData struct {
+   267→        ChatList []struct {
+   268→                DocID        string                 `json:"docId"`
+   269→                ChatID       string                 `json:"chatId"`
+   270→                Title        string                 `json:"title"`
+   271→                CreateTime   int64                  `json:"createTime"`
+   272→                Status       int                    `json:"status"`
+   273→                VideoURL     string                 `json:"videoUrl"`
+   274→                ThumbnailURL string                 `json:"thumbnailUrl"`
+   275→                Prompt       string                 `json:"prompt"`
+   276→                ModelName    string                 `json:"modelName"`
+   277→                DocType      int                    `json:"docType"`
+   278→                Extra        map[string]interface{} `json:"extra"`
+   279→        } `json:"chatList"`
+   280→        Total int `json:"total"`
+   281→}
+   282→
+   283→// ====================================================================
+   284→//  OreateAIClient — all API communication
+   285→// ====================================================================
+   286→
+   287→// OreateAIClient handles all communication with OreateAI.com
+   288→type OreateAIClient struct {
+   289→        httpClient *http.Client
+   290→        cookieStr  string
+   291→}
+   292→
+   293→// NewOreateAIClient creates a new client
+   294→func NewOreateAIClient() *OreateAIClient {
+   295→        return &OreateAIClient{
+   296→                httpClient: &http.Client{
+   297→                        Timeout: 60 * time.Second,
+   298→                        // Skip TLS verification for development
+   299→                        // In production, remove the custom Transport
+   300→                },
+   301→        }
+   302→}
+   303→
+   304→// setCookie parses cookie JSON and sets the cookie string
+   305→func (c *OreateAIClient) setCookie(cookieJSON string) error {
+   306→        cookies, err := parseCookies(cookieJSON)
+   307→        if err != nil {
+   308→                return fmt.Errorf("invalid cookie format: %w", err)
+   309→        }
+   310→        if len(cookies) == 0 {
+   311→                return fmt.Errorf("no cookies found in input")
+   312→        }
+   313→        c.cookieStr = buildCookieHeader(cookies)
+   314→        return nil
+   315→}
+   316→
+   317→// newRequest creates a new HTTP request with standard headers
+   318→func (c *OreateAIClient) newRequest(method, path string, body io.Reader) (*http.Request, error) {
+   319→        req, err := http.NewRequest(method, BaseURL+path, body)
+   320→        if err != nil {
+   321→                return nil, err
+   322→        }
+   323→
+   324→        req.Header.Set("User-Agent", UserAgent)
+   325→        req.Header.Set("Accept", "application/json, text/plain, */*")
+   326→        req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+   327→        req.Header.Set("Referer", "https://www.oreateai.com/home/vertical/aiVideo")
+   328→        req.Header.Set("Origin", "https://www.oreateai.com")
+   329→        req.Header.Set("Sec-Fetch-Dest", "empty")
+   330→        req.Header.Set("Sec-Fetch-Mode", "cors")
+   331→        req.Header.Set("Sec-Fetch-Site", "same-origin")
+   332→
+   333→        if c.cookieStr != "" {
+   334→                req.Header.Set("Cookie", c.cookieStr)
+   335→        }
+   336→
+   337→        return req, nil
+   338→}
+   339→
+   340→// doJSON performs a request and decodes the JSON response
+   341→func (c *OreateAIClient) doJSON(req *http.Request) (*apiResponse, error) {
+   342→        resp, err := c.httpClient.Do(req)
+   343→        if err != nil {
+   344→                return nil, fmt.Errorf("request failed: %w", err)
+   345→        }
+   346→        defer resp.Body.Close()
+   347→
+   348→        body, err := io.ReadAll(resp.Body)
+   349→        if err != nil {
+   350→                return nil, fmt.Errorf("read body failed: %w", err)
+   351→        }
+   352→
+   353→        var apiResp apiResponse
+   354→        if err := json.Unmarshal(body, &apiResp); err != nil {
+   355→                return nil, fmt.Errorf("invalid JSON response: %w", err)
+   356→        }
+   357→
+   358→        return &apiResp, nil
+   359→}
+   360→
+   361→// ====================================================================
+   362→//  Cookie Parsing
+   363→// ====================================================================
+   364→
+   365→func parseCookies(input string) ([]CookieEntry, error) {
+   366→        trimmed := strings.TrimSpace(input)
+   367→        if trimmed == "" {
+   368→                return nil, fmt.Errorf("empty input")
+   369→        }
+   370→
+   371→        // Try JSON array
+   372→        var cookies []CookieEntry
+   373→        if err := json.Unmarshal([]byte(trimmed), &cookies); err == nil && len(cookies) > 0 {
+   374→                return cookies, nil
+   375→        }
+   376→
+   377→        // Try semicolon-separated string
+   378→        if strings.Contains(trimmed, ";") {
+   379→                parts := strings.Split(trimmed, ";")
+   380→                for _, part := range parts {
+   381→                        part = strings.TrimSpace(part)
+   382→                        eqIdx := strings.Index(part, "=")
+   383→                        if eqIdx == -1 {
+   384→                                continue
+   385→                        }
+   386→                        name := strings.TrimSpace(part[:eqIdx])
+   387→                        value := strings.TrimSpace(part[eqIdx+1:])
+   388→                        if name == "" {
+   389→                                continue
+   390→                        }
+   391→                        cookies = append(cookies, CookieEntry{
+   392→                                Domain: ".oreateai.com",
+   393→                                Name:   name,
+   394→                                Value:  value,
+   395→                                Path:   "/",
+   396→                        })
+   397→                }
+   398→                if len(cookies) > 0 {
+   399→                        return cookies, nil
+   400→                }
+   401→        }
+   402→
+   403→        return nil, fmt.Errorf("could not parse cookies from input")
+   404→}
+   405→
+   406→func buildCookieHeader(cookies []CookieEntry) string {
+   407→        parts := make([]string, len(cookies))
+   408→        for i, c := range cookies {
+   409→                parts[i] = c.Name + "=" + c.Value
+   410→        }
+   411→        return strings.Join(parts, "; ")
+   412→}
+   413→
+   414→// ====================================================================
+   415→//  Public Methods — called from frontend via Wails bindings
+   416→// ====================================================================
+   417→
+   418→// Authenticate validates the cookie and returns user info + credits
+   419→func (a *App) Authenticate(cookieJSON string) AuthResult {
+   420→        if err := a.apiClient.setCookie(cookieJSON); err != nil {
+   421→                return AuthResult{Error: err.Error()}
+   422→        }
+   423→        a.cookieJSON = cookieJSON
+   424→
+   425→        // Fetch user info
+   426→        userReq, _ := a.apiClient.newRequest("GET", "/oreate/user/getuserinfo", nil)
+   427→        userResp, err := a.apiClient.doJSON(userReq)
+   428→        if err != nil {
+   429→                return AuthResult{Error: fmt.Sprintf("user info request failed: %v", err)}
+   430→        }
+   431→        if userResp.Status.Code != 0 {
+   432→                return AuthResult{Error: fmt.Sprintf("auth failed: %s", userResp.Status.Msg)}
+   433→        }
+   434→
+   435→        var userAuthData authData
+   436→        if err := json.Unmarshal(userResp.Data, &userAuthData); err != nil {
+   437→                return AuthResult{Error: fmt.Sprintf("parse user data failed: %v", err)}
+   438→        }
+   439→
+   440→        // Fetch credits
+   441→        pointsReq, _ := a.apiClient.newRequest("GET", "/bizapi/point/getrestpoints", nil)
+   442→        pointsResp, err := a.apiClient.doJSON(pointsReq)
+   443→        if err != nil {
+   444→                return AuthResult{
+   445→                        UserInfo:  userAuthData.BasicInfo,
+   446→                        VipInfo:   userAuthData.VipInfo,
+   447→                        RestPoint: 0,
+   448→                }
+   449→        }
+   450→
+   451→        var pointsData pointsData
+   452→        restPoint := 0
+   453→        if json.Unmarshal(pointsResp.Data, &pointsData) == nil {
+   454→                restPoint = pointsData.RestPoint
+   455→        }
+   456→
+   457→        return AuthResult{
+   458→                UserInfo:  userAuthData.BasicInfo,
+   459→                VipInfo:   userAuthData.VipInfo,
+   460→                RestPoint: restPoint,
+   461→        }
+   462→}
+   463→
+   464→// GetModels fetches model and scene configurations
+   465→func (a *App) GetModels() ModelsResult {
+   466→        modelReq, _ := a.apiClient.newRequest("GET", "/oreate/aivideo/getmodelconfigv3", nil)
+   467→        modelResp, err := a.apiClient.doJSON(modelReq)
+   468→        if err != nil {
+   469→                return ModelsResult{Error: err.Error()}
+   470→        }
+   471→
+   472→        var modelData modelsData
+   473→        if err := json.Unmarshal(modelResp.Data, &modelData); err != nil {
+   474→                return ModelsResult{Error: fmt.Sprintf("parse models failed: %v", err)}
+   475→        }
+   476→
+   477→        sceneReq, _ := a.apiClient.newRequest("GET", "/oreate/aivideo/getsceneconfig", nil)
+   478→        sceneResp, err := a.apiClient.doJSON(sceneReq)
+   479→        if err != nil {
+   480→                return ModelsResult{Models: modelData.Models, Error: fmt.Sprintf("scenes fetch failed: %v", err)}
+   481→        }
+   482→
+   483→        var sceneData scenesData
+   484→        if err := json.Unmarshal(sceneResp.Data, &sceneData); err != nil {
+   485→                return ModelsResult{Models: modelData.Models, Error: fmt.Sprintf("parse scenes failed: %v", err)}
+   486→        }
+   487→
+   488→        return ModelsResult{
+   489→                Models: modelData.Models,
+   490→                Scenes: sceneData.Scenes,
+   491→        }
+   492→}
+   493→
+   494→// GetUploadToken gets GCS upload credentials for the given files
+   495→func (a *App) GetUploadToken(fileMetasJSON string) UploadTokenResult {
+   496→        var fileMetas []UploadFileMeta
+   497→        if err := json.Unmarshal([]byte(fileMetasJSON), &fileMetas); err != nil {
+   498→                return UploadTokenResult{Error: fmt.Sprintf("invalid file metas: %v", err)}
+   499→        }
+   500→
+   501→        payload := map[string]interface{}{
+   502→                "mFileList": fileMetas,
+   503→        }
+   504→        body, _ := json.Marshal(payload)
+   505→
+   506→        req, _ := a.apiClient.newRequest("POST", "/oreate/convert/getuploadbostoken", bytes.NewReader(body))
+   507→        req.Header.Set("Content-Type", "application/json")
+   508→
+   509→        resp, err := a.apiClient.doJSON(req)
+   510→        if err != nil {
+   511→                return UploadTokenResult{Error: err.Error()}
+   512→        }
+   513→        if resp.Status.Code != 0 {
+   514→                return UploadTokenResult{Error: fmt.Sprintf("upload token error: %s", resp.Status.Msg)}
+   515→        }
+   516→
+   517→        var data uploadTokenData
+   518→        if err := json.Unmarshal(resp.Data, &data); err != nil {
+   519→                return UploadTokenResult{Error: fmt.Sprintf("parse upload token failed: %v", err)}
+   520→        }
+   521→
+   522→        return UploadTokenResult{KeyList: data.KeyList}
+   523→}
+   524→
+   525→// UploadFile uploads a local file to GCS using resumable upload
+   526→func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (string, error) {
+   527→        file, err := os.Open(filePath)
+   528→        if err != nil {
+   529→                return "", fmt.Errorf("cannot open file: %w", err)
+   530→        }
+   531→        defer file.Close()
+   532→
+   533→        stat, _ := file.Stat()
+   534→        fileSize := stat.Size()
+   535→
+   536→        // Determine content type
+   537→        ext := strings.ToLower(filepath.Ext(filePath))
+   538→        contentType := "application/octet-stream"
+   539→        switch ext {
+   540→        case ".png":
+   541→                contentType = "image/png"
+   542→        case ".jpg", ".jpeg":
+   543→                contentType = "image/jpeg"
+   544→        case ".webp":
+   545→                contentType = "image/webp"
+   546→        case ".mp4":
+   547→                contentType = "video/mp4"
+   548→        case ".mov":
+   549→                contentType = "video/quicktime"
+   550→        case ".avi":
+   551→                contentType = "video/x-msvideo"
+   552→        }
+   553→
+   554→        encodedPath := url.QueryEscape(objectPath)
+   555→        uploadURL := fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=resumable&name=%s", GCSBase, bucket, encodedPath)
+   556→
+   557→        // Step 1: Initiate resumable upload
+   558→        initReq, _ := http.NewRequest("POST", uploadURL, nil)
+   559→        initReq.Header.Set("Authorization", "Bearer "+sessionKey)
+   560→        initReq.Header.Set("Content-Type", "application/json")
+   561→        initReq.Header.Set("Content-Length", "0")
+   562→        initReq.Header.Set("x-goog-user-project", "iron-area-433903-r2")
+   563→
+   564→        initResp, err := a.apiClient.httpClient.Do(initReq)
+   565→        if err != nil {
+   566→                return "", fmt.Errorf("GCS init failed: %w", err)
+   567→        }
+   568→        initResp.Body.Close()
+   569→
+   570→        if initResp.StatusCode != 200 && initResp.StatusCode != 201 {
+   571→                return "", fmt.Errorf("GCS init returned status %d", initResp.StatusCode)
+   572→        }
+   573→
+   574→        location := initResp.Header.Get("Location")
+   575→        if location == "" {
+   576→                return "", fmt.Errorf("GCS init returned no Location header")
+   577→        }
+   578→
+   579→        // Step 2: Upload file data
+   580→        buf := new(bytes.Buffer)
+   581→        buf.ReadFrom(file)
+   582→        fileData := buf.Bytes()
+   583→
+   584→        putReq, _ := http.NewRequest("PUT", location, bytes.NewReader(fileData))
+   585→        putReq.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", fileSize-1, fileSize))
+   586→        putReq.Header.Set("Authorization", "Bearer "+sessionKey)
+   587→        putReq.Header.Set("x-goog-user-project", "iron-area-433903-r2")
+   588→        putReq.Header.Set("Content-Type", contentType)
+   589→
+   590→        uploadResp, err := a.apiClient.httpClient.Do(putReq)
+   591→        if err != nil {
+   592→                return "", fmt.Errorf("GCS upload failed: %w", err)
+   593→        }
+   594→        defer uploadResp.Body.Close()
+   595→
+   596→        if uploadResp.StatusCode == 200 || uploadResp.StatusCode == 201 {
+   597→                finalURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, objectPath)
+   598→                return finalURL, nil
+   599→        }
+   600→
+   601→        body, _ := io.ReadAll(uploadResp.Body)
+   602→        return "", fmt.Errorf("GCS upload returned status %d: %s", uploadResp.StatusCode, string(body))
+   603→}
+   604→
+   605→// SubmitGeneration submits a video generation task
+   606→func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
+   607→        var req GenerateRequest
+   608→        if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
+   609→                return GenerateResult{Error: fmt.Sprintf("invalid request: %v", err)}
+   610→        }
+   611→
+   612→        body, _ := json.Marshal(req)
+   613→
+   614→        httpReq, _ := a.apiClient.newRequest("POST", "/oreate/create/chat", bytes.NewReader(body))
+   615→        httpReq.Header.Set("Content-Type", "application/json")
+   616→        httpReq.Header.Set("Accept", "text/event-stream")
+   617→
+   618→        resp, err := a.apiClient.httpClient.Do(httpReq)
+   619→        if err != nil {
+   620→                return GenerateResult{Error: fmt.Sprintf("request failed: %v", err)}
+   621→        }
+   622→        defer resp.Body.Close()
+   623→
+   624→        respBody, _ := io.ReadAll(resp.Body)
+   625→        bodyStr := string(respBody)
+   626→
+   627→        // Try to parse SSE data lines
+   628→        var result map[string]interface{}
+   629→        for _, line := range strings.Split(bodyStr, "\n") {
+   630→                line = strings.TrimSpace(line)
+   631→                if strings.HasPrefix(line, "data:") {
+   632→                        data := strings.TrimPrefix(line, "data:")
+   633→                        data = strings.TrimSpace(data)
+   634→                        if data == "" || data == "[DONE]" {
+   635→                                continue
+   636→                        }
+   637→                        if err := json.Unmarshal([]byte(data), &result); err == nil {
+   638→                                if status, ok := result["status"].(map[string]interface{}); ok {
+   639→                                        if code, ok := status["code"].(float64); ok && code != 0 {
+   640→                                                return GenerateResult{
+   641→                                                        SubmitResult: result,
+   642→                                                        Error:        fmt.Sprintf("generation error: %v", status["msg"]),
+   643→                                                }
+   644→                                        }
+   645→                                }
+   646→                                // Found a valid response with status code 0
+   647→                                break
+   648→                        }
+   649→                }
+   650→        }
+   651→
+   652→        // If no SSE parsed, try direct JSON
+   653→        if result == nil {
+   654→                if err := json.Unmarshal(respBody, &result); err != nil {
+   655→                        return GenerateResult{Error: fmt.Sprintf("invalid response: %s", bodyStr[:min(500, len(bodyStr))])}
+   656→                }
+   657→        }
+   658→
+   659→        // Extract docId
+   660→        docID := ""
+   661→        if data, ok := result["data"].(map[string]interface{}); ok {
+   662→                if id, ok := data["docId"].(string); ok {
+   663→                        docID = id
+   664→                } else if id, ok := data["docID"].(string); ok {
+   665→                        docID = id
+   666→                }
+   667→        }
+   668→
+   669→        return GenerateResult{
+   670→                Success:      true,
+   671→                DocID:        docID,
+   672→                SubmitResult: result,
+   673→        }
+   674→}
+   675→
+   676→// GetTaskStatus polls the status of a generation task
+   677→func (a *App) GetTaskStatus(docID string) TaskStatusResult {
+   678→        req, _ := a.apiClient.newRequest("GET", "/oreate/doc/getstatus?docIdList="+url.QueryEscape(docID), nil)
+   679→
+   680→        resp, err := a.apiClient.doJSON(req)
+   681→        if err != nil {
+   682→                return TaskStatusResult{Error: err.Error()}
+   683→        }
+   684→
+   685→        var data map[string]interface{}
+   686→        json.Unmarshal(resp.Data, &data)
+   687→
+   688→        return TaskStatusResult{
+   689→                Status: map[string]interface{}{"code": resp.Status.Code, "msg": resp.Status.Msg},
+   690→                Data:   data,
+   691→        }
+   692→}
+   693→
+   694→// GetHistory fetches the generation history
+   695→func (a *App) GetHistory(pageNo, pageSize int) HistoryResult {
+   696→        urlPath := fmt.Sprintf("/oreate/memory/getchatlist?pageNo=%d&pageSize=%d&chatType=aiVideo", pageNo, pageSize)
+   697→        req, _ := a.apiClient.newRequest("GET", urlPath, nil)
+   698→
+   699→        resp, err := a.apiClient.doJSON(req)
+   700→        if err != nil {
+   701→                return HistoryResult{Error: err.Error()}
+   702→        }
+   703→
+   704→        var data historyListData
+   705→        if err := json.Unmarshal(resp.Data, &data); err != nil {
+   706→                return HistoryResult{Error: fmt.Sprintf("parse history failed: %v", err)}
+   707→        }
+   708→
+   709→        items := make([]HistoryItem, 0, len(data.ChatList))
+   710→        for _, c := range data.ChatList {
+   711→                items = append(items, HistoryItem{
+   712→                        DocID:        c.DocID,
+   713→                        ChatID:       c.ChatID,
+   714→                        Title:        c.Title,
+   715→                        CreateTime:   c.CreateTime,
+   716→                        Status:       c.Status,
+   717→                        VideoURL:     c.VideoURL,
+   718→                        ThumbnailURL: c.ThumbnailURL,
+   719→                        Prompt:       c.Prompt,
+   720→                        ModelName:    c.ModelName,
+   721→                })
+   722→        }
+   723→
+   724→        return HistoryResult{
+   725→                Items: items,
+   726→                Total: data.Total,
+   727→        }
+   728→}
+   729→
+   730→// GenerateVideo is the all-in-one convenience method: upload + submit
+   731→func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName string, duration int, resolution, videoSize string, aiType int, motDuration string, keepOriginalSound bool) GenerateResult {
+   732→        // Build file list
+   733→        var fileMetas []UploadFileMeta
+   734→
+   735→        if imagePath != "" {
+   736→                ext := strings.TrimPrefix(filepath.Ext(imagePath), ".")
+   737→                name := filepath.Base(imagePath)
+   738→                fileMetas = append(fileMetas, UploadFileMeta{
+   739→                        Name:     name,
+   740→                        FileExt:  ext,
+   741→                        FileName: strings.TrimSuffix(name, "."+ext),
+   742→                })
+   743→                // Set size
+   744→                if stat, err := os.Stat(imagePath); err == nil {
+   745→                        fileMetas[len(fileMetas)-1].Size = stat.Size()
+   746→                }
+   747→        }
+   748→
+   749→        if videoPath != "" {
+   750→                ext := strings.TrimPrefix(filepath.Ext(videoPath), ".")
+   751→                name := filepath.Base(videoPath)
+   752→                fileMetas = append(fileMetas, UploadFileMeta{
+   753→                        Name:     name,
+   754→                        FileExt:  ext,
+   755→                        FileName: strings.TrimSuffix(name, "."+ext),
+   756→                })
+   757→                if stat, err := os.Stat(videoPath); err == nil {
+   758→                        fileMetas[len(fileMetas)-1].Size = stat.Size()
+   759→                }
+   760→        }
+   761→
+   762→        // Get upload credentials
+   763→        metasJSON, _ := json.Marshal(fileMetas)
+   764→        tokenResult := a.GetUploadToken(string(metasJSON))
+   765→        if tokenResult.Error != "" {
+   766→                return GenerateResult{Error: fmt.Sprintf("get upload token failed: %s", tokenResult.Error)}
+   767→        }
+   768→
+   769→        // Upload files
+   770→        uploadedURLs := make(map[string]string)
+   771→        for filename, cred := range tokenResult.KeyList {
+   772→                var fPath string
+   773→                if imagePath != "" && filepath.Base(imagePath) == filename {
+   774→                        fPath = imagePath
+   775→                } else if videoPath != "" && filepath.Base(videoPath) == filename {
+   776→                        fPath = videoPath
+   777→                }
+   778→                if fPath == "" {
+   779→                        continue
+   780→                }
+   781→
+   782→                url, err := a.UploadFile(fPath, cred.Bucket, cred.ObjectPath, cred.SessionKey)
+   783→                if err != nil {
+   784→                        return GenerateResult{Error: fmt.Sprintf("upload %s failed: %v", filename, err)}
+   785→                }
+   786→                uploadedURLs[filename] = url
+   787→        }
+   788→
+   789→        // Build attachments
+   790→        var attachments []Attachment
+   791→        characterURL := ""
+   792→        motionURL := ""
+   793→
+   794→        if videoPath != "" {
+   795→                name := filepath.Base(videoPath)
+   796→                ext := strings.TrimPrefix(filepath.Ext(videoPath), ".")
+   797→                stat, _ := os.Stat(videoPath)
+   798→                motionURL = uploadedURLs[name]
+   799→                attachments = append(attachments, Attachment{
+   800→                        BosURL:     motionURL,
+   801→                        FileName:   name,
+   802→                        FileExt:    ext,
+   803→                        Size:       stat.Size(),
+   804→                        DocTitle:   name,
+   805→                        DocType:    ext,
+   806→                        OriginSize: stat.Size(),
+   807→                })
+   808→        }
+   809→
+   810→        if imagePath != "" {
+   811→                name := filepath.Base(imagePath)
+   812→                ext := strings.TrimPrefix(filepath.Ext(imagePath), ".")
+   813→                stat, _ := os.Stat(imagePath)
+   814→                characterURL = uploadedURLs[name]
+   815→                attachments = append(attachments, Attachment{
+   816→                        BosURL:     characterURL,
+   817→                        FileName:   name,
+   818→                        FileExt:    ext,
+   819→                        Size:       stat.Size(),
+   820→                        DocTitle:   name,
+   821→                        DocType:    ext,
+   822→                        OriginSize: stat.Size(),
+   823→                })
+   824→        }
+   825→
+   826→        // Build generation request
+   827→        req := GenerateRequest{
+   828→                Mode:        "chat_video",
+   829→                Query:       prompt,
+   830→                Attachments: attachments,
+   831→                HtmlTplID:   "",
+   832→                VideoConfig: VideoConfig{
+   833→                        SceneID:    sceneID,
+   834→                        ModelName:  modelName,
+   835→                        Duration:   duration,
+   836→                        Resolution: resolution,
+   837→                        VideoSize:  videoSize,
+   838→                        AiType:     aiType,
+   839→                },
+   840→        }
+   841→
+   842→        if sceneID == "motion" {
+   843→                req.Motion = &MotionConfig{
+   844→                        CharacterImage:    characterURL,
+   845→                        MotionVideo:       motionURL,
+   846→                        MotDuration:       motDuration,
+   847→                        KeepOriginalSound: keepOriginalSound,
+   848→                }
+   849→        }
+   850→
+   851→        reqJSON, _ := json.Marshal(req)
+   852→        return a.SubmitGeneration(string(reqJSON))
+   853→}
+   854→
+   855→// OpenFile opens a native file picker (called from frontend)
+   856→func (a *App) OpenFile(title string, filterPattern, filterDescription string) string {
+   857→        // This requires Wails runtime - use wails runtime dialog
+   858→        // In the actual Wails app, the frontend should use the Wails JS API:
+   859→        // window.runtime.OpenFileDialog({ Title: title, Filters: [{Pattern: filterPattern, Description: filterDescription}] })
+   860→        // This Go method is kept as a reference/fallback
+   861→        return ""
+   862→}
+   863→
+   864→// helper
+   865→func min(a, b int) int {
+   866→        if a < b {
+   867→                return a
+   868→        }
+   869→        return b
+   870→}
+   871→
+   872→// ParseCookiesFromJSON is a Wails-bound helper to validate cookies
+   873→func (a *App) ParseCookiesFromJSON(cookieJSON string) string {
+   874→        cookies, err := parseCookies(cookieJSON)
+   875→        if err != nil {
+   876→                return fmt.Sprintf(`{"valid":false,"error":"%s"}`, strings.ReplaceAll(err.Error(), `"`, `'`))
+   877→        }
+   878→        oussFound := false
+   879→        for _, c := range cookies {
+   880→                if c.Name == "ouss" {
+   881→                        oussFound = true
+   882→                        break
+   883→                }
+   884→        }
+   885→        if !oussFound {
+   886→                return `{"valid":false,"error":"ouss cookie not found - make sure you export all cookies from oreateai.com"}`
+   887→        }
+   888→        return fmt.Sprintf(`{"valid":true,"count":%d}`, len(cookies))
+   889→}
+   890→
+   891→// GetModelPointCosts returns point costs for a specific model
+   892→func (a *App) GetModelPointCosts(modelName, sceneID string) string {
+   893→        result := a.GetModels()
+   894→        if result.Error != "" {
+   895→                return fmt.Sprintf(`{"error":"%s"}`, result.Error)
+   896→        }
+   897→
+   898→        for _, m := range result.Models {
+   899→                if m.ModelName == modelName {
+   900→                        var costs interface{}
+   901→                        switch sceneID {
+   902→                        case "motion":
+   903→                                costs = m.PointCostMotion
+   904→                        case "reference":
+   905→                                costs = m.PointCostReference
+   906→                        default:
+   907→                                costs = m.PointCostImage
+   908→                        }
+   909→                        jsonBytes, _ := json.Marshal(map[string]interface{}{
+   910→                                "pointCosts":   costs,
+   911→                                "videoSize":    m.VideoSize,
+   912→                                "videoResolution": m.VideoResolution,
+   913→                                "duration":     m.Duration,
+   914→                                "supportAudio": m.SupportAudio,
+   915→                        })
+   916→                        return string(jsonBytes)
+   917→                }
+   918→        }
+   919→
+   920→        return `{"error":"model not found"}`
+   921→}
+   922→
+   923→// PostMultipartUpload is a Wails-bound helper for multipart file reads
+   924→// Returns the file bytes as base64 for frontend handling
+   925→func (a *App) ReadFileAsBase64(filePath string) string {
+   926→        data, err := os.ReadFile(filePath)
+   927→        if err != nil {
+   928→                return ""
+   929→        }
+   930→        return string(data)
+   931→}

@@ -2,10 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"net/url"
 	"os"
@@ -19,9 +19,10 @@ import (
 // ====================================================================
 
 const (
-	BaseURL = "https://www.oreateai.com"
-	GCSBase = "https://storage.googleapis.com"
-	UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	BaseURL    = "https://www.oreateai.com"
+	GCSBase    = "https://storage.googleapis.com"
+	UserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+	ProjectID  = "iron-area-433903-r2"
 )
 
 // ====================================================================
@@ -30,23 +31,23 @@ const (
 
 // CookieEntry represents a browser cookie
 type CookieEntry struct {
-	Domain        string `json:"domain"`
-	Name          string `json:"name"`
-	Value         string `json:"value"`
-	Path          string `json:"path"`
-	HttpOnly      bool   `json:"httpOnly"`
-	Secure        bool   `json:"secure"`
-	ExpirationDate float64 `json:"expirationDate,omitempty"`
+	Domain          string  `json:"domain"`
+	Name            string  `json:"name"`
+	Value           string  `json:"value"`
+	Path            string  `json:"path"`
+	HttpOnly        bool    `json:"httpOnly"`
+	Secure          bool    `json:"secure"`
+	ExpirationDate  float64 `json:"expirationDate,omitempty"`
 }
 
 // UserInfo holds user account info
 type UserInfo struct {
-	Avatar    string `json:"avatar"`
-	Email     string `json:"email"`
-	IsLogin   bool   `json:"isLogin"`
-	Way       int    `json:"way"`
-	CreateTime int64 `json:"createTime"`
-	IsNewUser bool   `json:"isNewUser"`
+	Avatar     string `json:"avatar"`
+	Email      string `json:"email"`
+	IsLogin    bool   `json:"isLogin"`
+	Way        int    `json:"way"`
+	CreateTime int64  `json:"createTime"`
+	IsNewUser  bool   `json:"isNewUser"`
 }
 
 // VipInfo holds VIP subscription info
@@ -111,18 +112,18 @@ type SceneModel struct {
 
 // SceneFactory represents a model factory for a scene
 type SceneFactory struct {
-	ModelFactoryName string        `json:"modelFactoryName"`
-	ModelIcon        string        `json:"modelIcon"`
-	Models           []SceneModel  `json:"models"`
+	ModelFactoryName string       `json:"modelFactoryName"`
+	ModelIcon        string       `json:"modelIcon"`
+	Models           []SceneModel `json:"models"`
 }
 
 // Scene represents a generation scene
 type Scene struct {
-	SceneID      string                 `json:"sceneId"`
-	SceneName    map[string]string      `json:"sceneName"`
-	SceneIcon    string                 `json:"sceneIcon"`
-	Description  map[string]string      `json:"description"`
-	Factory      []SceneFactory         `json:"factory"`
+	SceneID     string                 `json:"sceneId"`
+	SceneName   map[string]string      `json:"sceneName"`
+	SceneIcon   string                 `json:"sceneIcon"`
+	Description map[string]string      `json:"description"`
+	Factory     []SceneFactory         `json:"factory"`
 }
 
 // ModelsResult holds model and scene configs
@@ -140,11 +141,38 @@ type UploadFileMeta struct {
 	FileName string `json:"fileName"`
 }
 
-// UploadCredential holds GCS upload info for one file
+// UploadCredential holds GCS upload info for one file.
+// Uses custom UnmarshalJSON to handle both "sessionkey" and "sessionKey" casing.
 type UploadCredential struct {
 	Bucket     string `json:"bucket"`
 	ObjectPath string `json:"objectPath"`
-	SessionKey string `json:"sessionkey"`
+	SessionKey string `json:"-"`
+}
+
+// UnmarshalJSON handles both "sessionkey" and "sessionKey" JSON field names
+func (uc *UploadCredential) UnmarshalJSON(data []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	uc.Bucket, _ = raw["bucket"].(string)
+	uc.ObjectPath, _ = raw["objectPath"].(string)
+	// Try both casings: sessionkey (lowercase k) and sessionKey (camelCase k)
+	if v, ok := raw["sessionkey"].(string); ok && v != "" {
+		uc.SessionKey = v
+	}
+	if uc.SessionKey == "" {
+		if v, ok := raw["sessionKey"].(string); ok {
+			uc.SessionKey = v
+		}
+	}
+	// Also try accessToken / access_token as fallback
+	if uc.SessionKey == "" {
+		if v, ok := raw["accessToken"].(string); ok {
+			uc.SessionKey = v
+		}
+	}
+	return nil
 }
 
 // UploadTokenResult holds the upload token response
@@ -155,13 +183,13 @@ type UploadTokenResult struct {
 
 // Attachment represents a file attachment in generation request
 type Attachment struct {
-	BosURL    string `json:"bos_url"`
-	FileName  string `json:"fileName"`
-	FileExt   string `json:"fileExt"`
-	Size      int64  `json:"size"`
-	DocTitle  string `json:"doc_title"`
-	DocType   string `json:"doc_type"`
-	OriginSize int64 `json:"originSize"`
+	BosURL     string `json:"bos_url"`
+	FileName   string `json:"fileName"`
+	FileExt    string `json:"fileExt"`
+	Size       int64  `json:"size"`
+	DocTitle   string `json:"doc_title"`
+	DocType    string `json:"doc_type"`
+	OriginSize int64  `json:"originSize"`
 }
 
 // VideoConfig holds the video generation configuration
@@ -176,20 +204,20 @@ type VideoConfig struct {
 
 // MotionConfig holds motion-specific configuration
 type MotionConfig struct {
-	CharacterImage     string `json:"characterImage"`
-	MotionVideo        string `json:"motionVideo"`
-	MotDuration        string `json:"motDuration"`
-	KeepOriginalSound  bool   `json:"keepOriginalSound"`
+	CharacterImage    string `json:"characterImage"`
+	MotionVideo       string `json:"motionVideo"`
+	MotDuration       string `json:"motDuration"`
+	KeepOriginalSound bool   `json:"keepOriginalSound"`
 }
 
 // GenerateRequest is the full generation payload
 type GenerateRequest struct {
-	Mode        string          `json:"mode"`
-	Query       string          `json:"query"`
-	Attachments []Attachment    `json:"attachments"`
-	Motion      *MotionConfig   `json:"motion,omitempty"`
-	HtmlTplID   string          `json:"htmlTplId"`
-	VideoConfig VideoConfig     `json:"videoConfig"`
+	Mode        string        `json:"mode"`
+	Query       string        `json:"query"`
+	Attachments []Attachment  `json:"attachments"`
+	Motion      *MotionConfig `json:"motion,omitempty"`
+	HtmlTplID   string        `json:"htmlTplId"`
+	VideoConfig VideoConfig   `json:"videoConfig"`
 }
 
 // GenerateResult holds the generation response
@@ -209,22 +237,22 @@ type TaskStatusResult struct {
 
 // HistoryItem represents a single history entry
 type HistoryItem struct {
-	DocID        string                 `json:"docId"`
-	ChatID       string                 `json:"chatId"`
-	Title        string                 `json:"title"`
-	CreateTime   int64                  `json:"createTime"`
-	Status       int                    `json:"status"`
-	VideoURL     string                 `json:"videoUrl,omitempty"`
-	ThumbnailURL string                 `json:"thumbnailUrl,omitempty"`
-	Prompt       string                 `json:"prompt,omitempty"`
-	ModelName    string                 `json:"modelName,omitempty"`
+	DocID        string `json:"docId"`
+	ChatID       string `json:"chatId"`
+	Title        string `json:"title"`
+	CreateTime   int64  `json:"createTime"`
+	Status       int    `json:"status"`
+	VideoURL     string `json:"videoUrl,omitempty"`
+	ThumbnailURL string `json:"thumbnailUrl,omitempty"`
+	Prompt       string `json:"prompt,omitempty"`
+	ModelName    string `json:"modelName,omitempty"`
 }
 
 // HistoryResult holds the history response
 type HistoryResult struct {
-	Items    []HistoryItem `json:"items"`
-	Total    int           `json:"total"`
-	Error    string        `json:"error,omitempty"`
+	Items []HistoryItem `json:"items"`
+	Total int           `json:"total"`
+	Error string        `json:"error,omitempty"`
 }
 
 // ====================================================================
@@ -238,8 +266,8 @@ type apiStatus struct {
 }
 
 type apiResponse struct {
-	Status apiStatus               `json:"status"`
-	Data   json.RawMessage         `json:"data"`
+	Status apiStatus       `json:"status"`
+	Data   json.RawMessage `json:"data"`
 }
 
 type authData struct {
@@ -260,7 +288,7 @@ type scenesData struct {
 }
 
 type uploadTokenData struct {
-	KeyList map[string]UploadCredential `json:"KeyList"`
+	KeyList map[string]json.RawMessage `json:"KeyList"`
 }
 
 type historyListData struct {
@@ -294,9 +322,7 @@ type OreateAIClient struct {
 func NewOreateAIClient() *OreateAIClient {
 	return &OreateAIClient{
 		httpClient: &http.Client{
-			Timeout: 60 * time.Second,
-			// Skip TLS verification for development
-			// In production, remove the custom Transport
+			Timeout: 120 * time.Second,
 		},
 	}
 }
@@ -350,9 +376,16 @@ func (c *OreateAIClient) doJSON(req *http.Request) (*apiResponse, error) {
 		return nil, fmt.Errorf("read body failed: %w", err)
 	}
 
+	fmt.Printf("[API] %s %s → %d (%d bytes)\n", req.Method, req.URL.Path, resp.StatusCode, len(body))
+
 	var apiResp apiResponse
 	if err := json.Unmarshal(body, &apiResp); err != nil {
 		return nil, fmt.Errorf("invalid JSON response: %w", err)
+	}
+
+	if apiResp.Status.Code != 0 {
+		fmt.Printf("[API] Error response: code=%d msg=%s errMsg=%s\n",
+			apiResp.Status.Code, apiResp.Status.Msg, apiResp.Status.ErrMsg)
 	}
 
 	return &apiResp, nil
@@ -437,6 +470,8 @@ func (a *App) Authenticate(cookieJSON string) AuthResult {
 		return AuthResult{Error: fmt.Sprintf("parse user data failed: %v", err)}
 	}
 
+	fmt.Printf("[Auth] User: %s, IsLogin: %v\n", userAuthData.BasicInfo.Email, userAuthData.BasicInfo.IsLogin)
+
 	// Fetch credits
 	pointsReq, _ := a.apiClient.newRequest("GET", "/bizapi/point/getrestpoints", nil)
 	pointsResp, err := a.apiClient.doJSON(pointsReq)
@@ -448,11 +483,13 @@ func (a *App) Authenticate(cookieJSON string) AuthResult {
 		}
 	}
 
-	var pointsData pointsData
+	var pts pointsData
 	restPoint := 0
-	if json.Unmarshal(pointsResp.Data, &pointsData) == nil {
-		restPoint = pointsData.RestPoint
+	if json.Unmarshal(pointsResp.Data, &pts) == nil {
+		restPoint = pts.RestPoint
 	}
+
+	fmt.Printf("[Auth] Credits: %d\n", restPoint)
 
 	return AuthResult{
 		UserInfo:  userAuthData.BasicInfo,
@@ -485,6 +522,8 @@ func (a *App) GetModels() ModelsResult {
 		return ModelsResult{Models: modelData.Models, Error: fmt.Sprintf("parse scenes failed: %v", err)}
 	}
 
+	fmt.Printf("[Models] %d models, %d scenes loaded\n", len(modelData.Models), len(sceneData.Scenes))
+
 	return ModelsResult{
 		Models: modelData.Models,
 		Scenes: sceneData.Scenes,
@@ -503,6 +542,8 @@ func (a *App) GetUploadToken(fileMetasJSON string) UploadTokenResult {
 	}
 	body, _ := json.Marshal(payload)
 
+	fmt.Printf("[UploadToken] Requesting for %d files: %v\n", len(fileMetas), fileMetas)
+
 	req, _ := a.apiClient.newRequest("POST", "/oreate/convert/getuploadbostoken", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 
@@ -511,26 +552,49 @@ func (a *App) GetUploadToken(fileMetasJSON string) UploadTokenResult {
 		return UploadTokenResult{Error: err.Error()}
 	}
 	if resp.Status.Code != 0 {
-		return UploadTokenResult{Error: fmt.Sprintf("upload token error: %s", resp.Status.Msg)}
+		return UploadTokenResult{Error: fmt.Sprintf("upload token error: %s (code %d)", resp.Status.Msg, resp.Status.Code)}
 	}
 
-	var data uploadTokenData
-	if err := json.Unmarshal(resp.Data, &data); err != nil {
+	// Parse KeyList with flexible credential deserialization
+	var rawData uploadTokenData
+	if err := json.Unmarshal(resp.Data, &rawData); err != nil {
 		return UploadTokenResult{Error: fmt.Sprintf("parse upload token failed: %v", err)}
 	}
 
-	return UploadTokenResult{KeyList: data.KeyList}
+	keyList := make(map[string]UploadCredential)
+	for k, v := range rawData.KeyList {
+		var cred UploadCredential
+		if err := json.Unmarshal(v, &cred); err != nil {
+			fmt.Printf("[UploadToken] WARNING: failed to parse credential for key %q: %v\n", k, err)
+			continue
+		}
+		if cred.SessionKey == "" {
+			fmt.Printf("[UploadToken] WARNING: empty sessionKey for key %q (bucket=%s, path=%s)\n", k, cred.Bucket, cred.ObjectPath)
+		}
+		keyList[k] = cred
+		fmt.Printf("[UploadToken] Key %q → bucket=%s path=%s sessionKey=%s...\n",
+			k, cred.Bucket, cred.ObjectPath, truncateStr(cred.SessionKey, 20))
+	}
+
+	return UploadTokenResult{KeyList: keyList}
 }
 
 // UploadFile uploads a local file to GCS using resumable upload
 func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (string, error) {
+	if sessionKey == "" {
+		return "", fmt.Errorf("empty sessionKey — cannot authenticate GCS upload")
+	}
+
 	file, err := os.Open(filePath)
 	if err != nil {
 		return "", fmt.Errorf("cannot open file: %w", err)
 	}
 	defer file.Close()
 
-	stat, _ := file.Stat()
+	stat, err := file.Stat()
+	if err != nil {
+		return "", fmt.Errorf("cannot stat file: %w", err)
+	}
 	fileSize := stat.Size()
 
 	// Determine content type
@@ -543,23 +607,29 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 		contentType = "image/jpeg"
 	case ".webp":
 		contentType = "image/webp"
+	case ".gif":
+		contentType = "image/gif"
 	case ".mp4":
 		contentType = "video/mp4"
 	case ".mov":
 		contentType = "video/quicktime"
 	case ".avi":
 		contentType = "video/x-msvideo"
+	case ".webm":
+		contentType = "video/webm"
 	}
 
-	encodedPath := url.QueryEscape(objectPath)
+	encodedPath := url.PathEscape(objectPath)
 	uploadURL := fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=resumable&name=%s", GCSBase, bucket, encodedPath)
+
+	fmt.Printf("[GCS] Initiating upload: %s (%d bytes, %s)\n", filepath.Base(filePath), fileSize, contentType)
 
 	// Step 1: Initiate resumable upload
 	initReq, _ := http.NewRequest("POST", uploadURL, nil)
 	initReq.Header.Set("Authorization", "Bearer "+sessionKey)
 	initReq.Header.Set("Content-Type", "application/json")
 	initReq.Header.Set("Content-Length", "0")
-	initReq.Header.Set("x-goog-user-project", "iron-area-433903-r2")
+	initReq.Header.Set("x-goog-user-project", ProjectID)
 
 	initResp, err := a.apiClient.httpClient.Do(initReq)
 	if err != nil {
@@ -567,8 +637,10 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 	}
 	initResp.Body.Close()
 
+	fmt.Printf("[GCS] Init response: %d\n", initResp.StatusCode)
+
 	if initResp.StatusCode != 200 && initResp.StatusCode != 201 {
-		return "", fmt.Errorf("GCS init returned status %d", initResp.StatusCode)
+		return "", fmt.Errorf("GCS init returned status %d — check sessionKey validity", initResp.StatusCode)
 	}
 
 	location := initResp.Header.Get("Location")
@@ -584,7 +656,7 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 	putReq, _ := http.NewRequest("PUT", location, bytes.NewReader(fileData))
 	putReq.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", fileSize-1, fileSize))
 	putReq.Header.Set("Authorization", "Bearer "+sessionKey)
-	putReq.Header.Set("x-goog-user-project", "iron-area-433903-r2")
+	putReq.Header.Set("x-goog-user-project", ProjectID)
 	putReq.Header.Set("Content-Type", contentType)
 
 	uploadResp, err := a.apiClient.httpClient.Do(putReq)
@@ -593,8 +665,11 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 	}
 	defer uploadResp.Body.Close()
 
+	fmt.Printf("[GCS] Upload response: %d\n", uploadResp.StatusCode)
+
 	if uploadResp.StatusCode == 200 || uploadResp.StatusCode == 201 {
 		finalURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, objectPath)
+		fmt.Printf("[GCS] Upload success: %s\n", finalURL)
 		return finalURL, nil
 	}
 
@@ -602,7 +677,7 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 	return "", fmt.Errorf("GCS upload returned status %d: %s", uploadResp.StatusCode, string(body))
 }
 
-// SubmitGeneration submits a video generation task
+// SubmitGeneration submits a video generation task via SSE endpoint
 func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
 	var req GenerateRequest
 	if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
@@ -610,6 +685,11 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
 	}
 
 	body, _ := json.Marshal(req)
+
+	fmt.Printf("[Generate] Submitting: mode=%s scene=%s model=%s duration=%d res=%s size=%s aiType=%d attachments=%d\n",
+		req.Mode, req.VideoConfig.SceneID, req.VideoConfig.ModelName,
+		req.VideoConfig.Duration, req.VideoConfig.Resolution, req.VideoConfig.VideoSize,
+		req.VideoConfig.AiType, len(req.Attachments))
 
 	httpReq, _ := a.apiClient.newRequest("POST", "/oreate/create/chat", bytes.NewReader(body))
 	httpReq.Header.Set("Content-Type", "application/json")
@@ -624,52 +704,113 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
 	respBody, _ := io.ReadAll(resp.Body)
 	bodyStr := string(respBody)
 
-	// Try to parse SSE data lines
-	var result map[string]interface{}
+	fmt.Printf("[Generate] Response: %d bytes\n", len(bodyStr))
+
+	// Parse SSE data lines — collect ALL events
+	type sseEvent struct {
+		raw    string
+		parsed map[string]interface{}
+	}
+
+	var events []sseEvent
 	for _, line := range strings.Split(bodyStr, "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "data:") {
-			data := strings.TrimPrefix(line, "data:")
-			data = strings.TrimSpace(data)
-			if data == "" || data == "[DONE]" {
-				continue
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data:")
+		data = strings.TrimSpace(data)
+		if data == "" || data == "[DONE]" {
+			continue
+		}
+
+		var parsed map[string]interface{}
+		if err := json.Unmarshal([]byte(data), &parsed); err == nil {
+			events = append(events, sseEvent{raw: data, parsed: parsed})
+			fmt.Printf("[Generate] SSE event: status=%v\n", parsed["status"])
+		}
+	}
+
+	if len(events) == 0 {
+		// No SSE events found — try direct JSON
+		var result map[string]interface{}
+		if err := json.Unmarshal(respBody, &result); err != nil {
+			preview := bodyStr
+			if len(preview) > 300 {
+				preview = preview[:300] + "..."
 			}
-			if err := json.Unmarshal([]byte(data), &result); err == nil {
-				if status, ok := result["status"].(map[string]interface{}); ok {
-					if code, ok := status["code"].(float64); ok && code != 0 {
-						return GenerateResult{
-							SubmitResult: result,
-							Error:        fmt.Sprintf("generation error: %v", status["msg"]),
-						}
-					}
+			return GenerateResult{Error: fmt.Sprintf("invalid response: %s", preview)}
+		}
+		events = append(events, sseEvent{parsed: result})
+	}
+
+	// Find the event with docId — prefer events with status.code == 0
+	var bestEvent *sseEvent
+	for i := range events {
+		ev := &events[i]
+		// Check for error status
+		if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
+			code, _ := status["code"].(float64)
+			msg, _ := status["msg"].(string)
+			if code != 0 && code != 1 {
+				// Real error (not processing)
+				return GenerateResult{
+					SubmitResult: ev.parsed,
+					Error:        fmt.Sprintf("generation error (code %d): %s", int(code), msg),
 				}
-				// Found a valid response with status code 0
+			}
+		}
+		// Check if this event has a docId in data
+		if d, ok := ev.parsed["data"].(map[string]interface{}); ok {
+			if _, hasDocId := d["docId"]; hasDocId {
+				bestEvent = ev
+				break // Found it
+			}
+			if _, hasDocId := d["docID"]; hasDocId {
+				bestEvent = ev
 				break
 			}
 		}
-	}
-
-	// If no SSE parsed, try direct JSON
-	if result == nil {
-		if err := json.Unmarshal(respBody, &result); err != nil {
-			return GenerateResult{Error: fmt.Sprintf("invalid response: %s", bodyStr[:min(500, len(bodyStr))])}
+		// Fall back to first event with status.code == 0
+		if bestEvent == nil {
+			if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
+				if code, _ := status["code"].(float64); code == 0 {
+					bestEvent = ev
+				}
+			}
 		}
 	}
 
-	// Extract docId
+	if bestEvent == nil {
+		bestEvent = &events[0] // Use first event as fallback
+	}
+
+	// Extract docId from the best event
 	docID := ""
-	if data, ok := result["data"].(map[string]interface{}); ok {
+	if data, ok := bestEvent.parsed["data"].(map[string]interface{}); ok {
 		if id, ok := data["docId"].(string); ok {
 			docID = id
 		} else if id, ok := data["docID"].(string); ok {
 			docID = id
+		} else if id, ok := data["taskId"].(string); ok {
+			docID = id
+		} else if id, ok := data["chatId"].(string); ok {
+			docID = id
 		}
 	}
+
+	if docID == "" {
+		fmt.Printf("[Generate] WARNING: No docId found in response\n")
+		pretty, _ := json.MarshalIndent(bestEvent.parsed, "", "  ")
+		fmt.Printf("[Generate] Response data:\n%s\n", string(pretty))
+	}
+
+	fmt.Printf("[Generate] docId=%s\n", docID)
 
 	return GenerateResult{
 		Success:      true,
 		DocID:        docID,
-		SubmitResult: result,
+		SubmitResult: bestEvent.parsed,
 	}
 }
 
@@ -684,6 +825,8 @@ func (a *App) GetTaskStatus(docID string) TaskStatusResult {
 
 	var data map[string]interface{}
 	json.Unmarshal(resp.Data, &data)
+
+	fmt.Printf("[Status] docId=%s status_code=%d\n", docID, resp.Status.Code)
 
 	return TaskStatusResult{
 		Status: map[string]interface{}{"code": resp.Status.Code, "msg": resp.Status.Msg},
@@ -729,61 +872,143 @@ func (a *App) GetHistory(pageNo, pageSize int) HistoryResult {
 
 // GenerateVideo is the all-in-one convenience method: upload + submit
 func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName string, duration int, resolution, videoSize string, aiType int, motDuration string, keepOriginalSound bool) GenerateResult {
+	fmt.Printf("=== GenerateVideo START ===\n")
+	fmt.Printf("[Gen] imagePath=%q videoPath=%q\n", imagePath, videoPath)
+	fmt.Printf("[Gen] scene=%s model=%s duration=%d res=%s size=%s aiType=%d\n",
+		sceneID, modelName, duration, resolution, videoSize, aiType)
+
 	// Build file list
 	var fileMetas []UploadFileMeta
 
 	if imagePath != "" {
 		ext := strings.TrimPrefix(filepath.Ext(imagePath), ".")
 		name := filepath.Base(imagePath)
-		fileMetas = append(fileMetas, UploadFileMeta{
+		meta := UploadFileMeta{
 			Name:     name,
 			FileExt:  ext,
 			FileName: strings.TrimSuffix(name, "."+ext),
-		})
-		// Set size
-		if stat, err := os.Stat(imagePath); err == nil {
-			fileMetas[len(fileMetas)-1].Size = stat.Size()
 		}
+		if stat, err := os.Stat(imagePath); err == nil {
+			meta.Size = stat.Size()
+		}
+		fileMetas = append(fileMetas, meta)
+		fmt.Printf("[Gen] Image meta: %+v\n", meta)
 	}
 
 	if videoPath != "" {
 		ext := strings.TrimPrefix(filepath.Ext(videoPath), ".")
 		name := filepath.Base(videoPath)
-		fileMetas = append(fileMetas, UploadFileMeta{
+		meta := UploadFileMeta{
 			Name:     name,
 			FileExt:  ext,
 			FileName: strings.TrimSuffix(name, "."+ext),
-		})
+		}
 		if stat, err := os.Stat(videoPath); err == nil {
-			fileMetas[len(fileMetas)-1].Size = stat.Size()
+			meta.Size = stat.Size()
 		}
+		fileMetas = append(fileMetas, meta)
+		fmt.Printf("[Gen] Video meta: %+v\n", meta)
 	}
 
-	// Get upload credentials
-	metasJSON, _ := json.Marshal(fileMetas)
-	tokenResult := a.GetUploadToken(string(metasJSON))
-	if tokenResult.Error != "" {
-		return GenerateResult{Error: fmt.Sprintf("get upload token failed: %s", tokenResult.Error)}
+	// Get upload credentials (skip if no files)
+	var tokenResult UploadTokenResult
+	if len(fileMetas) > 0 {
+		metasJSON, _ := json.Marshal(fileMetas)
+		tokenResult = a.GetUploadToken(string(metasJSON))
+		if tokenResult.Error != "" {
+			return GenerateResult{Error: fmt.Sprintf("get upload token failed: %s", tokenResult.Error)}
+		}
+		fmt.Printf("[Gen] Got %d upload credentials\n", len(tokenResult.KeyList))
 	}
 
-	// Upload files
-	uploadedURLs := make(map[string]string)
-	for filename, cred := range tokenResult.KeyList {
-		var fPath string
-		if imagePath != "" && filepath.Base(imagePath) == filename {
-			fPath = imagePath
-		} else if videoPath != "" && filepath.Base(videoPath) == filename {
-			fPath = videoPath
-		}
-		if fPath == "" {
-			continue
+	// Upload files and track URLs
+	type fileInfo struct {
+		path    string
+		ext     string
+		name    string
+		nameNoExt string
+		url     string
+	}
+	var uploadedFiles []fileInfo
+
+	if imagePath != "" {
+		uploadedFiles = append(uploadedFiles, fileInfo{
+			path:      imagePath,
+			ext:       strings.TrimPrefix(filepath.Ext(imagePath), "."),
+			name:      filepath.Base(imagePath),
+			nameNoExt: strings.TrimSuffix(filepath.Base(imagePath), filepath.Ext(imagePath)),
+		})
+	}
+	if videoPath != "" {
+		uploadedFiles = append(uploadedFiles, fileInfo{
+			path:      videoPath,
+			ext:       strings.TrimPrefix(filepath.Ext(videoPath), "."),
+			name:      filepath.Base(videoPath),
+			nameNoExt: strings.TrimSuffix(filepath.Base(videoPath), filepath.Ext(videoPath)),
+		})
+	}
+
+	for i, fi := range uploadedFiles {
+		// Find matching credential — try multiple key formats
+		var cred *UploadCredential
+		var matchedKey string
+
+		for key, c := range tokenResult.KeyList {
+			// Try exact filename match (with extension)
+			if key == fi.name {
+				cred = &c
+				matchedKey = key
+				break
+			}
+			// Try filename without extension
+			if key == fi.nameNoExt {
+				cred = &c
+				matchedKey = key
+				break
+			}
+			// Try case-insensitive match
+			if strings.EqualFold(key, fi.name) || strings.EqualFold(key, fi.nameNoExt) {
+				cred = &c
+				matchedKey = key
+				break
+			}
 		}
 
-		url, err := a.UploadFile(fPath, cred.Bucket, cred.ObjectPath, cred.SessionKey)
+		if cred == nil && len(tokenResult.KeyList) > 0 {
+			// Last resort: if there's only one credential, use it
+			if len(tokenResult.KeyList) == 1 {
+				for k, c := range tokenResult.KeyList {
+					cred = &c
+					matchedKey = k
+					break
+				}
+				fmt.Printf("[Gen] WARNING: No exact key match for %q, using only available credential\n", fi.name)
+			} else {
+				// Try matching by index position
+				keys := make([]string, 0, len(tokenResult.KeyList))
+				for k := range tokenResult.KeyList {
+					keys = append(keys, k)
+				}
+				if i < len(keys) {
+					cred = &tokenResult.KeyList[keys[i]]
+					matchedKey = keys[i]
+					fmt.Printf("[Gen] WARNING: No exact key match for %q, using key at index %d: %q\n", fi.name, i, matchedKey)
+				}
+			}
+		}
+
+		if cred == nil {
+			return GenerateResult{Error: fmt.Sprintf("no upload credential found for file: %s (available keys: %v)",
+				fi.name, mapKeys(tokenResult.KeyList))}
+		}
+
+		fmt.Printf("[Gen] Uploading %s with credential key=%q\n", fi.name, matchedKey)
+
+		uploadURL, err := a.UploadFile(fi.path, cred.Bucket, cred.ObjectPath, cred.SessionKey)
 		if err != nil {
-			return GenerateResult{Error: fmt.Sprintf("upload %s failed: %v", filename, err)}
+			return GenerateResult{Error: fmt.Sprintf("upload %s failed: %v", fi.name, err)}
 		}
-		uploadedURLs[filename] = url
+		uploadedFiles[i].url = uploadURL
 	}
 
 	// Build attachments
@@ -791,40 +1016,60 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 	characterURL := ""
 	motionURL := ""
 
-	if videoPath != "" {
-		name := filepath.Base(videoPath)
-		ext := strings.TrimPrefix(filepath.Ext(videoPath), ".")
-		stat, _ := os.Stat(videoPath)
-		motionURL = uploadedURLs[name]
-		attachments = append(attachments, Attachment{
-			BosURL:     motionURL,
-			FileName:   name,
-			FileExt:    ext,
-			Size:       stat.Size(),
-			DocTitle:   name,
-			DocType:    ext,
-			OriginSize: stat.Size(),
-		})
-	}
-
-	if imagePath != "" {
-		name := filepath.Base(imagePath)
-		ext := strings.TrimPrefix(filepath.Ext(imagePath), ".")
-		stat, _ := os.Stat(imagePath)
-		characterURL = uploadedURLs[name]
-		attachments = append(attachments, Attachment{
-			BosURL:     characterURL,
-			FileName:   name,
-			FileExt:    ext,
-			Size:       stat.Size(),
-			DocTitle:   name,
-			DocType:    ext,
-			OriginSize: stat.Size(),
-		})
+	// For motion scene, video goes first, then image
+	if sceneID == "motion" {
+		for _, fi := range uploadedFiles {
+			if fi.ext == "mp4" || fi.ext == "mov" || fi.ext == "avi" || fi.ext == "webm" {
+				motionURL = fi.url
+				stat, _ := os.Stat(fi.path)
+				attachments = append(attachments, Attachment{
+					BosURL:     motionURL,
+					FileName:   fi.name,
+					FileExt:    fi.ext,
+					Size:       stat.Size(),
+					DocTitle:   fi.name,
+					DocType:    fi.ext,
+					OriginSize: stat.Size(),
+				})
+			}
+		}
+		for _, fi := range uploadedFiles {
+			if fi.ext == "png" || fi.ext == "jpg" || fi.ext == "jpeg" || fi.ext == "webp" || fi.ext == "gif" {
+				characterURL = fi.url
+				stat, _ := os.Stat(fi.path)
+				attachments = append(attachments, Attachment{
+					BosURL:     characterURL,
+					FileName:   fi.name,
+					FileExt:    fi.ext,
+					Size:       stat.Size(),
+					DocTitle:   fi.name,
+					DocType:    fi.ext,
+					OriginSize: stat.Size(),
+				})
+			}
+		}
+	} else {
+		// For other scenes (text_or_image, reference), image goes first
+		for _, fi := range uploadedFiles {
+			isImage := fi.ext == "png" || fi.ext == "jpg" || fi.ext == "jpeg" || fi.ext == "webp" || fi.ext == "gif"
+			if isImage {
+				characterURL = fi.url
+			}
+			stat, _ := os.Stat(fi.path)
+			attachments = append(attachments, Attachment{
+				BosURL:     fi.url,
+				FileName:   fi.name,
+				FileExt:    fi.ext,
+				Size:       stat.Size(),
+				DocTitle:   fi.name,
+				DocType:    fi.ext,
+				OriginSize: stat.Size(),
+			})
+		}
 	}
 
 	// Build generation request
-	req := GenerateRequest{
+	genReq := GenerateRequest{
 		Mode:        "chat_video",
 		Query:       prompt,
 		Attachments: attachments,
@@ -840,7 +1085,7 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 	}
 
 	if sceneID == "motion" {
-		req.Motion = &MotionConfig{
+		genReq.Motion = &MotionConfig{
 			CharacterImage:    characterURL,
 			MotionVideo:       motionURL,
 			MotDuration:       motDuration,
@@ -848,25 +1093,41 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 		}
 	}
 
-	reqJSON, _ := json.Marshal(req)
+	reqJSON, _ := json.Marshal(genReq)
+	fmt.Printf("[Gen] Request payload:\n%s\n", string(reqJSON))
+
 	return a.SubmitGeneration(string(reqJSON))
 }
 
-// OpenFile opens a native file picker (called from frontend)
-func (a *App) OpenFile(title string, filterPattern, filterDescription string) string {
-	// This requires Wails runtime - use wails runtime dialog
-	// In the actual Wails app, the frontend should use the Wails JS API:
-	// window.runtime.OpenFileDialog({ Title: title, Filters: [{Pattern: filterPattern, Description: filterDescription}] })
-	// This Go method is kept as a reference/fallback
-	return ""
-}
-
-// helper
-func min(a, b int) int {
-	if a < b {
-		return a
+// ReadFileAsDataURL reads a file and returns a base64 data URL (e.g. "data:image/png;base64,...")
+func (a *App) ReadFileAsDataURL(filePath string) string {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		fmt.Printf("[ReadFile] Error reading %s: %v\n", filePath, err)
+		return ""
 	}
-	return b
+
+	ext := strings.ToLower(filepath.Ext(filePath))
+	mime := "application/octet-stream"
+	switch ext {
+	case ".png":
+		mime = "image/png"
+	case ".jpg", ".jpeg":
+		mime = "image/jpeg"
+	case ".webp":
+		mime = "image/webp"
+	case ".gif":
+		mime = "image/gif"
+	case ".mp4":
+		mime = "video/mp4"
+	case ".mov":
+		mime = "video/quicktime"
+	case ".webm":
+		mime = "video/webm"
+	}
+
+	encoded := base64.StdEncoding.EncodeToString(data)
+	return fmt.Sprintf("data:%s;base64,%s", mime, encoded)
 }
 
 // ParseCookiesFromJSON is a Wails-bound helper to validate cookies
@@ -907,11 +1168,11 @@ func (a *App) GetModelPointCosts(modelName, sceneID string) string {
 				costs = m.PointCostImage
 			}
 			jsonBytes, _ := json.Marshal(map[string]interface{}{
-				"pointCosts":   costs,
-				"videoSize":    m.VideoSize,
-				"videoResolution": m.VideoResolution,
-				"duration":     m.Duration,
-				"supportAudio": m.SupportAudio,
+				"pointCosts":       costs,
+				"videoSize":        m.VideoSize,
+				"videoResolution":  m.VideoResolution,
+				"duration":         m.Duration,
+				"supportAudio":     m.SupportAudio,
 			})
 			return string(jsonBytes)
 		}
@@ -920,12 +1181,21 @@ func (a *App) GetModelPointCosts(modelName, sceneID string) string {
 	return `{"error":"model not found"}`
 }
 
-// PostMultipartUpload is a Wails-bound helper for multipart file reads
-// Returns the file bytes as base64 for frontend handling
-func (a *App) ReadFileAsBase64(filePath string) string {
-	data, err := os.ReadFile(filePath)
-	if err != nil {
-		return ""
+// ====================================================================
+//  Helpers
+// ====================================================================
+
+func mapKeys(m map[string]UploadCredential) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
 	}
-	return string(data)
+	return keys
+}
+
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
 }
