@@ -1,0 +1,29 @@
+# Build output
+build/
+bin/
+dist/
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Go
+backend/vendor/
+
+# Wails
+.wails/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Env
+.env
+.env.local
