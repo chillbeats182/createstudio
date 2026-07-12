@@ -398,13 +398,10 @@
   // --- Image Upload ---
   function pickImage() {
     if (isWails && window.go) {
-      // Wails mode: use native file dialog
-      window.runtime.OpenFileDialog({
-        Title: 'Select Source Image',
-        Filters: [{ Pattern: '*.png;*.jpg;*.jpeg;*.webp;*.gif', Description: 'Image files' }],
-      }).then((path) => {
+      // Wails v2 mode: use Go-bound native file dialog
+      window.go.main.App.PickImageFile().then((path) => {
         if (path) {
-          console.log('[Upload] Image selected (Wails):', path);
+          console.log('[Upload] Image selected (Wails v2):', path);
           state.imageFilePath = path;
           // Read file and preview via Go backend (returns data URL)
           window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
@@ -422,7 +419,7 @@
           });
         }
       }).catch((err) => {
-        console.error('[Upload] OpenFileDialog error:', err);
+        console.error('[Upload] PickImageFile error:', err);
       });
     } else {
       // Browser fallback: trigger hidden file input
@@ -505,14 +502,12 @@
   // --- Video Upload ---
   function pickVideo() {
     if (isWails && window.go) {
-      window.runtime.OpenFileDialog({
-        Title: 'Select Motion Video',
-        Filters: [{ Pattern: '*.mp4;*.mov;*.avi;*.webm', Description: 'Video files' }],
-      }).then((path) => {
+      // Wails v2 mode: use Go-bound native file dialog
+      window.go.main.App.PickVideoFile().then((path) => {
         if (path) {
-          console.log('[Upload] Video selected (Wails):', path);
+          console.log('[Upload] Video selected (Wails v2):', path);
           state.videoFilePath = path;
-          // For video preview, use Wails asset protocol or data URL
+          // For video preview, use data URL
           window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
             if (dataURL) {
               previewVideo.src = dataURL;
@@ -529,7 +524,7 @@
           });
         }
       }).catch((err) => {
-        console.error('[Upload] OpenFileDialog error:', err);
+        console.error('[Upload] PickVideoFile error:', err);
       });
     } else {
       fileVideo.click();
@@ -615,8 +610,9 @@
       return;
     }
 
-    const needsImage = state.sceneId === 'text_or_image' || state.sceneId === 'reference' || state.sceneId === 'motion';
-    const needsVideo = state.sceneId === 'motion' || state.sceneId === 'reference';
+    const needsImage = state.sceneId === 'text_or_image' || state.sceneId === 'motion';
+    const needsVideo = state.sceneId === 'motion';
+    const needsAnyFile = state.sceneId === 'reference';
 
     if (needsImage && !state.imageFilePath) {
       toast('Please upload a source image', 'error');
@@ -624,7 +620,12 @@
     }
 
     if (needsVideo && !state.videoFilePath) {
-      toast('Please upload a motion/reference video', 'error');
+      toast('Please upload a motion video', 'error');
+      return;
+    }
+
+    if (needsAnyFile && !state.imageFilePath && !state.videoFilePath) {
+      toast('Please upload at least one image or video', 'error');
       return;
     }
 
