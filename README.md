@@ -4,155 +4,127 @@
 
 **Educational Purpose Only**
 
+---
+
+## 🚀 Cara Build EXE via GitHub (Paling Mudah)
+
+Kamu **tidak perlu install apapun** di komputermu. Cukup push tag ke GitHub, dan GitHub Actions akan otomatis build EXE-nya.
+
+### Langkah-langkah:
+
+#### 1. Push kode ke repository
+```bash
+git clone https://github.com/chillbeats182/createstudio.git
+cd createstudio
+# edit kode kalau mau...
+git add -A
+git commit -m "update"
+git push
+```
+
+#### 2. Buat tag dan push untuk trigger build
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+#### 3. Tunggu build selesai
+1. Buka **https://github.com/chillbeats182/createstudio/actions**
+2. Klik workflow **"Build Windows EXE"** yang sedang berjalan
+3. Tunggu ~3-5 menit sampai statusnya ✅ hijau
+
+#### 4. Download EXE-nya
+Ada 2 cara:
+
+**Cara A — Dari Release (otomatis saat push tag):**
+1. Buka **https://github.com/chillbeats182/createstudio/releases**
+2. Klik release `v1.0.0`
+3. Download `oreateai-studio.exe`
+
+**Cara B — Dari Artifacts:**
+1. Buka **https://github.com/chillbeats182/createstudio/actions**
+2. Klik workflow run yang ✅ berhasil
+3. Scroll ke bawah → **Artifacts** → download `oreateai-studio-windows`
+4. Extract zip-nya, dapat file `oreateai-studio.exe`
+
+#### 5. Build manual kapan saja (tanpa tag)
+1. Buka **https://github.com/chillbeats182/createstudio/actions**
+2. Klik **"Build Windows EXE"** di sidebar kiri
+3. Klik tombol **"Run workflow"** → pilih branch `main` → klik **"Run workflow"**
+
+---
+
+## 🛠️ Build Lokal (Opsional)
+
+Jika ingin build di komputermu sendiri:
+
+### Prerequisites
+
+| Platform | Yang perlu di-install |
+|----------|---------------------|
+| **Windows** | [Go 1.21+](https://go.dev/dl/) + [Wails CLI](https://wails.io/docs/gettingstarted/installation/) (WebView2 sudah built-in Win10/11) |
+| **macOS** | Go + Wails CLI + `xcode-select --install` |
+| **Linux** | Go + Wails CLI + `sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev` |
+
+### Build Commands
+
+```bash
+# 1. Install Wails CLI
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+# 2. Clone & masuk folder
+git clone https://github.com/chillbeats182/createstudio.git
+cd createstudio
+
+# 3. Download dependencies
+cd backend && go mod tidy && cd ..
+
+# 4. Development mode (hot reload)
+wails dev
+
+# 5. Production build
+wails build -clean
+# Output: build/bin/oreateai-studio.exe
+```
+
+---
+
 ## Features
 
-- 🔐 **Cookie Authentication** — Paste browser cookies to connect your account
-- 👤 **Account Info** — Displays email, VIP status, and available credits
-- 🎬 **Multi-Scene Support** — Text/Image to Video, First & Last Frame, Reference, Motion Mimicry
-- 🤖 **15+ AI Models** — Kling 3.0/2.6, Wan 2.7/2.6, Seedance 2.0, Veo 3, Pixverse V5
-- ⚙️ **Full Config** — Duration, resolution, video size, audio, motion settings
-- 📤 **File Upload** — Drag & drop or native file picker for images and videos
-- 📝 **Prompt Editor** — Text prompt for generation description
+- 🔐 **Cookie Authentication** — Paste browser cookies to connect
+- 👤 **Account Info** — Email, VIP status, available credits
+- 🎬 **4 Scenes** — Text/Image to Video, Motion, Reference, Text to Video
+- 🤖 **15+ Models** — Kling 3.0, Wan 2.7, Seedance 2.0, Veo 3, Pixverse V5
+- ⚙️ **Full Config** — Duration, resolution, aspect ratio, audio, motion settings
+- 📤 **File Upload** — Native file picker or drag & drop
 - 📋 **History** — Browse and replay past generations
-- 🎥 **Video Player** — Built-in player for generated results
-- 🌙 **Dark Theme** — Professional dark UI with emerald accents
+- 🌙 **Dark Theme** — Zinc + emerald accents
 
-## Prerequisites
+## How to Get Cookies
 
-1. **Go 1.21+** — [Install Go](https://go.dev/dl/)
-2. **Wails CLI v2** — [Install Wails](https://wails.io/docs/gettingstarted/installation/)
-3. **Platform-specific dependencies:**
-
-   ### Windows
-   ```
-   No additional dependencies needed.
-   WebView2 comes pre-installed on Windows 10/11.
-   ```
-
-   ### macOS
-   ```
-   xcode-select --install
-   ```
-
-   ### Linux
-   ```
-   sudo apt install libgtk-3-dev libwebkit2gtk-4.0-dev
-   ```
-
-## Build Instructions
-
-### 1. Clone the repository
-```bash
-git clone https://github.com/YOUR_USERNAME/oreateai-video-tool.git
-cd oreateai-video-tool
-```
-
-### 2. Install Wails CLI (if not already installed)
-```bash
-go install github.com/wailsapp/wails/v2/cmd/wails@latest
-```
-
-### 3. Download Go dependencies
-```bash
-cd backend
-go mod tidy
-```
-
-### 4. Build the application
-
-#### Development mode (with hot reload):
-```bash
-# From the project root (oreateai-video-tool/)
-wails dev
-```
-
-#### Production build (.exe on Windows):
-```bash
-# From the project root
-wails build
-
-# The output will be at:
-#   build/bin/oreateai-studio.exe  (Windows)
-#   build/bin/oreateai-studio      (Linux/macOS)
-```
-
-#### Build for specific platform:
-```bash
-# Windows (from Linux/macOS with cross-compile):
-wails build -platform windows/amd64
-
-# macOS:
-wails build -platform darwin/universal
-
-# Linux:
-wails build -platform linux/amd64
-```
-
-### 5. Run the built application
-```bash
-# Windows
-./build/bin/oreateai-studio.exe
-
-# Linux
-./build/bin/oreateai-studio
-
-# macOS
-open build/bin/oreateai-studio.app
-```
-
-## How to Get Your Cookies
-
-1. Open [OreateAI.com](https://www.oreateai.com/) in Chrome/Edge and log in
-2. Press **F12** to open DevTools
-3. Go to **Application** → **Cookies** → `https://www.oreateai.com`
-4. Click the **Export** button (or use a cookie export extension like [EditThisCookie](https://microsoftedge.microsoft.com/addons/detail/editthiscookie/neaplmfkghgehbncnkmbgdnjcmhkhhcj))
-5. Copy the entire JSON array
-6. Paste it into the app's cookie input field
-
-**Important**: The `ouss` cookie is required for authentication. Make sure it's included in your export.
+1. Buka [OreateAI.com](https://www.oreateai.com/) → login
+2. Tekan **F12** → tab **Application** → **Cookies**
+3. Install extension [EditThisCookie](https://microsoftedge.microsoft.com/addons/detail/editthiscookie/neaplmfkghgehbncnkmbgdnjcmhkhhcj)
+4. Klik export → copy JSON array → paste di app
 
 ## Project Structure
 
 ```
-oreateai-video-tool/
+createstudio/
+├── .github/workflows/build.yml   # GitHub Actions auto-build
 ├── backend/
-│   ├── main.go              # Wails entry point, app struct
-│   ├── api_client.go        # All OreateAI API logic
-│   ├── frontend/
-│   │   ├── index.html       # Main UI
-│   │   └── src/
-│   │       ├── app.js       # Frontend logic (Wails bindings)
-│   │       └── style.css    # Dark theme styles
-│   └── go.mod               # Go module definition
-├── wails.json               # Wails build config
-└── README.md                # This file
+│   ├── main.go                    # Wails entry point
+│   ├── api_client.go              # OreateAI API client (all 8 endpoints)
+│   ├── go.mod
+│   └── frontend/
+│       ├── index.html
+│       └── src/
+│           ├── app.js             # Wails bindings & UI logic
+│           └── style.css          # Dark theme
+├── wails.json
+└── README.md
 ```
-
-## API Endpoints Used
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/oreate/user/getuserinfo` | GET | User account info |
-| `/bizapi/point/getrestpoints` | GET | Available credits |
-| `/oreate/aivideo/getmodelconfigv3` | GET | Model configurations |
-| `/oreate/aivideo/getsceneconfig` | GET | Scene configurations |
-| `/oreate/convert/getuploadbostoken` | POST | GCS upload credentials |
-| `/oreate/create/chat` | POST | Submit generation task (SSE) |
-| `/oreate/doc/getstatus` | GET | Poll task status |
-| `/oreate/memory/getchatlist` | GET | Generation history |
-
-## Tech Stack
-
-- **Backend**: Go 1.21+ with Wails v2
-- **Frontend**: Vanilla HTML/CSS/JS (no framework)
-- **Style**: Custom CSS with dark theme (zinc + emerald)
-- **API**: REST + SSE to OreateAI.com
-- **Upload**: GCS resumable upload protocol
 
 ## License
 
 Educational use only. Not affiliated with OreateAI.com.
-
-## Disclaimer
-
-This tool is for **educational purposes only**. It demonstrates how web APIs can be reverse-engineered and interacted with programmatically. Use responsibly and in compliance with OreateAI.com's Terms of Service.
