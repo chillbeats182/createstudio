@@ -43,3 +43,45 @@ Stage Summary:
 - All 6 critical bugs fixed
 - Files modified: `backend/api_client.go`, `backend/api_client_patch.go` (new), `backend/frontend/src/app.js`
 - App now matches OreateAI.com website workflow exactly
+
+---
+Task ID: 2
+Agent: Main
+Task: Deep root cause analysis via real API testing against oreateai.com with provided cookies
+
+Work Log:
+- Read uploaded cookie JSON (ouss JWT + analytics cookies) and screenshot showing "GCS init returned status 403"
+- Tested real OreateAI.com API endpoints with provided cookies using Python/curl:
+  1. Auth endpoint (/oreate/user/getuserinfo) → ✅ works
+  2. Upload token (/oreate/convert/getuploadbostoken) → ✅ works, returns sessionkey (Google OAuth token)
+  3. GCS Resumable Upload → ❌ 403 "billing account disabled in state closed"
+  4. GCS Direct PUT to object URL → ✅ 200 SUCCESS (the correct method!)
+  5. Generation submit (/oreate/create/chat) → ✅ returns {"status":{"code":0},"data":{"chatId":"..."}}
+  6. History (getchatlist with pn/rn params) → ✅ works
+  7. History (getchatlist with pageNo/pageSize) → ❌ "params error"
+
+- Downloaded and analyzed OreateAI.com JS bundles (home-DVW0jP-q.js, Upload-BT0hzGJv.js)
+- Found website upload code uses `new th({bucket,token}).upload(ie,{uploadType:Jd.resumable})` 
+- Found website uses `vi.post("/oreate/doc/getstatus", n)` (POST, not GET)
+- Found website uses `o_({pn:1, rn:Da, updateTime:...})` for getchatlist
+
+Root Causes Found:
+1. **GCS Upload 403 (CRITICAL)**: App used GCS Resumable Upload API (/upload/storage/v1/b/{bucket}/o?uploadType=resumable) which requires active billing on the GCP project. The project's billing is disabled. The CORRECT method is a simple PUT to the GCS object URL (https://storage.googleapis.com/{bucket}/{objectPath}) with Bearer token authorization. This works because the sessionkey is a Google OAuth access token that has direct object write permissions.
+
+2. **Generation response format**: Server returns plain JSON, not SSE. Response: {"status":{"code":0,"msg":"success"},"data":{"chatId":"..."}}. App was trying to parse SSE events first, falling back poorly.
+
+3. **GetTaskStatus method**: App used GET, website uses POST.
+
+4. **GetHistory params**: App used pageNo/pageSize, website uses pn/rn.
+
+Fixes Applied:
+- `api_client.go`: Replaced resumable upload with direct PUT (removed ProjectID constant)
+- `api_client.go`: Rewrote SubmitGeneration to parse JSON first, then SSE
+- `api_client.go`: Changed GetTaskStatus from GET to POST
+- `api_client.go`: Changed GetHistory params from pageNo/pageSize to pn/rn
+- `app.js`: Improved polling error handling (retry 5 times before giving up)
+
+Stage Summary:
+- v1.0.8 tagged and pushed to GitHub
+- CI/CD build triggered
+- Main fix: GCS upload 403 resolved by using direct PUT instead of resumable upload

@@ -1,0 +1,927 @@
+     1→/* ============================================================
+     2→   OreateAI Studio — Frontend Application Logic
+     3→   Communicates with Go backend via Wails bindings
+     4→   ============================================================ */
+     5→
+     6→(function () {
+     7→  'use strict';
+     8→
+     9→  // ============================================================
+    10→  //  State
+    11→  // ============================================================
+    12→  const state = {
+    13→    cookieJSON: '',
+    14→    authenticated: false,
+    15→    userInfo: null,
+    16→    vipInfo: null,
+    17→    restPoint: 0,
+    18→    models: [],
+    19→    scenes: [],
+    20→    // Generation config
+    21→    sceneId: 'text_or_image',
+    22→    modelName: '',
+    23→    duration: 5,
+    24→    resolution: '720',
+    25→    videoSize: '16:9',
+    26→    aiType: 0,
+    27→    motDuration: '3',
+    28→    keepOriginalSound: false,
+    29→    prompt: '',
+    30→    // Files
+    31→    imageFilePath: '',
+    32→    videoFilePath: '',
+    33→    // Task
+    34→    isGenerating: false,
+    35→    currentDocId: null,
+    36→    pollInterval: null,
+    37→    // History
+    38→    history: [],
+    39→  };
+    40→
+    41→  // Detect if running inside Wails
+    42→  const isWails = !!window.runtime;
+    43→
+    44→  // ============================================================
+    45→  //  DOM References
+    46→  // ============================================================
+    47→  const $ = (sel) => document.querySelector(sel);
+    48→  const $$ = (sel) => document.querySelectorAll(sel);
+    49→
+    50→  // Views
+    51→  const viewConnect = $('#view-connect');
+    52→  const viewAuth = $('#view-auth');
+    53→
+    54→  // Connect form
+    55→  const cookieInput = $('#cookie-input');
+    56→  const btnConnect = $('#btn-connect');
+    57→  const connectError = $('#connect-error');
+    58→  const connectSpinner = $('#connect-spinner');
+    59→  const connectText = $('#connect-text');
+    60→
+    61→  // Header
+    62→  const headerCredits = $('#header-credits');
+    63→  const headerCreditsValue = $('#header-credits-value');
+    64→
+    65→  // Sidebar
+    66→  const userEmail = $('#user-email');
+    67→  const userVip = $('#user-vip');
+    68→  const statCredits = $('#stat-credits');
+    69→  const statCompleted = $('#stat-completed');
+    70→  const statHistory = $('#stat-history');
+    71→  const btnDisconnect = $('#btn-disconnect');
+    72→
+    73→  // Config
+    74→  const selScene = $('#sel-scene');
+    75→  const selModel = $('#sel-model');
+    76→  const groupDuration = $('#group-duration');
+    77→  const groupResolution = $('#group-resolution');
+    78→  const groupVideoSize = $('#group-videosize');
+    79→  const groupMotDuration = $('#group-motduration');
+    80→  const motionControls = $('#motion-controls');
+    81→  const chkKeepSound = $('#chk-keep-sound');
+    82→
+    83→  // Upload
+    84→  const zoneImage = $('#zone-image');
+    85→  const zoneVideo = $('#zone-video');
+    86→  const fileImage = $('#file-image');
+    87→  const fileVideo = $('#file-video');
+    88→  const previewImage = $('#preview-image');
+    89→  const previewVideo = $('#preview-video');
+    90→  const btnClearImage = $('#btn-clear-image');
+    91→  const btnClearVideo = $('#btn-clear-video');
+    92→
+    93→  // Generate
+    94→  const inputPrompt = $('#input-prompt');
+    95→  const btnGenerate = $('#btn-generate');
+    96→  const generateText = $('#generate-text');
+    97→  const generateSpinner = $('#generate-spinner');
+    98→  const progressSection = $('#progress-section');
+    99→  const progressFill = $('#progress-fill');
+   100→  const progressText = $('#progress-text');
+   101→  const resultSection = $('#result-section');
+   102→  const resultVideo = $('#result-video');
+   103→
+   104→  // History
+   105→  const historyList = $('#history-list');
+   106→  const historyEmpty = $('#history-empty');
+   107→  const btnRefreshHistory = $('#btn-refresh-history');
+   108→
+   109→  // Dialog
+   110→  const videoDialog = $('#video-dialog');
+   111→  const dialogVideo = $('#dialog-video');
+   112→  const dialogTitle = $('#dialog-title');
+   113→  const dialogClose = $('#dialog-close');
+   114→
+   115→  // ============================================================
+   116→  //  Toast Notification
+   117→  // ============================================================
+   118→  function toast(message, type = 'info') {
+   119→    console.log(`[Toast] ${type}: ${message}`);
+   120→    const el = document.createElement('div');
+   121→    el.className = 'toast ' + type;
+   122→    el.textContent = message;
+   123→    $('#toast-container').appendChild(el);
+   124→    setTimeout(() => el.remove(), 5000);
+   125→  }
+   126→
+   127→  // ============================================================
+   128→  //  Tab Switching
+   129→  // ============================================================
+   130→  $$('.tab').forEach((tab) => {
+   131→    tab.addEventListener('click', () => {
+   132→      $$('.tab').forEach((t) => t.classList.remove('active'));
+   133→      tab.classList.add('active');
+   134→      $$('.tab-content').forEach((c) => c.classList.remove('active'));
+   135→      const target = tab.dataset.tab;
+   136→      $(`#tab-${target}`).classList.add('active');
+   137→      if (target === 'history') loadHistory();
+   138→    });
+   139→  });
+   140→
+   141→  // ============================================================
+   142→  //  Connect
+   143→  // ============================================================
+   144→  cookieInput.addEventListener('input', () => {
+   145→    btnConnect.disabled = !cookieInput.value.trim();
+   146→  });
+   147→
+   148→  btnConnect.addEventListener('click', async () => {
+   149→    const raw = cookieInput.value.trim();
+   150→    if (!raw) return;
+   151→
+   152→    connectError.style.display = 'none';
+   153→    connectSpinner.style.display = 'inline-block';
+   154→    connectText.textContent = 'Connecting…';
+   155→    btnConnect.disabled = true;
+   156→
+   157→    try {
+   158→      if (!isWails || !window.go) {
+   159→        toast('Running in browser mode — Wails bindings unavailable. Run as desktop app.', 'error');
+   160→        connectText.textContent = 'Connect';
+   161→        connectSpinner.style.display = 'none';
+   162→        btnConnect.disabled = false;
+   163→        return;
+   164→      }
+   165→
+   166→      const result = await window.go.main.App.Authenticate(raw);
+   167→
+   168→      if (result.error) {
+   169→        connectError.textContent = result.error;
+   170→        connectError.style.display = 'block';
+   171→        toast(result.error, 'error');
+   172→        return;
+   173→      }
+   174→
+   175→      // Store state
+   176→      state.cookieJSON = raw;
+   177→      state.authenticated = true;
+   178→      state.userInfo = result.userInfo;
+   179→      state.vipInfo = result.vipInfo;
+   180→      state.restPoint = result.restPoint;
+   181→
+   182→      // Load models
+   183→      try {
+   184→        const modelsResult = await window.go.main.App.GetModels();
+   185→        if (!modelsResult.error) {
+   186→          state.models = modelsResult.models || [];
+   187→          state.scenes = modelsResult.scenes || [];
+   188→          console.log(`[Models] Loaded ${state.models.length} models, ${state.scenes.length} scenes`);
+   189→        } else {
+   190→          console.error('[Models] Error:', modelsResult.error);
+   191→        }
+   192→      } catch (e) {
+   193→        console.error('Failed to load models:', e);
+   194→      }
+   195→
+   196→      showAuthenticatedView();
+   197→      toast('Connected successfully!', 'success');
+   198→    } catch (err) {
+   199→      connectError.textContent = err.message || 'Connection failed';
+   200→      connectError.style.display = 'block';
+   201→      toast(err.message || 'Connection failed', 'error');
+   202→    } finally {
+   203→      connectText.textContent = 'Connect';
+   204→      connectSpinner.style.display = 'none';
+   205→      btnConnect.disabled = false;
+   206→    }
+   207→  });
+   208→
+   209→  // ============================================================
+   210→  //  Show Authenticated View
+   211→  // ============================================================
+   212→  function showAuthenticatedView() {
+   213→    viewConnect.style.display = 'none';
+   214→    viewAuth.style.display = 'block';
+   215→
+   216→    // Header credits
+   217→    headerCredits.style.display = 'inline-flex';
+   218→    headerCreditsValue.textContent = state.restPoint;
+   219→
+   220→    // Sidebar
+   221→    userEmail.textContent = state.userInfo?.email || '-';
+   222→    statCredits.textContent = state.restPoint;
+   223→
+   224→    // VIP badge
+   225→    if (state.vipInfo?.vipType && state.vipInfo.vipType > 0) {
+   226→      userVip.style.display = 'inline-flex';
+   227→      userVip.textContent = 'VIP ' + state.vipInfo.vipType;
+   228→    } else {
+   229→      userVip.style.display = 'inline-flex';
+   230→    }
+   231→
+   232→    // Populate scenes
+   233→    populateScenes();
+   234→    // Populate models
+   235→    populateModels();
+   236→    // Set defaults
+   237→    if (state.models.length > 0) {
+   238→      state.modelName = state.models[0].modelName;
+   239→      selModel.value = state.modelName;
+   240→      updateModelUI();
+   241→    }
+   242→    if (state.scenes.length > 0) {
+   243→      state.sceneId = state.scenes[0].sceneId;
+   244→      selScene.value = state.sceneId;
+   245→      updateSceneUI();
+   246→    }
+   247→  }
+   248→
+   249→  // ============================================================
+   250→  //  Populate Scenes
+   251→  // ============================================================
+   252→  function populateScenes() {
+   253→    selScene.innerHTML = '';
+   254→    state.scenes.forEach((s) => {
+   255→      const opt = document.createElement('option');
+   256→      opt.value = s.sceneId;
+   257→      opt.textContent = s.sceneName?.en || s.sceneId;
+   258→      selScene.appendChild(opt);
+   259→    });
+   260→  }
+   261→
+   262→  selScene.addEventListener('change', () => {
+   263→    state.sceneId = selScene.value;
+   264→    updateSceneUI();
+   265→  });
+   266→
+   267→  function updateSceneUI() {
+   268→    const isMotion = state.sceneId === 'motion';
+   269→    const isReference = state.sceneId === 'reference';
+   270→    zoneVideo.style.display = (isMotion || isReference) ? 'flex' : 'none';
+   271→    motionControls.style.display = isMotion ? 'block' : 'none';
+   272→  }
+   273→
+   274→  // ============================================================
+   275→  //  Populate Models
+   276→  // ============================================================
+   277→  function populateModels() {
+   278→    selModel.innerHTML = '';
+   279→    state.models.forEach((m) => {
+   280→      const opt = document.createElement('option');
+   281→      opt.value = m.modelName;
+   282→      opt.textContent = m.modelName;
+   283→      selModel.appendChild(opt);
+   284→    });
+   285→  }
+   286→
+   287→  selModel.addEventListener('change', () => {
+   288→    state.modelName = selModel.value;
+   289→    updateModelUI();
+   290→  });
+   291→
+   292→  function updateModelUI() {
+   293→    const model = state.models.find((m) => m.modelName === state.modelName);
+   294→    if (!model) return;
+   295→
+   296→    // Duration
+   297→    groupDuration.innerHTML = '';
+   298→    const durations = model.duration || [{ value: 5 }];
+   299→    durations.forEach((d) => {
+   300→      const btn = document.createElement('button');
+   301→      btn.textContent = d.value + 's';
+   302→      if (d.value === state.duration || (!durations.find((x) => x.value === state.duration))) {
+   303→        btn.classList.add('active');
+   304→        state.duration = d.value;
+   305→      }
+   306→      btn.addEventListener('click', () => {
+   307→        groupDuration.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+   308→        btn.classList.add('active');
+   309→        state.duration = d.value;
+   310→        selectAiType(model);
+   311→      });
+   312→      groupDuration.appendChild(btn);
+   313→    });
+   314→
+   315→    // Resolution
+   316→    groupResolution.innerHTML = '';
+   317→    const resolutions = model.videoResolution || ['720', '1080'];
+   318→    resolutions.forEach((r) => {
+   319→      const btn = document.createElement('button');
+   320→      btn.textContent = r + 'p';
+   321→      if (r === state.resolution) btn.classList.add('active');
+   322→      btn.addEventListener('click', () => {
+   323→        groupResolution.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+   324→        btn.classList.add('active');
+   325→        state.resolution = r;
+   326→        selectAiType(model);
+   327→      });
+   328→      groupResolution.appendChild(btn);
+   329→    });
+   330→
+   331→    // Video Size
+   332→    groupVideoSize.innerHTML = '';
+   333→    const sizes = model.videoSize || [{ ratio: '16:9' }, { ratio: '9:16' }, { ratio: '1:1' }];
+   334→    sizes.forEach((s) => {
+   335→      const btn = document.createElement('button');
+   336→      btn.textContent = s.ratio;
+   337→      if (s.ratio === state.videoSize) btn.classList.add('active');
+   338→      btn.addEventListener('click', () => {
+   339→        groupVideoSize.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+   340→        btn.classList.add('active');
+   341→        state.videoSize = s.ratio;
+   342→      });
+   343→      groupVideoSize.appendChild(btn);
+   344→    });
+   345→
+   346→    // Motion Duration
+   347→    if (state.sceneId === 'motion' && model.pointCostMotion) {
+   348→      groupMotDuration.innerHTML = '';
+   349→      const motDurations = [...new Set(model.pointCostMotion.map((c) => c.motDuration))];
+   350→      motDurations.forEach((md) => {
+   351→        const btn = document.createElement('button');
+   352→        btn.textContent = md + 's';
+   353→        if (String(md) === state.motDuration) btn.classList.add('active');
+   354→        btn.addEventListener('click', () => {
+   355→          groupMotDuration.querySelectorAll('button').forEach((b) => b.classList.remove('active'));
+   356→          btn.classList.add('active');
+   357→          state.motDuration = String(md);
+   358→          selectAiType(model);
+   359→        });
+   360→        groupMotDuration.appendChild(btn);
+   361→      });
+   362→    }
+   363→
+   364→    // Auto-select AI type
+   365→    selectAiType(model);
+   366→  }
+   367→
+   368→  function selectAiType(model) {
+   369→    state.aiType = 0;
+   370→    if (state.sceneId === 'motion') {
+   371→      const match = (model.pointCostMotion || []).find(
+   372→        (c) => String(c.motDuration) === state.motDuration && c.resolution === state.resolution
+   373→      );
+   374→      if (match) state.aiType = match.aiType;
+   375→    } else if (state.sceneId === 'reference') {
+   376→      const match = (model.pointCostReference || []).find(
+   377→        (c) => c.duration === state.duration && c.resolution === state.resolution
+   378→      );
+   379→      if (match) state.aiType = match.aiType;
+   380→    } else {
+   381→      const match = (model.pointCostImage || []).find(
+   382→        (c) => c.duration === state.duration && c.resolution === state.resolution
+   383→      );
+   384→      if (match) state.aiType = match.aiType;
+   385→    }
+   386→    console.log(`[Config] aiType=${state.aiType} (scene=${state.sceneId}, duration=${state.duration}, res=${state.resolution})`);
+   387→  }
+   388→
+   389→  // Keep sound toggle
+   390→  chkKeepSound.addEventListener('change', () => {
+   391→    state.keepOriginalSound = chkKeepSound.checked;
+   392→  });
+   393→
+   394→  // ============================================================
+   395→  //  File Upload — Wails vs Browser
+   396→  // ============================================================
+   397→
+   398→  // --- Image Upload ---
+   399→  function pickImage() {
+   400→    if (isWails && window.go) {
+   401→      // Wails v2 mode: use Go-bound native file dialog
+   402→      window.go.main.App.PickImageFile().then((path) => {
+   403→        if (path) {
+   404→          console.log('[Upload] Image selected (Wails v2):', path);
+   405→          state.imageFilePath = path;
+   406→          // Read file and preview via Go backend (returns data URL)
+   407→          window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
+   408→            if (dataURL) {
+   409→              previewImage.src = dataURL; // Already a complete data:image/...;base64,... URL
+   410→              previewImage.style.display = 'block';
+   411→              btnClearImage.style.display = 'flex';
+   412→              zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+   413→            } else {
+   414→              console.error('[Upload] Failed to read image file for preview');
+   415→              toast('Failed to preview image', 'error');
+   416→            }
+   417→          }).catch((err) => {
+   418→            console.error('[Upload] ReadFileAsDataURL error:', err);
+   419→          });
+   420→        }
+   421→      }).catch((err) => {
+   422→        console.error('[Upload] PickImageFile error:', err);
+   423→      });
+   424→    } else {
+   425→      // Browser fallback: trigger hidden file input
+   426→      fileImage.click();
+   427→    }
+   428→  }
+   429→
+   430→  zoneImage.addEventListener('click', (e) => {
+   431→    // Don't trigger if clicking the clear button
+   432→    if (e.target.closest('#btn-clear-image')) return;
+   433→    pickImage();
+   434→  });
+   435→
+   436→  // Browser fallback: handle file input change
+   437→  fileImage.addEventListener('change', (e) => {
+   438→    if (e.target.files[0]) {
+   439→      const file = e.target.files[0];
+   440→      console.log('[Upload] Image selected (browser):', file.name, file.type, file.size);
+   441→      // In browser mode we can't get a real file path, store the File object
+   442→      state.imageFilePath = ''; // Can't use in Wails GenerateVideo
+   443→      state._imageFile = file;
+   444→      const url = URL.createObjectURL(file);
+   445→      previewImage.src = url;
+   446→      previewImage.style.display = 'block';
+   447→      btnClearImage.style.display = 'flex';
+   448→      zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+   449→    }
+   450→  });
+   451→
+   452→  // Drag-and-drop (works in both modes)
+   453→  zoneImage.addEventListener('dragover', (e) => {
+   454→    e.preventDefault();
+   455→    zoneImage.classList.add('drag-over');
+   456→  });
+   457→  zoneImage.addEventListener('dragleave', () => zoneImage.classList.remove('drag-over'));
+   458→  zoneImage.addEventListener('drop', (e) => {
+   459→    e.preventDefault();
+   460→    zoneImage.classList.remove('drag-over');
+   461→    const file = e.dataTransfer.files[0];
+   462→    if (file && file.type.startsWith('image/')) {
+   463→      if (isWails) {
+   464→        // In Wails, drag-and-drop from OS gives us a file path via a different mechanism
+   465→        // For now, use the file object as fallback
+   466→        console.log('[Upload] Image dropped (Wails):', file.name);
+   467→        // The browser File object won't have a real path, show preview only
+   468→        state._imageFile = file;
+   469→        state.imageFilePath = file.name; // Note: this is just the name, not a real path
+   470→        const url = URL.createObjectURL(file);
+   471→        previewImage.src = url;
+   472→        previewImage.style.display = 'block';
+   473→        btnClearImage.style.display = 'flex';
+   474→        zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+   475→        toast('Dropped files may not work for upload. Use the file picker button instead.', 'info');
+   476→      } else {
+   477→        state._imageFile = file;
+   478→        const url = URL.createObjectURL(file);
+   479→        previewImage.src = url;
+   480→        previewImage.style.display = 'block';
+   481→        btnClearImage.style.display = 'flex';
+   482→        zoneImage.querySelector('.upload-placeholder').style.display = 'none';
+   483→      }
+   484→    }
+   485→  });
+   486→
+   487→  btnClearImage.addEventListener('click', (e) => {
+   488→    e.stopPropagation();
+   489→    clearImage();
+   490→  });
+   491→
+   492→  function clearImage() {
+   493→    previewImage.src = '';
+   494→    previewImage.style.display = 'none';
+   495→    btnClearImage.style.display = 'none';
+   496→    zoneImage.querySelector('.upload-placeholder').style.display = '';
+   497→    state.imageFilePath = '';
+   498→    state._imageFile = null;
+   499→    fileImage.value = '';
+   500→  }
+   501→
+   502→  // --- Video Upload ---
+   503→  function pickVideo() {
+   504→    if (isWails && window.go) {
+   505→      // Wails v2 mode: use Go-bound native file dialog
+   506→      window.go.main.App.PickVideoFile().then((path) => {
+   507→        if (path) {
+   508→          console.log('[Upload] Video selected (Wails v2):', path);
+   509→          state.videoFilePath = path;
+   510→          // For video preview, use data URL
+   511→          window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
+   512→            if (dataURL) {
+   513→              previewVideo.src = dataURL;
+   514→              previewVideo.style.display = 'block';
+   515→              btnClearVideo.style.display = 'flex';
+   516→              zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+   517→              previewVideo.play().catch(() => {});
+   518→            }
+   519→          }).catch((err) => {
+   520→            console.error('[Upload] ReadFileAsDataURL error:', err);
+   521→            // Fallback: just store the path, don't show preview
+   522→            btnClearVideo.style.display = 'flex';
+   523→            zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+   524→          });
+   525→        }
+   526→      }).catch((err) => {
+   527→        console.error('[Upload] PickVideoFile error:', err);
+   528→      });
+   529→    } else {
+   530→      fileVideo.click();
+   531→    }
+   532→  }
+   533→
+   534→  zoneVideo.addEventListener('click', (e) => {
+   535→    if (e.target.closest('#btn-clear-video')) return;
+   536→    pickVideo();
+   537→  });
+   538→
+   539→  fileVideo.addEventListener('change', (e) => {
+   540→    if (e.target.files[0]) {
+   541→      const file = e.target.files[0];
+   542→      console.log('[Upload] Video selected (browser):', file.name);
+   543→      state.videoFilePath = '';
+   544→      state._videoFile = file;
+   545→      const url = URL.createObjectURL(file);
+   546→      previewVideo.src = url;
+   547→      previewVideo.style.display = 'block';
+   548→      btnClearVideo.style.display = 'flex';
+   549→      zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+   550→      previewVideo.play().catch(() => {});
+   551→    }
+   552→  });
+   553→
+   554→  zoneVideo.addEventListener('dragover', (e) => {
+   555→    e.preventDefault();
+   556→    zoneVideo.classList.add('drag-over');
+   557→  });
+   558→  zoneVideo.addEventListener('dragleave', () => zoneVideo.classList.remove('drag-over'));
+   559→  zoneVideo.addEventListener('drop', (e) => {
+   560→    e.preventDefault();
+   561→    zoneVideo.classList.remove('drag-over');
+   562→    const file = e.dataTransfer.files[0];
+   563→    if (file && file.type.startsWith('video/')) {
+   564→      if (isWails) {
+   565→        console.log('[Upload] Video dropped (Wails):', file.name);
+   566→        state._videoFile = file;
+   567→        state.videoFilePath = file.name;
+   568→        toast('Dropped files may not work for upload. Use the file picker button instead.', 'info');
+   569→      }
+   570→      const url = URL.createObjectURL(file);
+   571→      previewVideo.src = url;
+   572→      previewVideo.style.display = 'block';
+   573→      btnClearVideo.style.display = 'flex';
+   574→      zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
+   575→      previewVideo.play().catch(() => {});
+   576→    }
+   577→  });
+   578→
+   579→  btnClearVideo.addEventListener('click', (e) => {
+   580→    e.stopPropagation();
+   581→    clearVideo();
+   582→  });
+   583→
+   584→  function clearVideo() {
+   585→    previewVideo.src = '';
+   586→    previewVideo.style.display = 'none';
+   587→    btnClearVideo.style.display = 'none';
+   588→    zoneVideo.querySelector('.upload-placeholder').style.display = '';
+   589→    state.videoFilePath = '';
+   590→    state._videoFile = null;
+   591→    fileVideo.value = '';
+   592→  }
+   593→
+   594→  // ============================================================
+   595→  //  Generate Video
+   596→  // ============================================================
+   597→  btnGenerate.addEventListener('click', startGeneration);
+   598→
+   599→  async function startGeneration() {
+   600→    if (state.isGenerating) return;
+   601→
+   602→    if (!isWails || !window.go) {
+   603→      toast('Wails bindings required — run as desktop app', 'error');
+   604→      return;
+   605→    }
+   606→
+   607→    // Validate inputs
+   608→    if (!state.modelName) {
+   609→      toast('Please select a model', 'error');
+   610→      return;
+   611→    }
+   612→
+   613→    const needsImage = state.sceneId === 'text_or_image' || state.sceneId === 'motion';
+   614→    const needsVideo = state.sceneId === 'motion';
+   615→    const needsAnyFile = state.sceneId === 'reference';
+   616→
+   617→    if (needsImage && !state.imageFilePath) {
+   618→      toast('Please upload a source image', 'error');
+   619→      return;
+   620→    }
+   621→
+   622→    if (needsVideo && !state.videoFilePath) {
+   623→      toast('Please upload a motion video', 'error');
+   624→      return;
+   625→    }
+   626→
+   627→    if (needsAnyFile && !state.imageFilePath && !state.videoFilePath) {
+   628→      toast('Please upload at least one image or video', 'error');
+   629→      return;
+   630→    }
+   631→
+   632→    state.isGenerating = true;
+   633→    btnGenerate.disabled = true;
+   634→    generateText.textContent = 'Generating…';
+   635→    generateSpinner.style.display = 'inline-block';
+   636→    progressSection.style.display = 'block';
+   637→    resultSection.style.display = 'none';
+   638→    progressFill.style.width = '0%';
+   639→    progressFill.style.background = '';
+   640→    progressText.textContent = 'Uploading files…';
+   641→
+   642→    try {
+   643→      const model = state.models.find((m) => m.modelName === state.modelName);
+   644→      if (model) selectAiType(model);
+   645→
+   646→      console.log('[Generate] Starting generation with:', {
+   647→        sceneId: state.sceneId,
+   648→        modelName: state.modelName,
+   649→        duration: state.duration,
+   650→        resolution: state.resolution,
+   651→        videoSize: state.videoSize,
+   652→        aiType: state.aiType,
+   653→        image: state.imageFilePath || '(none)',
+   654→        video: state.videoFilePath || '(none)',
+   655→        prompt: inputPrompt.value || '(empty)',
+   656→      });
+   657→
+   658→      const result = await window.go.main.App.GenerateVideo(
+   659→        state.imageFilePath || '',
+   660→        state.videoFilePath || '',
+   661→        inputPrompt.value,
+   662→        state.sceneId,
+   663→        state.modelName,
+   664→        state.duration,
+   665→        state.resolution,
+   666→        state.videoSize,
+   667→        state.aiType,
+   668→        state.motDuration,
+   669→        state.keepOriginalSound
+   670→      );
+   671→
+   672→      console.log('[Generate] Result:', result);
+   673→
+   674→      if (result.error) {
+   675→        toast('Generation failed: ' + result.error, 'error');
+   676→        progressText.textContent = 'Failed: ' + result.error;
+   677→        progressFill.style.width = '100%';
+   678→        progressFill.style.background = 'var(--danger)';
+   679→        return;
+   680→      }
+   681→
+   682→      if (result.docId) {
+   683→        state.currentDocId = result.docId;
+   684→        progressText.textContent = 'Task submitted — processing…';
+   685→        progressFill.style.width = '20%';
+   686→        startPolling();
+   687→        toast('Task submitted! Waiting for result...', 'success');
+   688→      } else {
+   689→        // No docId but no error either — check submitResult for clues
+   690→        console.warn('[Generate] No docId returned. submitResult:', result.submitResult);
+   691→        toast('Task submitted but no docId received. Check Go console for details.', 'info');
+   692→        progressText.textContent = 'Submitted (no docId — check console)';
+   693→      }
+   694→    } catch (err) {
+   695→      console.error('[Generate] Exception:', err);
+   696→      toast('Error: ' + (err.message || 'Unknown error'), 'error');
+   697→      progressText.textContent = 'Error: ' + (err.message || 'Unknown');
+   698→      progressFill.style.width = '100%';
+   699→      progressFill.style.background = 'var(--danger)';
+   700→    } finally {
+   701→      state.isGenerating = false;
+   702→      btnGenerate.disabled = false;
+   703→      generateText.textContent = 'Generate Video';
+   704→      generateSpinner.style.display = 'none';
+   705→    }
+   706→  }
+   707→
+   708→  // ============================================================
+   709→  //  Task Polling
+   710→  // ============================================================
+   711→  function startPolling() {
+   712→    stopPolling();
+   713→    state.pollInterval = setInterval(pollTaskStatus, 3000);
+   714→    // Poll immediately
+   715→    pollTaskStatus();
+   716→  }
+   717→
+   718→  function stopPolling() {
+   719→    if (state.pollInterval) {
+   720→      clearInterval(state.pollInterval);
+   721→      state.pollInterval = null;
+   722→    }
+   723→  }
+   724→
+   725→  async function pollTaskStatus() {
+   726→    if (!state.currentDocId || !window.go) return;
+   727→
+   728→    try {
+   729→      const result = await window.go.main.App.GetTaskStatus(state.currentDocId);
+   730→
+   731→      if (result.error) {
+   732→        stopPolling();
+   733→        progressText.textContent = 'Polling error: ' + result.error;
+   734→        progressFill.style.background = 'var(--danger)';
+   735→        toast('Polling error: ' + result.error, 'error');
+   736→        return;
+   737→      }
+   738→
+   739→      const statusData = result.data || {};
+   740→      const status = statusData.status;
+   741→
+   742→      console.log(`[Poll] docId=${state.currentDocId} status=${status} progress=${statusData.progress}`);
+   743→
+   744→      if (status === 1) {
+   745→        // Processing
+   746→        const progress = statusData.progress || 50;
+   747→        progressFill.style.width = Math.min(90, 20 + progress * 0.7) + '%';
+   748→        progressText.textContent = 'Processing… ' + (progress ? progress + '%' : '');
+   749→      } else if (status === 2) {
+   750→        // Completed
+   751→        stopPolling();
+   752→        progressFill.style.width = '100%';
+   753→        progressText.textContent = 'Completed!';
+   754→
+   755→        const videoUrl = statusData.videoUrl || statusData.video_url || statusData.url;
+   756→        if (videoUrl) {
+   757→          resultVideo.src = videoUrl;
+   758→          resultSection.style.display = 'block';
+   759→          toast('Video generated successfully!', 'success');
+   760→        } else {
+   761→          toast('Completed but no video URL in response', 'info');
+   762→          console.log('[Poll] Completed status data:', statusData);
+   763→        }
+   764→
+   765→        // Update credits
+   766→        try {
+   767→          const authResult = await window.go.main.App.Authenticate(state.cookieJSON);
+   768→          if (!authResult.error) {
+   769→            state.restPoint = authResult.restPoint;
+   770→            statCredits.textContent = authResult.restPoint;
+   771→            headerCreditsValue.textContent = authResult.restPoint;
+   772→          }
+   773→        } catch (e) { /* ignore */ }
+   774→
+   775→        // Refresh history
+   776→        loadHistory();
+   777→      } else if (status === 3 || status === -1 || status === 4) {
+   778→        // Failed
+   779→        stopPolling();
+   780→        progressFill.style.width = '100%';
+   781→        progressFill.style.background = 'var(--danger)';
+   782→        const errMsg = statusData.errorMsg || statusData.error || statusData.errMsg || 'Unknown error';
+   783→        progressText.textContent = 'Failed: ' + errMsg;
+   784→        toast('Generation failed: ' + errMsg, 'error');
+   785→        console.error('[Poll] Failed status data:', statusData);
+   786→        setTimeout(() => { progressFill.style.background = ''; }, 3000);
+   787→      }
+   788→    } catch (err) {
+   789→      console.error('[Poll] Error:', err);
+   790→    }
+   791→  }
+   792→
+   793→  // ============================================================
+   794→  //  History
+   795→  // ============================================================
+   796→  async function loadHistory() {
+   797→    if (!window.go) return;
+   798→
+   799→    btnRefreshHistory.disabled = true;
+   800→    historyEmpty.style.display = 'none';
+   801→
+   802→    // Remove existing items (not the empty state)
+   803→    historyList.querySelectorAll('.history-item').forEach((el) => el.remove());
+   804→
+   805→    try {
+   806→      const result = await window.go.main.App.GetHistory(1, 50);
+   807→
+   808→      if (result.error) {
+   809→        historyEmpty.style.display = 'block';
+   810→        return;
+   811→      }
+   812→
+   813→      state.history = result.items || [];
+   814→
+   815→      if (state.history.length === 0) {
+   816→        historyEmpty.style.display = 'block';
+   817→        statHistory.textContent = '0';
+   818→        statCompleted.textContent = '0';
+   819→        return;
+   820→      }
+   821→
+   822→      statHistory.textContent = state.history.length;
+   823→      statCompleted.textContent = state.history.filter((h) => h.status === 2).length;
+   824→
+   825→      state.history.forEach((item) => {
+   826→        const el = document.createElement('div');
+   827→        el.className = 'history-item';
+   828→
+   829→        const statusClass = item.status === 2 ? 'completed' : item.status === 1 ? 'processing' : 'failed';
+   830→        const statusText = item.status === 2 ? 'Done' : item.status === 1 ? 'Processing' : 'Failed';
+   831→        const date = new Date(item.createTime * 1000).toLocaleDateString();
+   832→
+   833→        el.innerHTML = `
+   834→          <div class="history-thumb">
+   835→            ${item.thumbnailUrl ? '<img src="' + item.thumbnailUrl + '" />' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}
+   836→          </div>
+   837→          <div class="history-info">
+   838→            <p class="history-title">${escapeHTML(item.title || item.prompt || 'Untitled')}</p>
+   839→            <div class="history-meta">
+   840→              <span>${item.modelName || '-'}</span>
+   841→              <span>${date}</span>
+   842→              <span class="badge-status ${statusClass}">${statusText}</span>
+   843→            </div>
+   844→          </div>
+   845→        `;
+   846→
+   847→        if (item.videoUrl) {
+   848→          el.addEventListener('click', () => openVideoDialog(item.videoUrl, item.title || 'Video'));
+   849→        }
+   850→
+   851→        historyList.appendChild(el);
+   852→      });
+   853→    } catch (e) {
+   854→      console.error('[History] Error:', e);
+   855→      historyEmpty.style.display = 'block';
+   856→    } finally {
+   857→      btnRefreshHistory.disabled = false;
+   858→    }
+   859→  }
+   860→
+   861→  btnRefreshHistory.addEventListener('click', loadHistory);
+   862→
+   863→  // ============================================================
+   864→  //  Video Dialog
+   865→  // ============================================================
+   866→  function openVideoDialog(url, title) {
+   867→    dialogVideo.src = url;
+   868→    dialogTitle.textContent = title;
+   869→    videoDialog.style.display = 'flex';
+   870→    dialogVideo.play().catch(() => {});
+   871→  }
+   872→
+   873→  dialogClose.addEventListener('click', closeDialog);
+   874→  videoDialog.addEventListener('click', (e) => {
+   875→    if (e.target === videoDialog) closeDialog();
+   876→  });
+   877→
+   878→  function closeDialog() {
+   879→    videoDialog.style.display = 'none';
+   880→    dialogVideo.pause();
+   881→    dialogVideo.src = '';
+   882→  }
+   883→
+   884→  // ============================================================
+   885→  //  Disconnect
+   886→  // ============================================================
+   887→  btnDisconnect.addEventListener('click', () => {
+   888→    stopPolling();
+   889→    state.authenticated = false;
+   890→    state.cookieJSON = '';
+   891→    state.models = [];
+   892→    state.scenes = [];
+   893→    state.history = [];
+   894→    state.imageFilePath = '';
+   895→    state.videoFilePath = '';
+   896→    state._imageFile = null;
+   897→    state._videoFile = null;
+   898→    clearImage();
+   899→    clearVideo();
+   900→    inputPrompt.value = '';
+   901→    progressSection.style.display = 'none';
+   902→    resultSection.style.display = 'none';
+   903→
+   904→    viewAuth.style.display = 'none';
+   905→    viewConnect.style.display = 'flex';
+   906→    headerCredits.style.display = 'none';
+   907→    toast('Disconnected', 'info');
+   908→  });
+   909→
+   910→  // ============================================================
+   911→  //  Helpers
+   912→  // ============================================================
+   913→  function escapeHTML(str) {
+   914→    const div = document.createElement('div');
+   915→    div.textContent = str;
+   916→    return div.innerHTML;
+   917→  }
+   918→
+   919→  // Keyboard shortcut for dialog close
+   920→  document.addEventListener('keydown', (e) => {
+   921→    if (e.key === 'Escape' && videoDialog.style.display === 'flex') {
+   922→      closeDialog();
+   923→    }
+   924→  });
+   925→
+   926→  console.log('[App] OreateAI Studio frontend loaded. Wails mode:', isWails);
+   927→})();
