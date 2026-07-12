@@ -19,10 +19,9 @@ import (
 // ====================================================================
 
 const (
-        BaseURL    = "https://www.oreateai.com"
-        GCSBase    = "https://storage.googleapis.com"
-        UserAgent  = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        ProjectID  = "iron-area-433903-r2"
+        BaseURL   = "https://www.oreateai.com"
+        GCSBase   = "https://storage.googleapis.com"
+        UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 )
 
 // ====================================================================
@@ -600,7 +599,10 @@ func (a *App) GetUploadToken(fileMetasJSON string) UploadTokenResult {
         return UploadTokenResult{KeyList: keyList}
 }
 
-// UploadFile uploads a local file to GCS using resumable upload
+// UploadFile uploads a local file to GCS using direct PUT.
+// The OreateAI API returns a sessionkey (Google OAuth token) that authorizes
+// direct PUT to the GCS object URL. This is simpler and more reliable than
+// the resumable upload API (which returns 403 due to billing restrictions).
 func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (string, error) {
         if sessionKey == "" {
                 return "", fmt.Errorf("empty sessionKey — cannot authenticate GCS upload")
@@ -640,44 +642,18 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
                 contentType = "video/webm"
         }
 
-        encodedPath := url.PathEscape(objectPath)
-        uploadURL := fmt.Sprintf("%s/upload/storage/v1/b/%s/o?uploadType=resumable&name=%s", GCSBase, bucket, encodedPath)
+        // Direct PUT to the GCS object URL — verified working with real API
+        objectURL := fmt.Sprintf("%s/%s/%s", GCSBase, bucket, objectPath)
 
-        fmt.Printf("[GCS] Initiating upload: %s (%d bytes, %s)\n", filepath.Base(filePath), fileSize, contentType)
+        fmt.Printf("[GCS] Uploading (direct PUT): %s (%d bytes, %s)\n", filepath.Base(filePath), fileSize, contentType)
+        fmt.Printf("[GCS] URL: %s\n", objectURL)
 
-        // Step 1: Initiate resumable upload
-        initReq, _ := http.NewRequest("POST", uploadURL, nil)
-        initReq.Header.Set("Authorization", "Bearer "+sessionKey)
-        initReq.Header.Set("Content-Type", "application/json")
-        initReq.Header.Set("Content-Length", "0")
-        initReq.Header.Set("x-goog-user-project", ProjectID)
-
-        initResp, err := a.apiClient.httpClient.Do(initReq)
-        if err != nil {
-                return "", fmt.Errorf("GCS init failed: %w", err)
-        }
-        initResp.Body.Close()
-
-        fmt.Printf("[GCS] Init response: %d\n", initResp.StatusCode)
-
-        if initResp.StatusCode != 200 && initResp.StatusCode != 201 {
-                return "", fmt.Errorf("GCS init returned status %d — check sessionKey validity", initResp.StatusCode)
-        }
-
-        location := initResp.Header.Get("Location")
-        if location == "" {
-                return "", fmt.Errorf("GCS init returned no Location header")
-        }
-
-        // Step 2: Upload file data
         buf := new(bytes.Buffer)
         buf.ReadFrom(file)
         fileData := buf.Bytes()
 
-        putReq, _ := http.NewRequest("PUT", location, bytes.NewReader(fileData))
-        putReq.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", fileSize-1, fileSize))
+        putReq, _ := http.NewRequest("PUT", objectURL, bytes.NewReader(fileData))
         putReq.Header.Set("Authorization", "Bearer "+sessionKey)
-        putReq.Header.Set("x-goog-user-project", ProjectID)
         putReq.Header.Set("Content-Type", contentType)
 
         uploadResp, err := a.apiClient.httpClient.Do(putReq)
@@ -688,8 +664,8 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
 
         fmt.Printf("[GCS] Upload response: %d\n", uploadResp.StatusCode)
 
-        if uploadResp.StatusCode == 200 || uploadResp.StatusCode == 201 {
-                finalURL := fmt.Sprintf("https://storage.googleapis.com/%s/%s", bucket, objectPath)
+        if uploadResp.StatusCode == 200 {
+                finalURL := objectURL
                 fmt.Printf("[GCS] Upload success: %s\n", finalURL)
                 return finalURL, nil
         }
@@ -698,7 +674,9 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
         return "", fmt.Errorf("GCS upload returned status %d: %s", uploadResp.StatusCode, string(body))
 }
 
-// SubmitGeneration submits a video generation task via SSE endpoint
+// SubmitGeneration submits a video generation task.
+// The server may return either SSE stream or plain JSON.
+// Verified response format: {"status":{"code":0,"msg":"success"},"data":{"chatId":"..."}}
 func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         var req GenerateRequest
         if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
@@ -714,7 +692,7 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
 
         httpReq, _ := a.apiClient.newRequest("POST", "/oreate/create/chat", bytes.NewReader(body))
         httpReq.Header.Set("Content-Type", "application/json")
-        httpReq.Header.Set("Accept", "text/event-stream")
+        httpReq.Header.Set("Accept", "application/json, text/event-stream, */*")
 
         resp, err := a.apiClient.httpClient.Do(httpReq)
         if err != nil {
@@ -725,9 +703,46 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         respBody, _ := io.ReadAll(resp.Body)
         bodyStr := string(respBody)
 
-        fmt.Printf("[Generate] Response: %d bytes\n", len(bodyStr))
+        fmt.Printf("[Generate] Response: %d bytes, content-type: %s\n", len(bodyStr), resp.Header.Get("Content-Type"))
 
-        // Parse SSE data lines — collect ALL events
+        // Try parsing as direct JSON first (server returns this format for non-SSE responses)
+        var directResult map[string]interface{}
+        if err := json.Unmarshal(respBody, &directResult); err == nil {
+                // Successfully parsed as JSON — check for errors
+                if status, ok := directResult["status"].(map[string]interface{}); ok {
+                        code, _ := status["code"].(float64)
+                        msg, _ := status["msg"].(string)
+                        errMsg, _ := status["errMsg"].(string)
+                        if code != 0 {
+                                return GenerateResult{
+                                        SubmitResult: directResult,
+                                        Error:        fmt.Sprintf("generation error (code %d): %s — %s", int(code), msg, errMsg),
+                                }
+                        }
+                }
+
+                // Extract docId/chatId from the JSON response
+                docID := ""
+                if data, ok := directResult["data"].(map[string]interface{}); ok {
+                        // Try various field names the server might return
+                        for _, field := range []string{"docId", "docID", "chatId", "taskId"} {
+                                if id, ok := data[field].(string); ok && id != "" {
+                                        docID = id
+                                        break
+                                }
+                        }
+                }
+
+                fmt.Printf("[Generate] docId/chatId=%s\n", docID)
+
+                return GenerateResult{
+                        Success:      true,
+                        DocID:        docID,
+                        SubmitResult: directResult,
+                }
+        }
+
+        // If not valid JSON, try SSE parsing
         type sseEvent struct {
                 raw    string
                 parsed map[string]interface{}
@@ -753,46 +768,33 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         }
 
         if len(events) == 0 {
-                // No SSE events found — try direct JSON
-                var result map[string]interface{}
-                if err := json.Unmarshal(respBody, &result); err != nil {
-                        preview := bodyStr
-                        if len(preview) > 300 {
-                                preview = preview[:300] + "..."
-                        }
-                        return GenerateResult{Error: fmt.Sprintf("invalid response: %s", preview)}
+                preview := bodyStr
+                if len(preview) > 500 {
+                        preview = preview[:500] + "..."
                 }
-                events = append(events, sseEvent{parsed: result})
+                return GenerateResult{Error: fmt.Sprintf("invalid response (not JSON or SSE): %s", preview)}
         }
 
-        // Find the event with docId — prefer events with status.code == 0
+        // Find best SSE event
         var bestEvent *sseEvent
         for i := range events {
                 ev := &events[i]
-                // Check for error status
                 if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
                         code, _ := status["code"].(float64)
                         msg, _ := status["msg"].(string)
                         if code != 0 && code != 1 {
-                                // Real error (not processing)
                                 return GenerateResult{
                                         SubmitResult: ev.parsed,
                                         Error:        fmt.Sprintf("generation error (code %d): %s", int(code), msg),
                                 }
                         }
                 }
-                // Check if this event has a docId in data
                 if d, ok := ev.parsed["data"].(map[string]interface{}); ok {
-                        if _, hasDocId := d["docId"]; hasDocId {
-                                bestEvent = ev
-                                break // Found it
-                        }
-                        if _, hasDocId := d["docID"]; hasDocId {
+                        if _, has := d["docId"]; has || d["docID"] != nil || d["chatId"] != nil {
                                 bestEvent = ev
                                 break
                         }
                 }
-                // Fall back to first event with status.code == 0
                 if bestEvent == nil {
                         if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
                                 if code, _ := status["code"].(float64); code == 0 {
@@ -803,30 +805,20 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         }
 
         if bestEvent == nil {
-                bestEvent = &events[0] // Use first event as fallback
+                bestEvent = &events[0]
         }
 
-        // Extract docId from the best event
         docID := ""
         if data, ok := bestEvent.parsed["data"].(map[string]interface{}); ok {
-                if id, ok := data["docId"].(string); ok {
-                        docID = id
-                } else if id, ok := data["docID"].(string); ok {
-                        docID = id
-                } else if id, ok := data["taskId"].(string); ok {
-                        docID = id
-                } else if id, ok := data["chatId"].(string); ok {
-                        docID = id
+                for _, field := range []string{"docId", "docID", "chatId", "taskId"} {
+                        if id, ok := data[field].(string); ok && id != "" {
+                                docID = id
+                                break
+                        }
                 }
         }
 
-        if docID == "" {
-                fmt.Printf("[Generate] WARNING: No docId found in response\n")
-                pretty, _ := json.MarshalIndent(bestEvent.parsed, "", "  ")
-                fmt.Printf("[Generate] Response data:\n%s\n", string(pretty))
-        }
-
-        fmt.Printf("[Generate] docId=%s\n", docID)
+        fmt.Printf("[Generate] docId/chatId=%s (from SSE)\n", docID)
 
         return GenerateResult{
                 Success:      true,
@@ -835,9 +827,16 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         }
 }
 
-// GetTaskStatus polls the status of a generation task
+// GetTaskStatus polls the status of a generation task (POST method, matching website)
 func (a *App) GetTaskStatus(docID string) TaskStatusResult {
-        req, _ := a.apiClient.newRequest("GET", "/oreate/doc/getstatus?docIdList="+url.QueryEscape(docID), nil)
+        // Website uses POST for getstatus: vi.post("/oreate/doc/getstatus", n)
+        payload := map[string]interface{}{
+                "docIdList": []string{docID},
+        }
+        body, _ := json.Marshal(payload)
+
+        req, _ := a.apiClient.newRequest("POST", "/oreate/doc/getstatus", bytes.NewReader(body))
+        req.Header.Set("Content-Type", "application/json")
 
         resp, err := a.apiClient.doJSON(req)
         if err != nil {
@@ -856,8 +855,9 @@ func (a *App) GetTaskStatus(docID string) TaskStatusResult {
 }
 
 // GetHistory fetches the generation history
+// Website uses: vi.get("/oreate/memory/getchatlist", {params: {pn, rn, updateTime}})
 func (a *App) GetHistory(pageNo, pageSize int) HistoryResult {
-        urlPath := fmt.Sprintf("/oreate/memory/getchatlist?pageNo=%d&pageSize=%d&chatType=aiVideo", pageNo, pageSize)
+        urlPath := fmt.Sprintf("/oreate/memory/getchatlist?pn=%d&rn=%d", pageNo, pageSize)
         req, _ := a.apiClient.newRequest("GET", urlPath, nil)
 
         resp, err := a.apiClient.doJSON(req)

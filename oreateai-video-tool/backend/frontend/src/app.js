@@ -729,10 +729,20 @@
       const result = await window.go.main.App.GetTaskStatus(state.currentDocId);
 
       if (result.error) {
-        stopPolling();
-        progressText.textContent = 'Polling error: ' + result.error;
-        progressFill.style.background = 'var(--danger)';
-        toast('Polling error: ' + result.error, 'error');
+        // If polling returns error (e.g. params error from server), 
+        // try refreshing history instead of giving up immediately
+        console.warn('[Poll] Status error:', result.error);
+        const pollCount = parseInt(progressText.dataset.pollCount || '0') + 1;
+        progressText.dataset.pollCount = pollCount;
+        
+        if (pollCount >= 5) {
+          stopPolling();
+          progressText.textContent = 'Task submitted. Check History tab for results.';
+          progressFill.style.width = '100%';
+          progressFill.style.background = 'var(--warning, #f59e0b)';
+          toast('Video may be processing. Check the History tab.', 'info');
+          loadHistory();
+        }
         return;
       }
 
