@@ -990,7 +990,8 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 					keys = append(keys, k)
 				}
 				if i < len(keys) {
-					cred = &tokenResult.KeyList[keys[i]]
+					tmpCred := tokenResult.KeyList[keys[i]]
+					cred = &tmpCred
 					matchedKey = keys[i]
 					fmt.Printf("[Gen] WARNING: No exact key match for %q, using key at index %d: %q\n", fi.name, i, matchedKey)
 				}
