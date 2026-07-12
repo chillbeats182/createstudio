@@ -398,18 +398,14 @@
   // --- Image Upload ---
   function pickImage() {
     if (isWails && window.go) {
-      // Wails mode: use native file dialog
-      window.runtime.OpenFileDialog({
-        Title: 'Select Source Image',
-        Filters: [{ Pattern: '*.png;*.jpg;*.jpeg;*.webp;*.gif', Description: 'Image files' }],
-      }).then((path) => {
+      // Wails v2: use Go-bound native file dialog
+      window.go.main.App.PickImageFile().then((path) => {
         if (path) {
           console.log('[Upload] Image selected (Wails):', path);
           state.imageFilePath = path;
-          // Read file and preview via Go backend (returns data URL)
           window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
             if (dataURL) {
-              previewImage.src = dataURL; // Already a complete data:image/...;base64,... URL
+              previewImage.src = dataURL;
               previewImage.style.display = 'block';
               btnClearImage.style.display = 'flex';
               zoneImage.querySelector('.upload-placeholder').style.display = 'none';
@@ -422,10 +418,9 @@
           });
         }
       }).catch((err) => {
-        console.error('[Upload] OpenFileDialog error:', err);
+        console.error('[Upload] PickImageFile error:', err);
       });
     } else {
-      // Browser fallback: trigger hidden file input
       fileImage.click();
     }
   }
@@ -505,14 +500,11 @@
   // --- Video Upload ---
   function pickVideo() {
     if (isWails && window.go) {
-      window.runtime.OpenFileDialog({
-        Title: 'Select Motion Video',
-        Filters: [{ Pattern: '*.mp4;*.mov;*.avi;*.webm', Description: 'Video files' }],
-      }).then((path) => {
+      // Wails v2: use Go-bound native file dialog
+      window.go.main.App.PickVideoFile().then((path) => {
         if (path) {
           console.log('[Upload] Video selected (Wails):', path);
           state.videoFilePath = path;
-          // For video preview, use Wails asset protocol or data URL
           window.go.main.App.ReadFileAsDataURL(path).then((dataURL) => {
             if (dataURL) {
               previewVideo.src = dataURL;
@@ -523,13 +515,12 @@
             }
           }).catch((err) => {
             console.error('[Upload] ReadFileAsDataURL error:', err);
-            // Fallback: just store the path, don't show preview
             btnClearVideo.style.display = 'flex';
             zoneVideo.querySelector('.upload-placeholder').style.display = 'none';
           });
         }
       }).catch((err) => {
-        console.error('[Upload] OpenFileDialog error:', err);
+        console.error('[Upload] PickVideoFile error:', err);
       });
     } else {
       fileVideo.click();
