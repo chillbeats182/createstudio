@@ -10,6 +10,9 @@ jobs:
   build-windows:
     runs-on: windows-latest
 
+    env:
+      CGO_ENABLED: 1
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,11 +20,17 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.21'
+          go-version: '1.22'
           cache: false
 
-      - name: Install Wails CLI
-        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+      - name: Install Wails CLI (pinned to v2.9.1)
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.9.1
+
+      - name: Add wails to PATH
+        run: echo "$env:GOPATH\bin" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+      - name: Verify wails installation
+        run: wails version
 
       - name: Download Go dependencies
         working-directory: backend
