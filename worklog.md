@@ -160,3 +160,33 @@ Stage Summary:
 - Canvas app fully functional and verified via agent-browser
 - All API endpoints match Go desktop app's exact workflow
 - Build Readiness panel provides clear test-before-build workflow
+
+---
+Task ID: 6
+Agent: Main Agent
+Task: Fix Workflow Step Tester — steps stop at Auth, Upload/Generate/Poll not working
+
+Work Log:
+- Identified 5 bugs in WorkflowDebugTab:
+  1. Upload step required store.imageFile (Generate tab) — no file picker in debug tab
+  2. Generate step used hardcoded fake URLs (test-bucket/test-image.jpg) instead of real uploaded URLs
+  3. Steps didn't chain data: upload result not passed to generate, generate docId not used by poll
+  4. No "Run All" button for sequential execution
+  5. sessionkey/sessionKey casing issue
+- Added file picker UI directly in Workflow Debug tab (image required, video optional for motion)
+- Added Scene/Model/Prompt quick config row in debug tab
+- Added "Run All (Auth→Upload→Generate→Poll)" button that runs all steps sequentially, stops on failure
+- Rewrote Upload step: uploads both image and video if selected, stores bos_urls in uploadedAttachmentsRef
+- Rewrote Generate step: reads real bos_urls from uploadedAttachmentsRef, builds proper SSE request matching Go desktop app exactly (videoConfig with scene-specific sub-configs)
+- Rewrote Poll step: reads docId from generatedDocIdRef (set by Generate step), polls up to 20 times with 4s interval, detects status=2 (complete) and status=3 (failed)
+- Added sessionkey/sessionKey/accessToken fallback for credential casing
+- Added setStepRes helper that updates both React state and a ref (for sync checking in runAll)
+- Fixed Build Readiness panel to reflect actual step results
+
+Stage Summary:
+- Full workflow chain now works: Auth → Upload → Generate → Poll
+- Each step passes data to the next via refs
+- "Run All" button enables one-click full workflow test
+- File pickers are independent from Generate tab
+- Mobile responsive layout verified
+- No console errors, lint passes, compilation succeeds

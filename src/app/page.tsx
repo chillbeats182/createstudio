@@ -1014,13 +1014,141 @@ function WorkflowDebugTab() {
   const [activeStep, setActiveStep] = useState(0);
   const [stepResults, setStepResults] = useState<Record<number, { success: boolean; data: unknown; duration: number }>>({});
   const [runningStep, setRunningStep] = useState<number | null>(null);
+  const [runningAll, setRunningAll] = useState(false);
+
+  // --- File inputs for debug workflow (independent from Generate tab) ---
+  const [debugImageFile, setDebugImageFile] = useState<File | null>(null);
+  const [debugImagePreview, setDebugImagePreview] = useState<string | null>(null);
+  const [debugVideoFile, setDebugVideoFile] = useState<File | null>(null);
+  const [debugVideoPreview, setDebugVideoPreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
+
+  // --- Chained data between steps ---
+  // Upload step stores uploaded file info here so Generate step can use it
+  const uploadedAttachmentsRef = useRef<Array<{
+    bos_url: string;
+    doc_title: string;
+    doc_type: string;
+    size: number;
+    fileRole: 'image' | 'video';
+  }>>([]);
+  // Generate step stores docId here so Poll step can use it
+  const generatedDocIdRef = useRef<string>('');
 
   const steps = [
-    { id: 'auth', label: 'Auth', desc: 'Test cookie & fetch user info' },
+    { id: 'auth', label: 'Auth', desc: 'Test cookie & fetch user info + models' },
     { id: 'upload', label: 'Upload', desc: 'Upload token + GCS direct PUT' },
     { id: 'generate', label: 'Generate', desc: 'Submit SSE stream request' },
     { id: 'poll', label: 'Poll', desc: 'Poll task status until complete' },
   ];
+
+  // Helper: get sessionkey from credential (handle both casings)
+  const getSessionKey = (cred: Record<string, unknown>): string => {
+    return (cred.sessionkey as string) || (cred.sessionKey as string) || (cred.accessToken as string) || '';
+  };
+
+  // Helper: upload a single file to GCS and return bos_url
+  const uploadOneFile = async (
+    file: File,
+    logIdBase: string,
+    stepLog: (log: Parameters<typeof store.addWorkflowLog>[0]) => void,
+  ): Promise<{ bosUrl: string; docTitle: string; docType: string; size: number; fileRole: 'image' | 'video' } | null> => {
+    const fileNoExt = getFilenameNoExt(file.name);
+    const fileExt = getExt(file.name);
+    const isImage = IMAGE_EXTS.includes(fileExt);
+    const isVideo = VIDEO_EXTS.includes(fileExt);
+
+    // 1) Get upload token
+    const tokenResp = await fetch('/api/oreate/upload-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        cookie: store.cookie,
+        files: [{ filename: fileNoExt, fileExt, size: file.size }],
+      }),
+    });
+    const tokenData = await tokenResp.json();
+
+    stepLog({
+      id: `${logIdBase}-token`,
+      step: 'upload',
+      action: `POST /oreate/convert/getuploadbostoken (${file.name})`,
+      request: { url: '/api/oreate/upload-token', method: 'POST', body: formatJSON({ cookie: '...', files: [{ filename: fileNoExt, fileExt, size: file.size }] }) },
+      response: { status: tokenResp.status, body: formatJSON(tokenData), timing: 0 },
+      success: !!tokenData.success && !!tokenData.KeyList,
+      error: tokenData.error,
+      timestamp: Date.now(),
+    });
+
+    if (!tokenData.success || !tokenData.KeyList) {
+      toast.error(`Upload token failed for ${file.name}: ${tokenData.error}`);
+      return null;
+    }
+
+    // Find credential
+    const keys = Object.keys(tokenData.KeyList);
+    if (keys.length === 0) {
+      toast.error(`No upload credential returned for ${file.name}`);
+      return null;
+    }
+    const cred = tokenData.KeyList[keys[0]] as Record<string, unknown>;
+    const sessionkey = getSessionKey(cred);
+    const bucket = cred.bucket as string;
+    const objectPath = cred.objectPath as string;
+
+    if (!sessionkey) {
+      toast.error(`Empty sessionkey for ${file.name}`);
+      return null;
+    }
+
+    // 2) Upload to GCS via backend proxy (direct PUT)
+    const uploadStart = Date.now();
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('bucket', bucket);
+    formData.append('objectPath', objectPath);
+    formData.append('sessionkey', sessionkey);
+
+    const uploadResp = await fetch('/api/oreate/upload-file', {
+      method: 'POST',
+      body: formData,
+    });
+    const uploadData = await uploadResp.json();
+
+    const bosUrl = uploadData.url || `https://storage.googleapis.com/${bucket}/${objectPath}`;
+
+    stepLog({
+      id: `${logIdBase}-gcs`,
+      step: 'upload',
+      action: `PUT GCS: ${bucket}/${objectPath} (${file.name})`,
+      request: { url: `https://storage.googleapis.com/${bucket}/${objectPath}`, method: 'PUT', body: `[Binary: ${file.size} bytes, Content-Type: ${file.type || 'application/octet-stream'}]` },
+      response: { status: uploadResp.status, body: formatJSON(uploadData), timing: Date.now() - uploadStart },
+      success: !!uploadData.success,
+      error: uploadData.error,
+      timestamp: Date.now(),
+    });
+
+    if (!uploadData.success) {
+      toast.error(`GCS upload failed for ${file.name}`);
+      return null;
+    }
+
+    toast.success(`Uploaded ${file.name} → GCS`);
+    return {
+      bosUrl,
+      docTitle: fileNoExt,
+      docType: fileExt,
+      size: file.size,
+      fileRole: isVideo ? 'video' : 'image',
+    };
+  };
+
+  // Helper to update both state and ref for step results
+  const setStepRes = useCallback((idx: number, result: { success: boolean; data: unknown; duration: number }) => {
+    stepSuccessRef.current[idx] = result.success;
+    setStepResults((p) => ({ ...p, [idx]: result }));
+  }, []);
 
   const runStep = async (stepIdx: number) => {
     setRunningStep(stepIdx);
@@ -1028,11 +1156,12 @@ function WorkflowDebugTab() {
 
     const logId = `step-${stepIdx}-${Date.now()}`;
     const startTime = Date.now();
+    const addLog = (log: Parameters<typeof store.addWorkflowLog>[0]) => store.addWorkflowLog(log);
 
     try {
       switch (stepIdx) {
         case 0: {
-          // Auth step
+          // === AUTH ===
           const resp = await fetch('/api/oreate/auth', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1041,21 +1170,22 @@ function WorkflowDebugTab() {
           const data = await resp.json();
           const duration = Date.now() - startTime;
 
-          store.addWorkflowLog({
+          addLog({
             id: logId,
             step: 'auth',
-            action: 'POST /api/oreate/auth',
-            request: { url: '/api/oreate/auth', method: 'POST', body: JSON.stringify({ cookie: `${store.cookie.substring(0, 50)}...` }) },
+            action: 'POST /oreate/user/getuserinfo + /bizapi/point/getrestpoints',
+            request: { url: '/api/oreate/auth', method: 'POST', body: JSON.stringify({ cookie: `${store.cookie.substring(0, 60)}...` }) },
             response: { status: resp.status, body: formatJSON(data), timing: duration },
             success: data.success || false,
             error: data.error,
             timestamp: Date.now(),
           });
 
-          setStepResults((prev) => ({ ...prev, [stepIdx]: { success: !data.error, data, duration } }));
-          store.setBuildReadiness('auth', !data.error);
+          const authOk = !data.error && data.success;
+          setStepRes(0, { success: authOk, data, duration });
+          store.setBuildReadiness('auth', authOk);
 
-          if (data.success) {
+          if (authOk) {
             store.setAuth(data.userInfo, data.vipInfo, data.restPoint);
             // Also fetch models
             const modelResp = await fetch('/api/oreate/models', {
@@ -1064,106 +1194,159 @@ function WorkflowDebugTab() {
               body: JSON.stringify({ cookie: store.cookie }),
             });
             const modelData = await modelResp.json();
-            if (modelData.success) {
-              store.setModels(modelData.models, modelData.scenes);
+            if (modelData.success || modelData.models) {
+              store.setModels(modelData.models || [], modelData.scenes || []);
             }
-            store.setBuildReadiness('models', modelData.success);
-            toast.success('Auth test passed');
+            store.setBuildReadiness('models', !!(modelData.models || modelData.success));
+            toast.success(`Auth OK — ${data.userInfo?.email || 'user'}, ${data.restPoint} credits`);
           } else {
-            toast.error(`Auth test failed: ${data.error}`);
+            toast.error(`Auth failed: ${data.error}`);
           }
           break;
         }
 
         case 1: {
-          // Upload step
-          if (!store.imageFile) {
-            toast.error('Select an image file first (in Generate tab)');
+          // === UPLOAD ===
+          if (!debugImageFile) {
+            toast.error('Select an image file first (use the file picker above)');
             setRunningStep(null);
+            setStepRes(1, { success: false, data: { error: 'No image file selected' }, duration: 0 });
             return;
           }
 
-          // Get upload token
-          const fileNoExt = getFilenameNoExt(store.imageFile.name);
-          const fileExt = getExt(store.imageFile.name);
+          uploadedAttachmentsRef.current = [];
+          const allFiles: File[] = [debugImageFile];
+          if (debugVideoFile) allFiles.push(debugVideoFile);
 
-          const tokenResp = await fetch('/api/oreate/upload-token', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              cookie: store.cookie,
-              files: [{ filename: fileNoExt, fileExt, size: store.imageFile.size }],
-            }),
-          });
-          const tokenData = await tokenResp.json();
+          const results: unknown[] = [];
+          let allOk = true;
 
-          store.addWorkflowLog({
-            id: `${logId}-token`,
-            step: 'upload',
-            action: 'POST /api/oreate/upload-token',
-            request: { url: '/api/oreate/upload-token', method: 'POST', body: formatJSON({ cookie: '...', files: [{ filename: fileNoExt, fileExt, size: store.imageFile.size }] }) },
-            response: { status: tokenResp.status, body: formatJSON(tokenData), timing: Date.now() - startTime },
-            success: !!tokenData.success,
-            error: tokenData.error,
-            timestamp: Date.now(),
-          });
-
-          if (!tokenData.success || !tokenData.KeyList) {
-            setStepResults((prev) => ({ ...prev, [stepIdx]: { success: false, data: tokenData, duration: Date.now() - startTime } }));
-            store.setBuildReadiness('upload', false);
-            toast.error(`Upload token failed: ${tokenData.error}`);
-            setRunningStep(null);
-            return;
+          for (const file of allFiles) {
+            const result = await uploadOneFile(file, logId, addLog);
+            if (result) {
+              uploadedAttachmentsRef.current.push(result);
+              results.push(result);
+            } else {
+              allOk = false;
+            }
           }
 
-          // Upload file to GCS
-          const keys = Object.keys(tokenData.KeyList);
-          const cred = tokenData.KeyList[keys[0]];
-          const uploadStart = Date.now();
-
-          const formData = new FormData();
-          formData.append('file', store.imageFile);
-          formData.append('bucket', cred.bucket);
-          formData.append('objectPath', cred.objectPath);
-          formData.append('sessionkey', cred.sessionkey);
-
-          const uploadResp = await fetch('/api/oreate/upload-file', {
-            method: 'POST',
-            body: formData,
-          });
-          const uploadData = await uploadResp.json();
-
-          store.addWorkflowLog({
-            id: `${logId}-gcs`,
-            step: 'upload',
-            action: `PUT GCS: ${cred.bucket}/${cred.objectPath}`,
-            request: { url: `https://storage.googleapis.com/${cred.bucket}/${cred.objectPath}`, method: 'PUT' },
-            response: { status: uploadResp.status, body: formatJSON(uploadData), timing: Date.now() - uploadStart },
-            success: !!uploadData.success,
-            error: uploadData.error,
-            timestamp: Date.now(),
-          });
-
-          const success = !!uploadData.success;
-          setStepResults((prev) => ({ ...prev, [stepIdx]: { success, data: { token: tokenData, upload: uploadData }, duration: Date.now() - startTime } }));
-          store.setBuildReadiness('upload', success);
-          toast[success ? 'success' : 'error'](`Upload test ${success ? 'passed' : 'failed'}`);
+          const duration = Date.now() - startTime;
+          setStepRes(1, { success: allOk, data: { uploadedFiles: results }, duration });
+          store.setBuildReadiness('upload', allOk);
+          if (allOk) {
+            toast.success(`Upload complete — ${uploadedAttachmentsRef.current.length} file(s)`);
+          }
           break;
         }
 
         case 2: {
-          // Generate step — builds and sends the SSE request
-          if (!store.imageFile) {
-            toast.error('Upload an image first (run Upload step)');
+          // === GENERATE ===
+          const attachments = uploadedAttachmentsRef.current;
+          if (attachments.length === 0) {
+            toast.error('Run Upload step first to upload files');
             setRunningStep(null);
+            setStepRes(2, { success: false, data: { error: 'No uploaded files. Run Upload step first.' }, duration: 0 });
             return;
           }
 
-          // We need an uploaded image URL. Try a quick upload.
-          let imageUrl = store.taskVideoUrl ? '' : ''; // We'll need to actually upload
-
-          // Build a minimal SSE request for testing
           const chatId = generateChatID();
+          const sceneId = store.selectedSceneId || 'text_or_image';
+          const modelName = store.selectedModelName || 'Kling 2.6';
+          const isMotion = sceneId === 'motion';
+
+          // Build SSE attachments (matching Go desktop api_client.go exactly)
+          const sseAttachments: Array<Record<string, unknown>> = [];
+          let characterImageUrl = '';
+          let motionVideoUrl = '';
+
+          if (isMotion) {
+            // Motion: video first, then image (matches Go buildVideoAttach)
+            for (const att of attachments) {
+              if (att.fileRole === 'video') {
+                motionVideoUrl = att.bos_url;
+                sseAttachments.push({
+                  bos_url: att.bos_url,
+                  bosUrl: att.bos_url,
+                  docId: '',
+                  doc_title: att.doc_title,
+                  doc_type: att.doc_type,
+                  size: att.size,
+                  flag: 'upload',
+                  type: 'file',
+                  status: 1,
+                });
+              }
+            }
+            for (const att of attachments) {
+              if (att.fileRole === 'image') {
+                characterImageUrl = att.bos_url;
+                sseAttachments.push({
+                  bos_url: att.bos_url,
+                  bosUrl: att.bos_url,
+                  docId: '',
+                  doc_title: att.doc_title,
+                  doc_type: att.doc_type,
+                  size: att.size,
+                  flag: 'upload',
+                  type: 'file',
+                  status: 1,
+                });
+              }
+            }
+          } else {
+            // text_or_image / reference: images first
+            for (const att of attachments) {
+              if (att.fileRole === 'image') {
+                characterImageUrl = att.bos_url;
+              }
+              sseAttachments.push({
+                bos_url: att.bos_url,
+                bosUrl: att.bos_url,
+                docId: '',
+                doc_title: att.doc_title,
+                doc_type: att.doc_type,
+                size: att.size,
+                flag: 'upload',
+                type: 'file',
+                status: 1,
+              });
+            }
+          }
+
+          // Build videoConfig (matching Go getVideoConfig())
+          const videoConfig: Record<string, unknown> = {
+            modelName,
+            ratio: store.selectedVideoSize || '16:9',
+            resolution: store.selectedResolution || '720',
+            duration: store.selectedDuration || 5,
+            isAudio: false,
+            aiType: store.selectedAiType || 0,
+            scene: sceneId,
+          };
+
+          if (isMotion) {
+            videoConfig.motion = {
+              characterImage: characterImageUrl,
+              motionVideo: motionVideoUrl,
+              motDuration: store.motDuration ? parseInt(store.motDuration) : 3,
+              keepOriginalSound: store.keepOriginalSound || false,
+            };
+          } else if (sceneId === 'text_or_image') {
+            videoConfig.textOrImage = { image: characterImageUrl };
+          } else if (sceneId === 'reference') {
+            const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
+            const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
+            videoConfig.reference = {
+              referenceImages: refImages,
+              referenceVideos: refVideos,
+              refDuration: '',
+              refTotalDuration: '',
+              keepOriginalSound: store.keepOriginalSound || false,
+            };
+          }
+
+          // Build full SSE request (matching Go SSERequest exactly)
           const sseRequest = {
             type: 'chat',
             chatType: 'aichat',
@@ -1175,30 +1358,10 @@ function WorkflowDebugTab() {
             isFirst: true,
             messages: [{
               role: 'user',
-              content: store.prompt || 'test prompt',
-              attachments: [{
-                bos_url: 'https://storage.googleapis.com/test-bucket/test-image.jpg',
-                bosUrl: 'https://storage.googleapis.com/test-bucket/test-image.jpg',
-                docId: '',
-                doc_title: 'test',
-                doc_type: 'jpg',
-                size: 0,
-                flag: 'upload',
-                type: 'file',
-                status: 1,
-                videoDurationSec: 0,
-              }],
+              content: store.prompt || 'test',
+              attachments: sseAttachments,
             }],
-            videoConfig: {
-              modelName: store.selectedModelName,
-              ratio: store.selectedVideoSize,
-              resolution: store.selectedResolution,
-              duration: store.selectedDuration,
-              isAudio: false,
-              aiType: store.selectedAiType,
-              scene: store.selectedSceneId,
-              textOrImage: { image: 'https://storage.googleapis.com/test-bucket/test-image.jpg' },
-            },
+            videoConfig,
             extra: { doc_name: '', module_name: 'gpt4o' },
           };
 
@@ -1210,10 +1373,10 @@ function WorkflowDebugTab() {
           const genData = await genResp.json();
           const duration = Date.now() - startTime;
 
-          store.addWorkflowLog({
+          addLog({
             id: logId,
             step: 'generate',
-            action: 'POST /oreate/sse/stream (via /api/oreate/generate)',
+            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName})`,
             request: { url: '/api/oreate/generate', method: 'POST', body: formatJSON({ cookie: '...', sseRequest }) },
             response: { status: genResp.status, body: formatJSON(genData), timing: duration },
             success: genData.success || false,
@@ -1221,31 +1384,46 @@ function WorkflowDebugTab() {
             timestamp: Date.now(),
           });
 
-          const sseWorking = genData.success || (genData.events && genData.events.length > 0);
-          setStepResults((prev) => ({ ...prev, [stepIdx]: { success: sseWorking, data: genData, duration } }));
+          const genOk = genData.success || (genData.events && genData.events.length > 0);
+          setStepRes(2, { success: genOk, data: genData, duration });
           store.setBuildReadiness('generate_endpoint', genResp.status === 200);
-          store.setBuildReadiness('sse_parsing', sseWorking);
+          store.setBuildReadiness('sse_parsing', genOk);
 
-          if (genData.docId) store.setTaskId(genData.docId);
+          // Store docId for poll step
+          const docId = genData.docId || genData.chatId || '';
+          if (docId) {
+            generatedDocIdRef.current = docId;
+            store.setTaskId(docId);
+          }
 
-          toast[sseWorking ? 'success' : 'error'](`Generate test ${sseWorking ? 'passed' : 'failed'}`);
+          if (genOk) {
+            toast.success(`Generate submitted — docId: ${docId || '(from SSE events)'}`);
+          } else {
+            toast.error(`Generate failed: ${genData.error || 'No events received'}`);
+          }
           break;
         }
 
         case 3: {
-          // Poll step
-          const docId = store.currentTaskId;
+          // === POLL ===
+          const docId = generatedDocIdRef.current || store.currentTaskId;
           if (!docId) {
             toast.error('Run Generate step first to get a docId');
             setRunningStep(null);
+            setStepRes(3, { success: false, data: { error: 'No docId. Run Generate step first.' }, duration: 0 });
             return;
           }
 
           let pollSuccess = false;
           let pollCount = 0;
+          let lastStatus = -1;
+          let videoUrl = '';
+          const maxPolls = 20;
 
-          for (let i = 0; i < 5; i++) {
+          for (let i = 0; i < maxPolls; i++) {
             pollCount++;
+            const pollStart = Date.now();
+
             const statusResp = await fetch('/api/oreate/task-status', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -1253,45 +1431,86 @@ function WorkflowDebugTab() {
             });
             const statusData = await statusResp.json();
 
-            store.addWorkflowLog({
+            addLog({
               id: `${logId}-poll-${i}`,
               step: 'poll',
-              action: `POST /oreate/doc/getstatus (poll ${pollCount})`,
+              action: `POST /oreate/doc/getstatus (poll ${pollCount}/${maxPolls})`,
               request: { url: '/api/oreate/task-status', method: 'POST', body: formatJSON({ cookie: '...', taskId: docId }) },
-              response: { status: statusResp.status, body: formatJSON(statusData), timing: Date.now() - startTime },
+              response: { status: statusResp.status, body: formatJSON(statusData), timing: Date.now() - pollStart },
               success: statusData.success !== false,
               timestamp: Date.now(),
             });
 
-            if (statusResp.status === 200) {
+            if (statusResp.status === 200 && statusData.success) {
               pollSuccess = true;
-              // Check if status is complete
-              if (statusData.status === 2 || statusData.videoUrl) break;
+              lastStatus = statusData.status ?? -1;
+              videoUrl = statusData.videoUrl || '';
+              // status 2 = completed, status 3 = failed
+              if (lastStatus === 2 || lastStatus === 3 || videoUrl) break;
             }
 
-            if (i < 4) await new Promise((r) => setTimeout(r, 3000));
+            // Wait 4 seconds between polls
+            if (i < maxPolls - 1) await new Promise((r) => setTimeout(r, 4000));
           }
 
-          setStepResults((prev) => ({ ...prev, [stepIdx]: { success: pollSuccess, data: { message: `Polled ${pollCount} times` }, duration: Date.now() - startTime } }));
+          const duration = Date.now() - startTime;
+          const finalData = {
+            docId,
+            polls: pollCount,
+            finalStatus: lastStatus,
+            videoUrl: videoUrl || null,
+            completed: lastStatus === 2 || !!videoUrl,
+          };
+
+          setStepRes(3, { success: pollSuccess, data: finalData, duration });
           store.setBuildReadiness('polling', pollSuccess);
-          toast[pollSuccess ? 'success' : 'error'](`Poll test ${pollSuccess ? 'passed' : 'failed'}`);
+
+          if (videoUrl) {
+            store.setTaskVideoUrl(videoUrl);
+            store.setTaskStatus('completed');
+            store.setTaskProgress(100);
+            toast.success(`Video ready! Polled ${pollCount} times`);
+          } else if (lastStatus === 3) {
+            toast.error(`Generation failed (status=3) after ${pollCount} polls`);
+          } else {
+            toast[pollSuccess ? 'info' : 'error'](`Poll ${pollSuccess ? 'endpoint working' : 'failed'} — ${pollCount} polls, status=${lastStatus}`);
+          }
           break;
         }
       }
     } catch (err) {
-      store.addWorkflowLog({
+      addLog({
         id: logId,
         step: ['auth', 'upload', 'generate', 'poll'][stepIdx] as WorkflowLog['step'],
-        action: `Step ${stepIdx}`,
+        action: `Step ${stepIdx + 1} exception`,
         success: false,
         error: err instanceof Error ? err.message : 'Unknown error',
         timestamp: Date.now(),
       });
-      setStepResults((prev) => ({ ...prev, [stepIdx]: { success: false, data: { error: String(err) }, duration: Date.now() - startTime } }));
-      toast.error(`Step ${stepIdx} failed: ${err}`);
+      setStepRes(stepIdx, { success: false, data: { error: String(err) }, duration: Date.now() - startTime });
+      toast.error(`Step ${stepIdx + 1} error: ${err instanceof Error ? err.message : 'Unknown'}`);
     }
 
     setRunningStep(null);
+  };
+
+  // "Run All" — runs steps 0→1→2→3 sequentially
+  const stepSuccessRef = useRef<Record<number, boolean>>({});
+  const runAll = async () => {
+    setRunningAll(true);
+    for (let i = 0; i < 4; i++) {
+      if (!store.cookie.trim()) {
+        toast.error('Cookie required');
+        break;
+      }
+      await runStep(i);
+      // Check ref (updated synchronously in runStep)
+      if (stepSuccessRef.current[i] === false) {
+        toast.error(`Workflow stopped at step ${i + 1} (${steps[i].label}) — check logs below`);
+        break;
+      }
+    }
+    setRunningAll(false);
   };
 
   const readinessChecks = [
@@ -1308,6 +1527,152 @@ function WorkflowDebugTab() {
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
+      {/* File Picker + Run All */}
+      <Card className="bg-zinc-900 border-zinc-800">
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+              <Upload className="h-4 w-4 text-emerald-500" />
+              Test Files & Run
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                className="border-amber-600 text-amber-400 hover:bg-amber-950 hover:text-amber-300"
+                onClick={runAll}
+                disabled={runningAll || runningStep !== null || !store.cookie.trim() || !debugImageFile}
+              >
+                {runningAll ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+                {runningAll ? 'Running All…' : 'Run All (Auth→Upload→Generate→Poll)'}
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 sm:grid-cols-2">
+            {/* Image file picker */}
+            <div
+              className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 bg-zinc-950/50 transition-colors hover:border-emerald-600/50"
+              onClick={() => imageInputRef.current?.click()}
+            >
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setDebugImageFile(file);
+                    setDebugImagePreview(URL.createObjectURL(file));
+                    toast.success(`Image: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+                  }
+                }}
+              />
+              {debugImagePreview ? (
+                <div className="relative h-full w-full p-2">
+                  <img src={debugImagePreview} alt="preview" className="max-h-[100px] mx-auto rounded object-contain" />
+                  <button
+                    className="absolute right-1 top-1 rounded-full bg-zinc-900/80 p-0.5 text-zinc-300 hover:text-red-400"
+                    onClick={(e) => { e.stopPropagation(); setDebugImageFile(null); setDebugImagePreview(null); }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 p-3 text-center">
+                  <ImagePlus className="h-5 w-5 text-zinc-500" />
+                  <p className="text-xs text-zinc-400">Source Image *</p>
+                  <p className="text-[10px] text-zinc-600">Required — click to select</p>
+                </div>
+              )}
+            </div>
+
+            {/* Video file picker (for motion scene) */}
+            <div
+              className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 bg-zinc-950/50 transition-colors hover:border-emerald-600/50"
+              onClick={() => videoInputRef.current?.click()}
+            >
+              <input
+                ref={videoInputRef}
+                type="file"
+                accept="video/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setDebugVideoFile(file);
+                    setDebugVideoPreview(URL.createObjectURL(file));
+                    toast.success(`Video: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+                  }
+                }}
+              />
+              {debugVideoPreview ? (
+                <div className="relative h-full w-full p-2">
+                  <video src={debugVideoPreview} className="max-h-[100px] mx-auto rounded object-contain" muted />
+                  <button
+                    className="absolute right-1 top-1 rounded-full bg-zinc-900/80 p-0.5 text-zinc-300 hover:text-red-400"
+                    onClick={(e) => { e.stopPropagation(); setDebugVideoFile(null); setDebugVideoPreview(null); }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-1 p-3 text-center">
+                  <Video className="h-5 w-5 text-zinc-500" />
+                  <p className="text-xs text-zinc-400">Motion Video</p>
+                  <p className="text-[10px] text-zinc-600">Optional — for motion scene</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Quick config row */}
+          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-zinc-800">
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-zinc-500">Scene:</Label>
+              <Select value={store.selectedSceneId} onValueChange={store.setScene}>
+                <SelectTrigger className="h-7 w-[140px] border-zinc-700 bg-zinc-950 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-zinc-700 bg-zinc-900">
+                  {store.scenes.map((s) => (
+                    <SelectItem key={s.sceneId} value={s.sceneId} className="text-xs">
+                      {s.sceneName.en || s.sceneName.zh || s.sceneId}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-zinc-500">Model:</Label>
+              <Select value={store.selectedModelName} onValueChange={store.setModel}>
+                <SelectTrigger className="h-7 w-[140px] border-zinc-700 bg-zinc-950 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="border-zinc-700 bg-zinc-900">
+                  {store.models.map((m) => (
+                    <SelectItem key={m.modelName} value={m.modelName} className="text-xs">
+                      {m.modelName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-[10px] text-zinc-500">Prompt:</Label>
+              <Input
+                className="h-7 w-[200px] border-zinc-700 bg-zinc-950 text-xs"
+                placeholder="Describe the video…"
+                value={store.prompt}
+                onChange={(e) => store.setPrompt(e.target.value)}
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Step Indicator */}
       <Card className="bg-zinc-900 border-zinc-800">
         <CardHeader className="pb-4">
