@@ -1384,20 +1384,38 @@ function WorkflowDebugTab() {
             timestamp: Date.now(),
           });
 
-          const genOk = genData.success || (genData.events && genData.events.length > 0);
-          setStepRes(2, { success: genOk, data: genData, duration });
-          store.setBuildReadiness('generate_endpoint', genResp.status === 200);
-          store.setBuildReadiness('sse_parsing', genOk);
+          // Extract docId FIRST — it's the critical output of this step
+          let docId = genData.docId || genData.chatId || '';
+
+          // Fallback: scan events for docId if top-level fields are empty
+          if (!docId && genData.events && Array.isArray(genData.events)) {
+            for (const ev of genData.events) {
+              const d = (ev as Record<string, unknown>).data as Record<string, unknown> | undefined;
+              if (!d) continue;
+              if (d.docId) { docId = d.docId as string; break; }
+              if (d.id) { docId = d.id as string; break; }
+              if (d.chatId) { docId = d.chatId as string; break; }
+            }
+          }
 
           // Store docId for poll step
-          const docId = genData.docId || genData.chatId || '';
           if (docId) {
             generatedDocIdRef.current = docId;
             store.setTaskId(docId);
           }
 
+          // Generate is only truly "ok" if we have a docId
+          const hasEvents = genData.events && genData.events.length > 0;
+          const genOk = !!docId && (genData.success || !!hasEvents);
+
+          setStepRes(2, { success: genOk, data: { ...genData, extractedDocId: docId || '(none)' }, duration });
+          store.setBuildReadiness('generate_endpoint', genResp.status === 200);
+          store.setBuildReadiness('sse_parsing', !!hasEvents);
+
           if (genOk) {
-            toast.success(`Generate submitted — docId: ${docId || '(from SSE events)'}`);
+            toast.success(`Generate submitted — docId: ${docId}`);
+          } else if (!docId && hasEvents) {
+            toast.error(`Generate: events received but no docId extracted — check SSE event data`);
           } else {
             toast.error(`Generate failed: ${genData.error || 'No events received'}`);
           }
@@ -1406,11 +1424,23 @@ function WorkflowDebugTab() {
 
         case 3: {
           // === POLL ===
-          const docId = generatedDocIdRef.current || store.currentTaskId;
+          let docId = generatedDocIdRef.current || store.currentTaskId || '';
+
+          // Fallback: try to extract docId from Generate step results
+          if (!docId && stepResults[2]) {
+            const genResult = stepResults[2].data as Record<string, unknown>;
+            const extracted = (genResult?.extractedDocId as string) || (genResult?.docId as string) || (genResult?.chatId as string) || '';
+            if (extracted && extracted !== '(none)') {
+              docId = extracted;
+              generatedDocIdRef.current = docId;
+              store.setTaskId(docId);
+            }
+          }
+
           if (!docId) {
             toast.error('Run Generate step first to get a docId');
             setRunningStep(null);
-            setStepRes(3, { success: false, data: { error: 'No docId. Run Generate step first.' }, duration: 0 });
+            setStepRes(3, { success: false, data: { error: 'No docId. Run Generate step first — make sure the Generate step succeeded and extracted a docId from SSE events.' }, duration: 0 });
             return;
           }
 
@@ -1507,6 +1537,12 @@ function WorkflowDebugTab() {
       // Check ref (updated synchronously in runStep)
       if (stepSuccessRef.current[i] === false) {
         toast.error(`Workflow stopped at step ${i + 1} (${steps[i].label}) — check logs below`);
+        break;
+      }
+      // After Generate step, verify docId was extracted before proceeding to Poll
+      if (i === 2 && !generatedDocIdRef.current) {
+        toast.error('Generate step did not produce a docId — cannot Poll. Check Generate step output for SSE event data.');
+        setStepRes(3, { success: false, data: { error: 'No docId from Generate step' }, duration: 0 });
         break;
       }
     }

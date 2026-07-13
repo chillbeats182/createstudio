@@ -190,3 +190,22 @@ Stage Summary:
 - File pickers are independent from Generate tab
 - Mobile responsive layout verified
 - No console errors, lint passes, compilation succeeds
+
+---
+Task ID: 7
+Agent: Main Agent
+Task: Fix "No docId. Run Generate step first." error in Workflow Debug Poll step
+
+Work Log:
+- Root cause analysis: Generate step (case 2) marked itself as successful (`genOk = genData.success || events.length > 0`) even when no docId was extracted from SSE events
+- This caused `runAll` to proceed from Generate to Poll, but Poll had no docId to use
+- Three fixes applied:
+  1. **Generate step (page.tsx ~line 1387)**: Changed `genOk` to require `!!docId` — Generate is only successful if a docId was actually extracted. Added fallback docId extraction by scanning all SSE events. Added `extractedDocId` to step result data for debugging.
+  2. **runAll function (page.tsx ~line 1530)**: Added explicit check after step 2 (Generate): if `generatedDocIdRef.current` is empty, stop workflow and show error before attempting Poll.
+  3. **Poll step (page.tsx ~line 1425)**: Added fallback to extract docId from stepResults[2] (Generate step result) if the ref is empty — handles case where user clicks Poll's individual Run button.
+  4. **SSE event parsing (oreate-client.ts ~line 347)**: Made docId/chatId extraction more aggressive — now scans ALL event types (setattr, start, generating, end) not just generating. Also handles `start` event which may contain the docId.
+
+Stage Summary:
+- Poll step error "No docId" fixed at 3 levels: Generate success criteria, runAll guard, and Poll fallback
+- SSE parsing improved to extract docId from any event type
+- Lint passes clean, dev server compiles, browser verification shows no errors

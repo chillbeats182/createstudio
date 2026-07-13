@@ -345,10 +345,23 @@ export async function submitSSEGeneration(
   let errorMsg = '';
 
   for (const ev of events) {
+    // Try to extract docId/chatId from ANY event (defensive)
+    const tryExtract = (data: Record<string, unknown>) => {
+      if (!docId) {
+        docId = (data.docId as string) || (data.id as string) || '';
+      }
+      if (!chatId) {
+        chatId = (data.chatId as string) || '';
+      }
+    };
+
     switch (ev.event) {
       case 'setattr': {
-        const id = (ev.data.chatId as string) || '';
-        if (id) chatId = id;
+        tryExtract(ev.data);
+        break;
+      }
+      case 'start': {
+        tryExtract(ev.data);
         break;
       }
       case 'error': {
@@ -359,13 +372,13 @@ export async function submitSSEGeneration(
         break;
       }
       case 'generating': {
-        if (!chatId && (ev.data.chatId as string)) chatId = ev.data.chatId as string;
-        if (!docId && (ev.data.docId as string)) docId = ev.data.docId as string;
-        if (!docId && (ev.data.id as string)) docId = ev.data.id as string;
+        tryExtract(ev.data);
         break;
       }
-      case 'end':
+      case 'end': {
+        tryExtract(ev.data);
         break;
+      }
     }
   }
 
