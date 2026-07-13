@@ -289,3 +289,28 @@ Stage Summary:
 - Files changed: page.tsx (Generate step rewrite), generate/route.ts (added response logging)
 - Key insight: Go only sends {doc_name, module_name} in extra, not email/vip/deviceID/bid
 - Next: user needs to test Run All again — the raw SSE response will now be visible in step 3 output
+---
+Task ID: 3
+Agent: Main
+Task: Fix 200002 params error in Generate step - website JS analysis approach
+
+Work Log:
+- Used agent-browser to open real https://www.oreateai.com website
+- Downloaded and analyzed JS bundles: home-DVW0jP-q.js (410KB), index-DX4DGIXl.js (3.5MB), index-B6JYacY9.js
+- Found real website's send() function in core.js line 802
+- Extracted nke() attachment function: bos_url from bosUrl/object, size from originSize, doc_title from fileName, doc_type from fileExt
+- Extracted ZCe() mirror data: {jt, ua, js_env, extra: {email, vip, reg_ts, deviceID, bid}}
+- Extracted getVideoConfig(): motion uses motDuration as STRING not number
+- Extracted fre() wrapper: adds clientType:"pc" to request body
+- Confirmed /oreate/sse/stream endpoint is correct
+- Dev log showed actual error: {"code":200002,"msg":"params error"}
+- Restored mirror extra fields (email, vip, reg_ts, deviceID, bid) matching website
+- deviceID and bid extracted from cookie JSON (OUID and __bid_n cookies)
+
+Stage Summary:
+- The 200002 error is "params error" from OreateAI server
+- Previous fix (bos_url camelCase→snake_case) was correct and attachments now have URLs
+- Website sends mirror extra fields that Go doesn't - now restored
+- deviceID/bid extracted from cookie like the website does
+- User needs to test again to see if extra fields fix the 200002 error
+- If still failing, the rawSSE field in step result will show the exact response

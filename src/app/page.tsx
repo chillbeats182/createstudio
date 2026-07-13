@@ -1377,6 +1377,11 @@ function WorkflowDebugTab() {
             extra: {
               doc_name: '',
               module_name: 'gpt4o',
+              email: (store.userInfo as Record<string, unknown>)?.email || '',
+              vip: String((store.vipInfo as Record<string, unknown>)?.vipType ?? 0),
+              reg_ts: (store.userInfo as Record<string, unknown>)?.createTime || 0,
+              deviceID: (() => { try { const c = JSON.parse(store.cookie); if (Array.isArray(c)) { const ouid = c.find((e: Record<string,unknown>) => e.name === 'OUID'); return ouid?.value || ''; } } catch{} return ''; })(),
+              bid: (() => { try { const c = JSON.parse(store.cookie); if (Array.isArray(c)) { const bid = c.find((e: Record<string,unknown>) => e.name === '__bid_n'); return bid?.value || ''; } } catch{} return ''; })(),
             },
           };
 
