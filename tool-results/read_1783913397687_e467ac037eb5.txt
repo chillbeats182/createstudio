@@ -1,0 +1,502 @@
+     1→   400→   400→   400→}
+     2→   401→   401→   401→
+     3→   402→   402→   402→// doJSON performs a request and decodes the JSON response
+     4→   403→   403→   403→func (c *OreateAIClient) doJSON(req *http.Request) (*apiResponse, error) {
+     5→   404→   404→   404→        resp, err := c.httpClient.Do(req)
+     6→   405→   405→   405→        if err != nil {
+     7→   406→   406→   406→                return nil, fmt.Errorf("request failed: %w", err)
+     8→   407→   407→   407→        }
+     9→   408→   408→   408→        defer resp.Body.Close()
+    10→   409→   409→   409→
+    11→   410→   410→   410→        body, err := io.ReadAll(resp.Body)
+    12→   411→   411→   411→        if err != nil {
+    13→   412→   412→   412→                return nil, fmt.Errorf("read body failed: %w", err)
+    14→   413→   413→   413→        }
+    15→   414→   414→   414→
+    16→   415→   415→   415→        fmt.Printf("[API] %s %s → %d (%d bytes)\n", req.Method, req.URL.Path, resp.StatusCode, len(body))
+    17→   416→   416→   416→
+    18→   417→   417→   417→        var apiResp apiResponse
+    19→   418→   418→   418→        if err := json.Unmarshal(body, &apiResp); err != nil {
+    20→   419→   419→   419→                return nil, fmt.Errorf("invalid JSON response: %w", err)
+    21→   420→   420→   420→        }
+    22→   421→   421→   421→
+    23→   422→   422→   422→        if apiResp.Status.Code != 0 {
+    24→   423→   423→   423→                fmt.Printf("[API] Error response: code=%d msg=%s errMsg=%s\n",
+    25→   424→   424→   424→                        apiResp.Status.Code, apiResp.Status.Msg, apiResp.Status.ErrMsg)
+    26→   425→   425→   425→        }
+    27→   426→   426→   426→
+    28→   427→   427→   427→        return &apiResp, nil
+    29→   428→   428→   428→}
+    30→   429→   429→   429→
+    31→   430→   430→   430→// ====================================================================
+    32→   431→   431→   431→//  Cookie Parsing
+    33→   432→   432→   432→// ====================================================================
+    34→   433→   433→   433→
+    35→   434→   434→   434→func parseCookies(input string) ([]CookieEntry, error) {
+    36→   435→   435→   435→        trimmed := strings.TrimSpace(input)
+    37→   436→   436→   436→        if trimmed == "" {
+    38→   437→   437→   437→                return nil, fmt.Errorf("empty input")
+    39→   438→   438→   438→        }
+    40→   439→   439→   439→
+    41→   440→   440→   440→        // Try JSON array
+    42→   441→   441→   441→        var cookies []CookieEntry
+    43→   442→   442→   442→        if err := json.Unmarshal([]byte(trimmed), &cookies); err == nil && len(cookies) > 0 {
+    44→   443→   443→   443→                return cookies, nil
+    45→   444→   444→   444→        }
+    46→   445→   445→   445→
+    47→   446→   446→   446→        // Try semicolon-separated string
+    48→   447→   447→   447→        if strings.Contains(trimmed, ";") {
+    49→   448→   448→   448→                parts := strings.Split(trimmed, ";")
+    50→   449→   449→   449→                for _, part := range parts {
+    51→   450→   450→   450→                        part = strings.TrimSpace(part)
+    52→   451→   451→   451→                        eqIdx := strings.Index(part, "=")
+    53→   452→   452→   452→                        if eqIdx == -1 {
+    54→   453→   453→   453→                                continue
+    55→   454→   454→   454→                        }
+    56→   455→   455→   455→                        name := strings.TrimSpace(part[:eqIdx])
+    57→   456→   456→   456→                        value := strings.TrimSpace(part[eqIdx+1:])
+    58→   457→   457→   457→                        if name == "" {
+    59→   458→   458→   458→                                continue
+    60→   459→   459→   459→                        }
+    61→   460→   460→   460→                        cookies = append(cookies, CookieEntry{
+    62→   461→   461→   461→                                Domain: ".oreateai.com",
+    63→   462→   462→   462→                                Name:   name,
+    64→   463→   463→   463→                                Value:  value,
+    65→   464→   464→   464→                                Path:   "/",
+    66→   465→   465→   465→                        })
+    67→   466→   466→   466→                }
+    68→   467→   467→   467→                if len(cookies) > 0 {
+    69→   468→   468→   468→                        return cookies, nil
+    70→   469→   469→   469→                }
+    71→   470→   470→   470→        }
+    72→   471→   471→   471→
+    73→   472→   472→   472→        return nil, fmt.Errorf("could not parse cookies from input")
+    74→   473→   473→   473→}
+    75→   474→   474→   474→
+    76→   475→   475→   475→func buildCookieHeader(cookies []CookieEntry) string {
+    77→   476→   476→   476→        parts := make([]string, len(cookies))
+    78→   477→   477→   477→        for i, c := range cookies {
+    79→   478→   478→   478→                parts[i] = c.Name + "=" + c.Value
+    80→   479→   479→   479→        }
+    81→   480→   480→   480→        return strings.Join(parts, "; ")
+    82→   481→   481→   481→}
+    83→   482→   482→   482→
+    84→   483→   483→   483→// ====================================================================
+    85→   484→   484→   484→//  Public Methods — called from frontend via Wails bindings
+    86→   485→   485→   485→// ====================================================================
+    87→   486→   486→   486→
+    88→   487→   487→   487→// Authenticate validates the cookie and returns user info + credits
+    89→   488→   488→   488→func (a *App) Authenticate(cookieJSON string) AuthResult {
+    90→   489→   489→   489→        if err := a.apiClient.setCookie(cookieJSON); err != nil {
+    91→   490→   490→   490→                return AuthResult{Error: err.Error()}
+    92→   491→   491→   491→        }
+    93→   492→   492→   492→        a.cookieJSON = cookieJSON
+    94→   493→   493→   493→
+    95→   494→   494→   494→        // Fetch user info
+    96→   495→   495→   495→        userReq, _ := a.apiClient.newRequest("GET", "/oreate/user/getuserinfo", nil)
+    97→   496→   496→   496→        userResp, err := a.apiClient.doJSON(userReq)
+    98→   497→   497→   497→        if err != nil {
+    99→   498→   498→   498→                return AuthResult{Error: fmt.Sprintf("user info request failed: %v", err)}
+   100→   499→   499→   499→        }
+   101→   500→   500→   500→        if userResp.Status.Code != 0 {
+   102→   501→   501→   501→                return AuthResult{Error: fmt.Sprintf("auth failed: %s", userResp.Status.Msg)}
+   103→   502→   502→   502→        }
+   104→   503→   503→   503→
+   105→   504→   504→   504→        var userAuthData authData
+   106→   505→   505→   505→        if err := json.Unmarshal(userResp.Data, &userAuthData); err != nil {
+   107→   506→   506→   506→                return AuthResult{Error: fmt.Sprintf("parse user data failed: %v", err)}
+   108→   507→   507→   507→        }
+   109→   508→   508→   508→
+   110→   509→   509→   509→        fmt.Printf("[Auth] User: %s, IsLogin: %v\n", userAuthData.BasicInfo.Email, userAuthData.BasicInfo.IsLogin)
+   111→   510→   510→   510→
+   112→   511→   511→   511→        // Fetch credits
+   113→   512→   512→   512→        pointsReq, _ := a.apiClient.newRequest("GET", "/bizapi/point/getrestpoints", nil)
+   114→   513→   513→   513→        pointsResp, err := a.apiClient.doJSON(pointsReq)
+   115→   514→   514→   514→        if err != nil {
+   116→   515→   515→   515→                return AuthResult{
+   117→   516→   516→   516→                        UserInfo:  userAuthData.BasicInfo,
+   118→   517→   517→   517→                        VipInfo:   userAuthData.VipInfo,
+   119→   518→   518→   518→                        RestPoint: 0,
+   120→   519→   519→   519→                }
+   121→   520→   520→   520→        }
+   122→   521→   521→   521→
+   123→   522→   522→   522→        var pts pointsData
+   124→   523→   523→   523→        restPoint := 0
+   125→   524→   524→   524→        if json.Unmarshal(pointsResp.Data, &pts) == nil {
+   126→   525→   525→   525→                restPoint = pts.RestPoint
+   127→   526→   526→   526→        }
+   128→   527→   527→   527→
+   129→   528→   528→   528→        fmt.Printf("[Auth] Credits: %d\n", restPoint)
+   130→   529→   529→   529→
+   131→   530→   530→   530→        return AuthResult{
+   132→   531→   531→   531→                UserInfo:  userAuthData.BasicInfo,
+   133→   532→   532→   532→                VipInfo:   userAuthData.VipInfo,
+   134→   533→   533→   533→                RestPoint: restPoint,
+   135→   534→   534→   534→        }
+   136→   535→   535→   535→}
+   137→   536→   536→   536→
+   138→   537→   537→   537→// GetModels fetches model and scene configurations
+   139→   538→   538→   538→func (a *App) GetModels() ModelsResult {
+   140→   539→   539→   539→        modelReq, _ := a.apiClient.newRequest("GET", "/oreate/aivideo/getmodelconfigv3", nil)
+   141→   540→   540→   540→        modelResp, err := a.apiClient.doJSON(modelReq)
+   142→   541→   541→   541→        if err != nil {
+   143→   542→   542→   542→                return ModelsResult{Error: err.Error()}
+   144→   543→   543→   543→        }
+   145→   544→   544→   544→
+   146→   545→   545→   545→        var modelData modelsData
+   147→   546→   546→   546→        if err := json.Unmarshal(modelResp.Data, &modelData); err != nil {
+   148→   547→   547→   547→                return ModelsResult{Error: fmt.Sprintf("parse models failed: %v", err)}
+   149→   548→   548→   548→        }
+   150→   549→   549→   549→
+   151→   550→   550→   550→        sceneReq, _ := a.apiClient.newRequest("GET", "/oreate/aivideo/getsceneconfig", nil)
+   152→   551→   551→   551→        sceneResp, err := a.apiClient.doJSON(sceneReq)
+   153→   552→   552→   552→        if err != nil {
+   154→   553→   553→   553→                return ModelsResult{Models: modelData.Models, Error: fmt.Sprintf("scenes fetch failed: %v", err)}
+   155→   554→   554→   554→        }
+   156→   555→   555→   555→
+   157→   556→   556→   556→        var sceneData scenesData
+   158→   557→   557→   557→        if err := json.Unmarshal(sceneResp.Data, &sceneData); err != nil {
+   159→   558→   558→   558→                return ModelsResult{Models: modelData.Models, Error: fmt.Sprintf("parse scenes failed: %v", err)}
+   160→   559→   559→   559→        }
+   161→   560→   560→   560→
+   162→   561→   561→   561→        fmt.Printf("[Models] %d models, %d scenes loaded\n", len(modelData.Models), len(sceneData.Scenes))
+   163→   562→   562→   562→
+   164→   563→   563→   563→        return ModelsResult{
+   165→   564→   564→   564→                Models: modelData.Models,
+   166→   565→   565→   565→                Scenes: sceneData.Scenes,
+   167→   566→   566→   566→        }
+   168→   567→   567→   567→}
+   169→   568→   568→   568→
+   170→   569→   569→   569→// GetUploadToken gets GCS upload credentials for the given files
+   171→   570→   570→   570→func (a *App) GetUploadToken(fileMetasJSON string) UploadTokenResult {
+   172→   571→   571→   571→        var fileMetas []UploadFileMeta
+   173→   572→   572→   572→        if err := json.Unmarshal([]byte(fileMetasJSON), &fileMetas); err != nil {
+   174→   573→   573→   573→                return UploadTokenResult{Error: fmt.Sprintf("invalid file metas: %v", err)}
+   175→   574→   574→   574→        }
+   176→   575→   575→   575→
+   177→   576→   576→   576→        payload := map[string]interface{}{
+   178→   577→   577→   577→                "mFileList": fileMetas,
+   179→   578→   578→   578→                "source":    "aiImage",
+   180→   579→   579→   579→        }
+   181→   580→   580→   580→        body, _ := json.Marshal(payload)
+   182→   581→   581→   581→
+   183→   582→   582→   582→        fmt.Printf("[UploadToken] Requesting for %d files: %v\n", len(fileMetas), fileMetas)
+   184→   583→   583→   583→
+   185→   584→   584→   584→        req, _ := a.apiClient.newRequest("POST", "/oreate/convert/getuploadbostoken", bytes.NewReader(body))
+   186→   585→   585→   585→        req.Header.Set("Content-Type", "application/json")
+   187→   586→   586→   586→
+   188→   587→   587→   587→        resp, err := a.apiClient.doJSON(req)
+   189→   588→   588→   588→        if err != nil {
+   190→   589→   589→   589→                return UploadTokenResult{Error: err.Error()}
+   191→   590→   590→   590→        }
+   192→   591→   591→   591→        if resp.Status.Code != 0 {
+   193→   592→   592→   592→                return UploadTokenResult{Error: fmt.Sprintf("upload token error: %s (code %d)", resp.Status.Msg, resp.Status.Code)}
+   194→   593→   593→   593→        }
+   195→   594→   594→   594→
+   196→   595→   595→   595→        // Parse KeyList with flexible credential deserialization
+   197→   596→   596→   596→        var rawData uploadTokenData
+   198→   597→   597→   597→        if err := json.Unmarshal(resp.Data, &rawData); err != nil {
+   199→   598→   598→   598→                return UploadTokenResult{Error: fmt.Sprintf("parse upload token failed: %v", err)}
+   200→   599→   599→   599→        }
+   201→   600→   600→   600→
+   202→   601→   601→   601→        keyList := make(map[string]UploadCredential)
+   203→   602→   602→   602→        for k, v := range rawData.KeyList {
+   204→   603→   603→   603→                var cred UploadCredential
+   205→   604→   604→   604→                if err := json.Unmarshal(v, &cred); err != nil {
+   206→   605→   605→   605→                        fmt.Printf("[UploadToken] WARNING: failed to parse credential for key %q: %v\n", k, err)
+   207→   606→   606→   606→                        continue
+   208→   607→   607→   607→                }
+   209→   608→   608→   608→                if cred.SessionKey == "" {
+   210→   609→   609→   609→                        fmt.Printf("[UploadToken] WARNING: empty sessionKey for key %q (bucket=%s, path=%s)\n", k, cred.Bucket, cred.ObjectPath)
+   211→   610→   610→   610→                }
+   212→   611→   611→   611→                keyList[k] = cred
+   213→   612→   612→   612→                fmt.Printf("[UploadToken] Key %q → bucket=%s path=%s sessionKey=%s...\n",
+   214→   613→   613→   613→                        k, cred.Bucket, cred.ObjectPath, truncateStr(cred.SessionKey, 20))
+   215→   614→   614→   614→        }
+   216→   615→   615→   615→
+   217→   616→   616→   616→        return UploadTokenResult{KeyList: keyList}
+   218→   617→   617→   617→}
+   219→   618→   618→   618→
+   220→   619→   619→   619→// UploadFile uploads a local file to GCS using direct PUT.
+   221→   620→   620→   620→// The OreateAI API returns a sessionkey (Google OAuth token) that authorizes
+   222→   621→   621→   621→// direct PUT to the GCS object URL. This is simpler and more reliable than
+   223→   622→   622→   622→// the resumable upload API (which returns 403 due to billing restrictions).
+   224→   623→   623→   623→func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (string, error) {
+   225→   624→   624→   624→        if sessionKey == "" {
+   226→   625→   625→   625→                return "", fmt.Errorf("empty sessionKey — cannot authenticate GCS upload")
+   227→   626→   626→   626→        }
+   228→   627→   627→   627→
+   229→   628→   628→   628→        file, err := os.Open(filePath)
+   230→   629→   629→   629→        if err != nil {
+   231→   630→   630→   630→                return "", fmt.Errorf("cannot open file: %w", err)
+   232→   631→   631→   631→        }
+   233→   632→   632→   632→        defer file.Close()
+   234→   633→   633→   633→
+   235→   634→   634→   634→        stat, err := file.Stat()
+   236→   635→   635→   635→        if err != nil {
+   237→   636→   636→   636→                return "", fmt.Errorf("cannot stat file: %w", err)
+   238→   637→   637→   637→        }
+   239→   638→   638→   638→        fileSize := stat.Size()
+   240→   639→   639→   639→
+   241→   640→   640→   640→        // Determine content type
+   242→   641→   641→   641→        ext := strings.ToLower(filepath.Ext(filePath))
+   243→   642→   642→   642→        contentType := "application/octet-stream"
+   244→   643→   643→   643→        switch ext {
+   245→   644→   644→   644→        case ".png":
+   246→   645→   645→   645→                contentType = "image/png"
+   247→   646→   646→   646→        case ".jpg", ".jpeg":
+   248→   647→   647→   647→                contentType = "image/jpeg"
+   249→   648→   648→   648→        case ".webp":
+   250→   649→   649→   649→                contentType = "image/webp"
+   251→   650→   650→   650→        case ".gif":
+   252→   651→   651→   651→                contentType = "image/gif"
+   253→   652→   652→   652→        case ".mp4":
+   254→   653→   653→   653→                contentType = "video/mp4"
+   255→   654→   654→   654→        case ".mov":
+   256→   655→   655→   655→                contentType = "video/quicktime"
+   257→   656→   656→   656→        case ".avi":
+   258→   657→   657→   657→                contentType = "video/x-msvideo"
+   259→   658→   658→   658→        case ".webm":
+   260→   659→   659→   659→                contentType = "video/webm"
+   261→   660→   660→   660→        }
+   262→   661→   661→   661→
+   263→   662→   662→   662→        // Direct PUT to the GCS object URL — verified working with real API
+   264→   663→   663→   663→        objectURL := fmt.Sprintf("%s/%s/%s", GCSBase, bucket, objectPath)
+   265→   664→   664→   664→
+   266→   665→   665→   665→        fmt.Printf("[GCS] Uploading (direct PUT): %s (%d bytes, %s)\n", filepath.Base(filePath), fileSize, contentType)
+   267→   666→   666→   666→        fmt.Printf("[GCS] URL: %s\n", objectURL)
+   268→   667→   667→   667→
+   269→   668→   668→   668→        buf := new(bytes.Buffer)
+   270→   669→   669→   669→        buf.ReadFrom(file)
+   271→   670→   670→   670→        fileData := buf.Bytes()
+   272→   671→   671→   671→
+   273→   672→   672→   672→        putReq, _ := http.NewRequest("PUT", objectURL, bytes.NewReader(fileData))
+   274→   673→   673→   673→        putReq.Header.Set("Authorization", "Bearer "+sessionKey)
+   275→   674→   674→   674→        putReq.Header.Set("Content-Type", contentType)
+   276→   675→   675→   675→
+   277→   676→   676→   676→        uploadResp, err := a.apiClient.httpClient.Do(putReq)
+   278→   677→   677→   677→        if err != nil {
+   279→   678→   678→   678→                return "", fmt.Errorf("GCS upload failed: %w", err)
+   280→   679→   679→   679→        }
+   281→   680→   680→   680→        defer uploadResp.Body.Close()
+   282→   681→   681→   681→
+   283→   682→   682→   682→        fmt.Printf("[GCS] Upload response: %d\n", uploadResp.StatusCode)
+   284→   683→   683→   683→
+   285→   684→   684→   684→        if uploadResp.StatusCode == 200 {
+   286→   685→   685→   685→                finalURL := objectURL
+   287→   686→   686→   686→                fmt.Printf("[GCS] Upload success: %s\n", finalURL)
+   288→   687→   687→   687→                return finalURL, nil
+   289→   688→   688→   688→        }
+   290→   689→   689→   689→
+   291→   690→   690→   690→        body, _ := io.ReadAll(uploadResp.Body)
+   292→   691→   691→   691→        return "", fmt.Errorf("GCS upload returned status %d: %s", uploadResp.StatusCode, string(body))
+   293→   692→   692→   692→}
+   294→   693→   693→   693→
+   295→   694→   694→   694→// generateChatID creates a unique chat ID matching the website's FR() function:
+   296→   695→   695→   695→// (Date.now() * 1e6 + Math.floor(Math.random() * 1e6)).toString(36)
+   297→   696→   696→   696→func generateChatID() string {
+   298→   697→   697→   697→        ts := time.Now().UnixMilli() * 1000000
+   299→   698→   698→   698→        rnd := time.Now().UnixNano() % 1000000
+   300→   699→   699→   699→        if rnd < 0 {
+   301→   700→   700→   700→                rnd = -rnd
+   302→   701→   701→   701→        }
+   303→   702→   702→   702→        return fmt.Sprintf("%x", ts+rnd)
+   304→   703→   703→   703→}
+   305→   704→   704→   704→
+   306→   705→   705→   705→// SubmitGeneration submits a video generation task via /oreate/sse/stream.
+   307→   706→   706→   706→// This matches the website's actual workflow: POST to SSE endpoint, parse events.
+   308→   707→   707→   707→//
+   309→   708→   708→   708→// SSE event format: {"event":"setattr|start|generating|end|error","data":{...}}
+   310→   709→   709→   709→func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
+   311→   710→   710→   710→        var req SSERequest
+   312→   711→   711→   711→        if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
+   313→   712→   712→   712→                return GenerateResult{Error: fmt.Sprintf("invalid request: %v", err)}
+   314→   713→   713→   713→        }
+   315→   714→   714→   714→
+   316→   715→   715→   715→        body, _ := json.Marshal(req)
+   317→   716→   716→   716→
+   318→   717→   717→   717→        fmt.Printf("[Generate] Submitting to /oreate/sse/stream: chatType=%s scene=%s model=%s\n",
+   319→   718→   718→   718→                req.ChatType, req.VideoConfig.Scene, req.VideoConfig.ModelName)
+   320→   719→   719→   719→        fmt.Printf("[Generate] Request body:\n%s\n", string(body))
+   321→   720→   720→   720→
+   322→   721→   721→   721→        httpReq, _ := a.apiClient.newRequest("POST", "/oreate/sse/stream", bytes.NewReader(body))
+   323→   722→   722→   722→        httpReq.Header.Set("Content-Type", "application/json")
+   324→   723→   723→   723→        httpReq.Header.Set("Accept", "text/event-stream, */*")
+   325→   724→   724→   724→        httpReq.Header.Set("Client-Type", "PC")
+   326→   725→   725→   725→        httpReq.Header.Set("locale", "en-US")
+   327→   726→   726→   726→
+   328→   727→   727→   727→        resp, err := a.apiClient.httpClient.Do(httpReq)
+   329→   728→   728→   728→        if err != nil {
+   330→   729→   729→   729→                return GenerateResult{Error: fmt.Sprintf("request failed: %v", err)}
+   331→   730→   730→   730→        }
+   332→   731→   731→   731→        defer resp.Body.Close()
+   333→   732→   732→   732→
+   334→   733→   733→   733→        fmt.Printf("[Generate] Response: status=%d content-type=%s\n", resp.StatusCode, resp.Header.Get("Content-Type"))
+   335→   734→   734→   734→
+   336→   735→   735→   735→        respBody, _ := io.ReadAll(resp.Body)
+   337→   736→   736→   736→        bodyStr := string(respBody)
+   338→   737→   737→   737→
+   339→   738→   738→   738→        if resp.StatusCode != 200 {
+   340→   739→   739→   739→                preview := bodyStr
+   341→   740→   740→   740→                if len(preview) > 500 {
+   342→   741→   741→   741→                        preview = preview[:500] + "..."
+   343→   742→   742→   742→                }
+   344→   743→   743→   743→                return GenerateResult{Error: fmt.Sprintf("server returned HTTP %d: %s", resp.StatusCode, preview)}
+   345→   744→   744→   744→        }
+   346→   745→   745→   745→
+   347→   746→   746→   746→        // Parse SSE events — each line is "data: {json}"
+   348→   747→   747→   747→        type sseEvent struct {
+   349→   748→   748→   748→                raw    string
+   350→   749→   749→   749→                parsed map[string]interface{}
+   351→   750→   750→   750→        }
+   352→   751→   751→   751→
+   353→   752→   752→   752→        var events []sseEvent
+   354→   753→   753→   753→        for _, line := range strings.Split(bodyStr, "\n") {
+   355→   754→   754→   754→                line = strings.TrimSpace(line)
+   356→   755→   755→   755→                if !strings.HasPrefix(line, "data:") {
+   357→   756→   756→   756→                        continue
+   358→   757→   757→   757→                }
+   359→   758→   758→   758→                data := strings.TrimPrefix(line, "data:")
+   360→   759→   759→   759→                data = strings.TrimSpace(data)
+   361→   760→   760→   760→                if data == "" || data == "[DONE]" {
+   362→   761→   761→   761→                        continue
+   363→   762→   762→   762→                }
+   364→   763→   763→   763→
+   365→   764→   764→   764→                var parsed map[string]interface{}
+   366→   765→   765→   765→                if err := json.Unmarshal([]byte(data), &parsed); err == nil {
+   367→   766→   766→   766→                        events = append(events, sseEvent{raw: data, parsed: parsed})
+   368→   767→   767→   767→                        event, _ := parsed["event"].(string)
+   369→   768→   768→   768→                        fmt.Printf("[Generate] SSE event: %s\n", event)
+   370→   769→   769→   769→                }
+   371→   770→   770→   770→        }
+   372→   771→   771→   771→
+   373→   772→   772→   772→        if len(events) == 0 {
+   374→   773→   773→   773→                preview := bodyStr
+   375→   774→   774→   774→                if len(preview) > 500 {
+   376→   775→   775→   775→                        preview = preview[:500] + "..."
+   377→   776→   776→   776→                }
+   378→   777→   777→   777→                return GenerateResult{Error: fmt.Sprintf("invalid response (not JSON or SSE): %s", preview)}
+   379→   778→   778→   778→        }
+   380→   779→   779→   779→
+   381→   780→   780→   780→        // Process events in order
+   382→   781→   781→   781→        chatID := ""
+   383→   782→   782→   782→        docID := ""
+   384→   783→   783→   783→        hasError := false
+   385→   784→   784→   784→        errorMsg := ""
+   386→   785→   785→   785→
+   387→   786→   786→   786→        for _, ev := range events {
+   388→   787→   787→   787→                eventName, _ := ev.parsed["event"].(string)
+   389→   788→   788→   788→                eventData, _ := ev.parsed["data"].(map[string]interface{})
+   390→   789→   789→   789→
+   391→   790→   790→   790→                switch eventName {
+   392→   791→   791→   791→                case "setattr":
+   393→   792→   792→   792→                        // Server sends back chatId in setattr event
+   394→   793→   793→   793→                        if id, ok := eventData["chatId"].(string); ok && id != "" {
+   395→   794→   794→   794→                                chatID = id
+   396→   795→   795→   795→                                fmt.Printf("[Generate] Got chatId from setattr: %s\n", chatID)
+   397→   796→   796→   796→                        }
+   398→   797→   797→   797→
+   399→   798→   798→   798→                case "error":
+   400→   799→   799→   799→                        hasError = true
+   401→   800→   800→   800→                        if code, ok := eventData["code"].(float64); ok {
+   402→   801→   801→   801→                                if msg, ok2 := eventData["msg"].(string); ok2 {
+   403→   802→   802→   802→                                        errorMsg = fmt.Sprintf("error code %d: %s", int(code), msg)
+   404→   803→   803→   803→                                } else {
+   405→   804→   804→   804→                                        errorMsg = fmt.Sprintf("error code %d", int(code))
+   406→   805→   805→   805→                                }
+   407→   806→   806→   806→                        } else if msg, ok := eventData["msg"].(string); ok {
+   408→   807→   807→   807→                                errorMsg = msg
+   409→   808→   808→   808→                        }
+   410→   809→   809→   809→                        fmt.Printf("[Generate] SSE error: %s\n", errorMsg)
+   411→   810→   810→   810→
+   412→   811→   811→   811→                case "generating":
+   413→   812→   812→   812→                        // Extract docId/chatId from generating event data if present
+   414→   813→   813→   813→                        if eventData != nil {
+   415→   814→   814→   814→                                if id, ok := eventData["chatId"].(string); ok && id != "" && chatID == "" {
+   416→   815→   815→   815→                                        chatID = id
+   417→   816→   816→   816→                                }
+   418→   817→   817→   817→                                if id, ok := eventData["docId"].(string); ok && id != "" {
+   419→   818→   818→   818→                                        docID = id
+   420→   819→   819→   819→                                }
+   421→   820→   820→   820→                                if id, ok := eventData["id"].(string); ok && id != "" && docID == "" {
+   422→   821→   821→   821→                                        docID = id
+   423→   822→   822→   822→                                }
+   424→   823→   823→   823→                        }
+   425→   824→   824→   824→
+   426→   825→   825→   825→                case "end":
+   427→   826→   826→   826→                        // Generation submitted successfully
+   428→   827→   827→   827→                        fmt.Printf("[Generate] SSE end event received\n")
+   429→   828→   828→   828→                }
+   430→   829→   829→   829→        }
+   431→   830→   830→   830→
+   432→   831→   831→   831→        if hasError {
+   433→   832→   832→   832→                return GenerateResult{
+   434→   833→   833→   833→                        SubmitResult: events[len(events)-1].parsed,
+   435→   834→   834→   834→                        Error:        errorMsg,
+   436→   835→   835→   835→                }
+   437→   836→   836→   836→        }
+   438→   837→   837→   837→
+   439→   838→   838→   838→        // Use chatId for polling if no docId (website polls by chatId via history)
+   440→   839→   839→   839→        if docID == "" && chatID != "" {
+   441→   840→   840→   840→                docID = chatID
+   442→   841→   841→   841→        }
+   443→   842→   842→   842→
+   444→   843→   843→   843→        fmt.Printf("[Generate] Success: chatId=%s docId=%s\n", chatID, docID)
+   445→   844→   844→   844→
+   446→   845→   845→   845→        return GenerateResult{
+   447→   846→   846→   846→                Success:      true,
+   448→   847→   847→   847→                DocID:        docID,
+   449→   848→   848→   848→                ChatID:       chatID,
+   450→   849→   849→   849→                SubmitResult: events[len(events)-1].parsed,
+   451→   850→   850→   850→        }
+   452→   851→   851→   851→}
+   453→   852→   852→   852→
+   454→   853→   853→   853→// GetTaskStatus polls the status of a generation task (POST method, matching website)
+   455→   854→   854→   854→func (a *App) GetTaskStatus(docID string) TaskStatusResult {
+   456→   855→   855→   855→        // Website uses POST for getstatus: vi.post("/oreate/doc/getstatus", n)
+   457→   856→   856→   856→        payload := map[string]interface{}{
+   458→   857→   857→   857→                "docIdList": []string{docID},
+   459→   858→   858→   858→        }
+   460→   859→   859→   859→        body, _ := json.Marshal(payload)
+   461→   860→   860→   860→
+   462→   861→   861→   861→        req, _ := a.apiClient.newRequest("POST", "/oreate/doc/getstatus", bytes.NewReader(body))
+   463→   862→   862→   862→        req.Header.Set("Content-Type", "application/json")
+   464→   863→   863→   863→
+   465→   864→   864→   864→        resp, err := a.apiClient.doJSON(req)
+   466→   865→   865→   865→        if err != nil {
+   467→   866→   866→   866→                return TaskStatusResult{Error: err.Error()}
+   468→   867→   867→   867→        }
+   469→   868→   868→   868→
+   470→   869→   869→   869→        var data map[string]interface{}
+   471→   870→   870→   870→        json.Unmarshal(resp.Data, &data)
+   472→   871→   871→   871→
+   473→   872→   872→   872→        fmt.Printf("[Status] docId=%s status_code=%d\n", docID, resp.Status.Code)
+   474→   873→   873→   873→
+   475→   874→   874→   874→        return TaskStatusResult{
+   476→   875→   875→   875→                Status: map[string]interface{}{"code": resp.Status.Code, "msg": resp.Status.Msg},
+   477→   876→   876→   876→                Data:   data,
+   478→   877→   877→   877→        }
+   479→   878→   878→   878→}
+   480→   879→   879→   879→
+   481→   880→   880→   880→// GetHistory fetches the generation history
+   482→   881→   881→   881→// Website uses: vi.get("/oreate/memory/getchatlist", {params: {pn, rn, updateTime}})
+   483→   882→   882→   882→func (a *App) GetHistory(pageNo, pageSize int) HistoryResult {
+   484→   883→   883→   883→        urlPath := fmt.Sprintf("/oreate/memory/getchatlist?pn=%d&rn=%d", pageNo, pageSize)
+   485→   884→   884→   884→        req, _ := a.apiClient.newRequest("GET", urlPath, nil)
+   486→   885→   885→   885→
+   487→   886→   886→   886→        resp, err := a.apiClient.doJSON(req)
+   488→   887→   887→   887→        if err != nil {
+   489→   888→   888→   888→                return HistoryResult{Error: err.Error()}
+   490→   889→   889→   889→        }
+   491→   890→   890→   890→
+   492→   891→   891→   891→        var data historyListData
+   493→   892→   892→   892→        if err := json.Unmarshal(resp.Data, &data); err != nil {
+   494→   893→   893→   893→                return HistoryResult{Error: fmt.Sprintf("parse history failed: %v", err)}
+   495→   894→   894→   894→        }
+   496→   895→   895→   895→
+   497→   896→   896→   896→        items := make([]HistoryItem, 0, len(data.ChatList))
+   498→   897→   897→   897→        for _, c := range data.ChatList {
+   499→   898→   898→   898→                items = append(items, HistoryItem{
+   500→   899→   899→   899→                        DocID:        c.DocID,
+
+[showing lines 1-500 of 502; use offset=501 with limit to continue reading]

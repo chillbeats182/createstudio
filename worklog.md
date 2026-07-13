@@ -108,3 +108,55 @@ Stage Summary:
 - Secondary: Wrong request body format (flat attachments vs messages[] array), wrong attachment field names
 - Fix: Complete rewrite of API layer to match website's exact SSE workflow
 - Tagged v1.0.8 and pushed to GitHub
+
+---
+Task ID: 1, 2, 3
+Agent: full-stack-developer
+Task: Rewrite canvas app to match desktop exe workflow
+
+Work Log:
+- Rewrote src/lib/oreate-client.ts with direct PUT upload, SSE stream format, correct params
+- Updated all 6 API routes in src/app/api/oreate/ to match Go desktop app workflow
+- Updated src/lib/store.ts with WorkflowLog and buildReadiness fields
+- Rewrote src/app/page.tsx as 3-tab testing canvas (Generate, Workflow Debug, History)
+- Added Workflow Debug tab with 4-step stepper (Auth → Upload → Generate → Poll)
+- Added Build Readiness panel with 6-check validation checklist
+- All API calls now include debug info (request/response/timing)
+- lint passes clean, dev server compiles successfully
+
+Stage Summary:
+- Canvas app now mirrors exact desktop exe workflow
+- All API calls match Go backend format (chatType:"aichat", SSE stream, direct PUT, POST for status, pn/rn for history)
+- Workflow Debug tab enables step-by-step API call testing before building desktop exe
+- Build Readiness panel shows clear pass/fail for each workflow component
+
+---
+Task ID: 5
+Agent: Main Agent
+Task: Verify canvas app, fix layout issues, test with agent-browser
+
+Work Log:
+- Fixed Go api_client.go: ChatType "aiVideo" → "aichat", removed JT/UA/JSEnv fields from SSERequest struct
+- Updated layout.tsx: Changed page title to "OreateAI Studio — Test Canvas"
+- Verified all API routes match Go desktop workflow:
+  - generate/route.ts: Forwards SSE request to /oreate/sse/stream
+  - upload-file/route.ts: Uses direct PUT via uploadToGCS
+  - task-status/route.ts: Uses POST method
+  - history/route.ts: Uses pn/rn params
+  - upload-token/route.ts: Includes source:"aiImage"
+- Verified page.tsx sets chatType: 'aichat' (lines 518, 1169)
+- Verified oreate-client.ts: direct PUT upload, SSE stream, correct params
+- ESLint passes with no errors
+- Agent-browser verification:
+  - Page renders correctly with dark theme (zinc-950)
+  - 3 tabs: Generate, Workflow Debug, History all functional
+  - Workflow Debug tab: 4-step stepper (Auth→Upload→Generate→Poll), Build Readiness panel (0/6), API Call Log
+  - History tab: "No history yet" message with Refresh button
+  - Mobile viewport: Responsive layout with hamburger menu
+  - No console errors
+  - Page title: "OreateAI Studio — Test Canvas"
+
+Stage Summary:
+- Canvas app fully functional and verified via agent-browser
+- All API endpoints match Go desktop app's exact workflow
+- Build Readiness panel provides clear test-before-build workflow

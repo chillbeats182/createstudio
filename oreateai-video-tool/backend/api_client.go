@@ -253,10 +253,6 @@ type SSERequest struct {
         Messages   []SSEMessage      `json:"messages"`
         VideoConfig VideoConfig      `json:"videoConfig,omitempty"`
         Extra      map[string]string `json:"extra"`
-        // Mirror data (from ZCe)
-        JT    string `json:"jt"`
-        UA    string `json:"ua"`
-        JSEnv string `json:"js_env"`
 }
 
 // GenerateResult holds the generation response
@@ -1190,7 +1186,7 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 
         genReq := SSERequest{
                 Type:       "chat",
-                ChatType:   "aiVideo",
+                ChatType:   "aichat",
                 ChatTitle:  "Unnamed Session",
                 ChatId:     chatId,
                 FocusId:    chatId,
@@ -1209,9 +1205,7 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                         "doc_name":    "",
                         "module_name": "gpt4o",
                 },
-                JT:    "",
-                UA:    UserAgent,
-                JSEnv: "h5",
+
         }
 
         reqJSON, _ := json.MarshalIndent(genReq, "", "  ")

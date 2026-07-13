@@ -1,5 +1,9 @@
 import { create } from 'zustand';
 
+// ====================================================================
+//  Types
+// ====================================================================
+
 export interface UserInfo {
   email: string;
   avatar: string;
@@ -48,6 +52,21 @@ export interface HistoryItem {
   modelName?: string;
 }
 
+export interface WorkflowLog {
+  id: string;
+  step: 'auth' | 'upload' | 'generate' | 'poll';
+  action: string;
+  request?: { url: string; method: string; headers?: Record<string, string>; body?: string };
+  response?: { status: number; body: string; timing: number };
+  success: boolean;
+  error?: string;
+  timestamp: number;
+}
+
+// ====================================================================
+//  Store
+// ====================================================================
+
 interface AppState {
   // Cookie & Auth
   cookie: string;
@@ -55,11 +74,11 @@ interface AppState {
   userInfo: UserInfo | null;
   vipInfo: VipInfo | null;
   restPoint: number;
-  
+
   // Models
   models: ModelOption[];
   scenes: SceneOption[];
-  
+
   // Generation config
   selectedSceneId: string;
   selectedModelName: string;
@@ -70,27 +89,31 @@ interface AppState {
   motDuration: string;
   keepOriginalSound: boolean;
   prompt: string;
-  
+
   // Files
   imageFile: File | null;
   imagePreview: string | null;
   videoFile: File | null;
   videoPreview: string | null;
-  
+
   // Task
   isGenerating: boolean;
   currentTaskId: string | null;
   taskProgress: number;
   taskStatus: string;
   taskVideoUrl: string | null;
-  
+
   // History
   history: HistoryItem[];
   historyLoading: boolean;
-  
+
   // UI
   activeTab: string;
-  
+
+  // Workflow Debug
+  workflowLogs: WorkflowLog[];
+  buildReadiness: Record<string, boolean>;
+
   // Actions
   setCookie: (cookie: string) => void;
   setAuth: (userInfo: UserInfo, vipInfo: VipInfo, restPoint: number) => void;
@@ -114,6 +137,9 @@ interface AppState {
   setHistory: (items: HistoryItem[]) => void;
   setHistoryLoading: (val: boolean) => void;
   setActiveTab: (tab: string) => void;
+  addWorkflowLog: (log: WorkflowLog) => void;
+  clearWorkflowLogs: () => void;
+  setBuildReadiness: (step: string, passed: boolean) => void;
   reset: () => void;
 }
 
@@ -125,11 +151,11 @@ const initialState = {
   restPoint: 0,
   models: [],
   scenes: [],
-  selectedSceneId: 'motion',
+  selectedSceneId: 'text_or_image',
   selectedModelName: 'Kling 2.6',
   selectedDuration: 5,
   selectedResolution: '720',
-  selectedVideoSize: '9:16',
+  selectedVideoSize: '16:9',
   selectedAiType: 14172,
   motDuration: '3',
   keepOriginalSound: false,
@@ -146,11 +172,13 @@ const initialState = {
   history: [],
   historyLoading: false,
   activeTab: 'generate',
+  workflowLogs: [] as WorkflowLog[],
+  buildReadiness: {} as Record<string, boolean>,
 };
 
 export const useAppStore = create<AppState>((set) => ({
   ...initialState,
-  
+
   setCookie: (cookie) => set({ cookie }),
   setAuth: (userInfo, vipInfo, restPoint) => set({ isAuthenticated: true, userInfo, vipInfo, restPoint }),
   setModels: (models, scenes) => set({ models, scenes }),
@@ -173,5 +201,8 @@ export const useAppStore = create<AppState>((set) => ({
   setHistory: (history) => set({ history }),
   setHistoryLoading: (historyLoading) => set({ historyLoading }),
   setActiveTab: (activeTab) => set({ activeTab }),
-  reset: () => set({ ...initialState }),
+  addWorkflowLog: (log) => set((s) => ({ workflowLogs: [...s.workflowLogs, log] })),
+  clearWorkflowLogs: () => set({ workflowLogs: [] }),
+  setBuildReadiness: (step, passed) => set((s) => ({ buildReadiness: { ...s.buildReadiness, [step]: passed } })),
+  reset: () => set({ ...initialState, workflowLogs: [], buildReadiness: {} }),
 }));

@@ -1,9 +1,11 @@
-import { CookieEntry } from './oreate-types';
+// ====================================================================
+//  OreateAI Client — matches Go desktop app (api_client.go) EXACTLY
+// ====================================================================
 
 const BASE_URL = 'https://www.oreateai.com';
 const GCS_BASE = 'https://storage.googleapis.com';
 
-const DEFAULT_HEADERS = {
+const DEFAULT_HEADERS: Record<string, string> = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'en-US,en;q=0.9',
@@ -14,30 +16,72 @@ const DEFAULT_HEADERS = {
   'Sec-Fetch-Site': 'same-origin',
 };
 
+// ====================================================================
+//  Types
+// ====================================================================
+
+export interface CookieEntry {
+  domain: string;
+  name: string;
+  value: string;
+  path: string;
+  httpOnly?: boolean;
+  secure?: boolean;
+}
+
+export interface DebugInfo {
+  requestUrl: string;
+  requestMethod: string;
+  requestHeaders?: Record<string, string>;
+  requestBody?: string;
+  responseStatus: number;
+  responseBody: string;
+  timestamp: number;
+}
+
+interface ApiResult<T = unknown> {
+  data: T;
+  debug: DebugInfo;
+}
+
+// SSE event types
+export interface SSEEvent {
+  event: string;
+  data: Record<string, unknown>;
+  raw: string;
+}
+
+// ====================================================================
+//  Cookie Parsing
+// ====================================================================
+
 export function parseCookies(cookieInput: string): CookieEntry[] {
   if (!cookieInput || typeof cookieInput !== 'string') return [];
   const trimmed = cookieInput.trim();
+  if (trimmed === '') return [];
 
   // Try JSON array first
   try {
     const parsed = JSON.parse(trimmed);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed;
   } catch {
     // Not valid JSON, try other formats below
   }
 
   // Try semicolon-separated cookie string (name=value; name2=value2)
   if (trimmed.includes(';')) {
-    return trimmed.split(';')
-      .map(c => {
-        const eqIdx = c.indexOf('=');
-        if (eqIdx === -1) return null;
-        const name = c.substring(0, eqIdx).trim();
-        const value = c.substring(eqIdx + 1).trim();
-        if (!name) return null;
-        return { domain: '.oreateai.com', name, value, path: '/' } as CookieEntry;
-      })
-      .filter((c): c is CookieEntry => c !== null);
+    const cookies: CookieEntry[] = [];
+    const parts = trimmed.split(';');
+    for (const part of parts) {
+      const p = part.trim();
+      const eqIdx = p.indexOf('=');
+      if (eqIdx === -1) continue;
+      const name = p.substring(0, eqIdx).trim();
+      const value = p.substring(eqIdx + 1).trim();
+      if (!name) continue;
+      cookies.push({ domain: '.oreateai.com', name, value, path: '/' });
+    }
+    if (cookies.length > 0) return cookies;
   }
 
   return [];
@@ -47,63 +91,131 @@ export function buildCookieHeader(cookies: CookieEntry[]): string {
   return cookies.map(c => `${c.name}=${c.value}`).join('; ');
 }
 
-export function getOussCookie(cookies: CookieEntry[]): string {
-  const ouss = cookies.find(c => c.name === 'ouss');
-  return ouss?.value || '';
-}
+// ====================================================================
+//  Generic Fetch with Debug
+// ====================================================================
 
 export async function oreateFetch(
   path: string,
   cookies: CookieEntry[],
   options: RequestInit = {}
-): Promise<Response> {
+): Promise<ApiResult> {
   const cookieHeader = buildCookieHeader(cookies);
-  return fetch(`${BASE_URL}${path}`, {
+  const url = `${BASE_URL}${path}`;
+  const startTime = Date.now();
+
+  const mergedHeaders: Record<string, string> = {
+    ...DEFAULT_HEADERS,
+    Cookie: cookieHeader,
+    ...(options.headers as Record<string, string> || {}),
+  };
+
+  const resp = await fetch(url, {
     ...options,
-    headers: {
-      ...DEFAULT_HEADERS,
-      Cookie: cookieHeader,
-      ...(options.headers || {}),
-    },
+    headers: mergedHeaders,
   });
+
+  const responseBody = await resp.text();
+
+  return {
+    data: safeJSONParse(responseBody),
+    debug: {
+      requestUrl: url,
+      requestMethod: options.method || 'GET',
+      requestHeaders: mergedHeaders,
+      requestBody: options.body as string | undefined,
+      responseStatus: resp.status,
+      responseBody,
+      timestamp: Date.now(),
+    },
+  };
 }
 
-export async function getUserInfo(cookies: CookieEntry[]) {
-  const resp = await oreateFetch('/oreate/user/getuserinfo', cookies);
-  const data = await resp.json();
-  return data;
+function safeJSONParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
-export async function getRestPoints(cookies: CookieEntry[]) {
-  const resp = await oreateFetch('/bizapi/point/getrestpoints', cookies);
-  const data = await resp.json();
-  return data;
+// ====================================================================
+//  Chat ID Generation (matches Go's generateChatID)
+// ====================================================================
+
+export function generateChatID(): string {
+  const ts = Date.now() * 1e6;
+  const rnd = Math.floor(Math.random() * 1e6);
+  return (ts + rnd).toString(36);
 }
+
+// ====================================================================
+//  Authenticate — /oreate/user/getuserinfo + /bizapi/point/getrestpoints
+// ====================================================================
+
+export async function authenticate(cookies: CookieEntry[]) {
+  const [userResult, pointsResult] = await Promise.all([
+    oreateFetch('/oreate/user/getuserinfo', cookies),
+    oreateFetch('/bizapi/point/getrestpoints', cookies),
+  ]);
+
+  const userData = userResult.data as Record<string, unknown>;
+  const userStatus = (userData?.status as Record<string, unknown>) || {};
+  const userRespData = (userData?.data as Record<string, unknown>) || {};
+
+  const pointsData = pointsResult.data as Record<string, unknown>;
+  const pointsRespData = (pointsData?.data as Record<string, unknown>) || {};
+
+  return {
+    success: (userStatus.code as number) === 0,
+    userInfo: (userRespData.basicInfo as Record<string, unknown>) || null,
+    vipInfo: (userRespData.vipInfo as Record<string, unknown>) || null,
+    restPoint: ((pointsRespData.restPoint as number) ?? 0),
+    userDebug: userResult.debug,
+    pointsDebug: pointsResult.debug,
+  };
+}
+
+// ====================================================================
+//  Get Model Config — /oreate/aivideo/getmodelconfigv3
+// ====================================================================
 
 export async function getModelConfig(cookies: CookieEntry[]) {
-  const resp = await oreateFetch('/oreate/aivideo/getmodelconfigv3', cookies);
-  const data = await resp.json();
-  return data;
+  return oreateFetch('/oreate/aivideo/getmodelconfigv3', cookies);
 }
 
+// ====================================================================
+//  Get Scene Config — /oreate/aivideo/getsceneconfig
+// ====================================================================
+
 export async function getSceneConfig(cookies: CookieEntry[]) {
-  const resp = await oreateFetch('/oreate/aivideo/getsceneconfig', cookies);
-  const data = await resp.json();
-  return data;
+  return oreateFetch('/oreate/aivideo/getsceneconfig', cookies);
 }
+
+// ====================================================================
+//  Get Upload Token — POST /oreate/convert/getuploadbostoken
+//  MUST include source: "aiImage"
+// ====================================================================
 
 export async function getUploadToken(
   cookies: CookieEntry[],
-  fileList: Array<{ name: string; size: number; fileExt: string; fileName: string }>
+  fileMetas: Array<{ filename: string; fileExt: string; size: number }>
 ) {
-  const resp = await oreateFetch('/oreate/convert/getuploadbostoken', cookies, {
+  return oreateFetch('/oreate/convert/getuploadbostoken', cookies, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mFileList: fileList }),
+    body: JSON.stringify({
+      mFileList: fileMetas,
+      source: 'aiImage',
+    }),
   });
-  const data = await resp.json();
-  return data;
 }
+
+// ====================================================================
+//  Upload to GCS — DIRECT PUT (not resumable)
+//  URL: https://storage.googleapis.com/{bucket}/{objectPath}
+//  Headers: Authorization: Bearer {sessionkey}, Content-Type
+// ====================================================================
 
 export async function uploadToGCS(
   file: Buffer | ArrayBuffer,
@@ -111,104 +223,179 @@ export async function uploadToGCS(
   objectPath: string,
   sessionkey: string,
   contentType: string
-): Promise<string> {
-  const encodedPath = encodeURIComponent(objectPath);
-  const uploadUrl = `${GCS_BASE}/upload/storage/v1/b/${bucket}/o?uploadType=resumable&name=${encodedPath}`;
+): Promise<ApiResult<string>> {
+  const url = `${GCS_BASE}/${bucket}/${objectPath}`;
+  const startTime = Date.now();
 
-  // Step 1: Initiate resumable upload
-  const initResp = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${sessionkey}`,
-      'Content-Type': 'application/json',
-      'Content-Length': '0',
-      'x-goog-user-project': 'iron-area-433903-r2',
-    },
-  });
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${sessionkey}`,
+    'Content-Type': contentType,
+  };
 
-  if (initResp.status !== 200 && initResp.status !== 201) {
-    const text = await initResp.text();
-    throw new Error(`GCS init failed: ${initResp.status} - ${text}`);
-  }
-
-  const location = initResp.headers.get('Location') || '';
-  const fileData = Buffer.from(file);
-  const fileSize = fileData.length;
-
-  // Step 2: Upload file data
-  const uploadResp = await fetch(location, {
+  const resp = await fetch(url, {
     method: 'PUT',
-    headers: {
-      'Content-Range': `bytes 0-${fileSize - 1}/${fileSize}`,
-      'Authorization': `Bearer ${sessionkey}`,
-      'x-goog-user-project': 'iron-area-433903-r2',
-      'Content-Type': contentType,
-    },
-    body: fileData,
+    headers,
+    body: file,
   });
 
-  if (uploadResp.status === 200 || uploadResp.status === 201) {
-    return `https://storage.googleapis.com/${bucket}/${objectPath}`;
-  }
+  const responseBody = await resp.text();
+  const finalUrl = `${GCS_BASE}/${bucket}/${objectPath}`;
 
-  throw new Error(`GCS upload failed: ${uploadResp.status}`);
+  return {
+    data: resp.status === 200 ? finalUrl : '',
+    debug: {
+      requestUrl: url,
+      requestMethod: 'PUT',
+      requestHeaders: { ...headers, 'Authorization': `Bearer ${sessionkey.substring(0, 20)}...` },
+      requestBody: `[Binary file data: ${typeof file === 'number' ? (file as unknown as ArrayBuffer).byteLength : (file as Buffer).length} bytes]`,
+      responseStatus: resp.status,
+      responseBody: responseBody.substring(0, 1000),
+      timestamp: Date.now(),
+    },
+  };
 }
 
-export async function submitGeneration(
+// ====================================================================
+//  Submit SSE Generation — POST /oreate/sse/stream
+//  Headers: Content-Type, Accept: text/event-stream, Client-Type: PC, locale: en-US
+// ====================================================================
+
+export async function submitSSEGeneration(
   cookies: CookieEntry[],
-  payload: {
-    mode: string;
-    query: string;
-    attachments: Array<{
-      bos_url: string;
-      fileName: string;
-      fileExt: string;
-      size: number;
-      doc_title: string;
-      doc_type: string;
-      originSize: number;
-    }>;
-    motion?: {
-      characterImage: string;
-      motionVideo: string;
-      motDuration: string;
-      keepOriginalSound: boolean;
-    };
-    htmlTplId?: string;
-    videoConfig: {
-      sceneId: string;
-      modelName: string;
-      duration: number;
-      resolution: string;
-      videoSize: string;
-      aiType: number;
+  sseRequest: Record<string, unknown>
+): Promise<{ success: boolean; docId: string; chatId: string; events: SSEEvent[]; debug: DebugInfo; error?: string }> {
+  const cookieHeader = buildCookieHeader(cookies);
+  const url = `${BASE_URL}/oreate/sse/stream`;
+  const body = JSON.stringify(sseRequest);
+  const startTime = Date.now();
+
+  const headers: Record<string, string> = {
+    ...DEFAULT_HEADERS,
+    Cookie: cookieHeader,
+    'Content-Type': 'application/json',
+    'Accept': 'text/event-stream, */*',
+    'Client-Type': 'PC',
+    'locale': 'en-US',
+  };
+
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers,
+    body,
+  });
+
+  const responseBody = await resp.text();
+
+  const debug: DebugInfo = {
+    requestUrl: url,
+    requestMethod: 'POST',
+    requestHeaders: headers,
+    requestBody: body,
+    responseStatus: resp.status,
+    responseBody: responseBody.substring(0, 5000),
+    timestamp: Date.now(),
+  };
+
+  if (resp.status !== 200) {
+    return {
+      success: false,
+      docId: '',
+      chatId: '',
+      events: [],
+      debug,
+      error: `HTTP ${resp.status}: ${responseBody.substring(0, 500)}`,
     };
   }
-): Promise<Response> {
-  const cookieHeader = buildCookieHeader(cookies);
-  return fetch(`${BASE_URL}/oreate/create/chat`, {
-    method: 'POST',
-    headers: {
-      ...DEFAULT_HEADERS,
-      Cookie: cookieHeader,
-      'Content-Type': 'application/json',
-      'Accept': 'text/event-stream',
-    },
-    body: JSON.stringify(payload),
-  });
+
+  // Parse SSE events — each line is "data: {json}"
+  const events: SSEEvent[] = [];
+  for (const line of responseBody.split('\n')) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('data:')) continue;
+    const data = trimmed.replace(/^data:\s*/, '');
+    if (data === '' || data === '[DONE]') continue;
+
+    try {
+      const parsed = JSON.parse(data) as Record<string, unknown>;
+      events.push({
+        event: (parsed.event as string) || '',
+        data: (parsed.data as Record<string, unknown>) || {},
+        raw: data,
+      });
+    } catch {
+      // not JSON
+    }
+  }
+
+  if (events.length === 0) {
+    return {
+      success: false,
+      docId: '',
+      chatId: '',
+      events: [],
+      debug,
+      error: `No SSE events parsed. Response preview: ${responseBody.substring(0, 500)}`,
+    };
+  }
+
+  // Process events
+  let chatId = '';
+  let docId = '';
+  let hasError = false;
+  let errorMsg = '';
+
+  for (const ev of events) {
+    switch (ev.event) {
+      case 'setattr': {
+        const id = (ev.data.chatId as string) || '';
+        if (id) chatId = id;
+        break;
+      }
+      case 'error': {
+        hasError = true;
+        const code = ev.data.code as number;
+        const msg = (ev.data.msg as string) || '';
+        errorMsg = msg ? `error code ${code}: ${msg}` : `error code ${code}`;
+        break;
+      }
+      case 'generating': {
+        if (!chatId && (ev.data.chatId as string)) chatId = ev.data.chatId as string;
+        if (!docId && (ev.data.docId as string)) docId = ev.data.docId as string;
+        if (!docId && (ev.data.id as string)) docId = ev.data.id as string;
+        break;
+      }
+      case 'end':
+        break;
+    }
+  }
+
+  if (hasError) {
+    return { success: false, docId, chatId, events, debug, error: errorMsg };
+  }
+
+  // Use chatId for polling if no docId
+  if (!docId && chatId) docId = chatId;
+
+  return { success: true, docId, chatId, events, debug };
 }
+
+// ====================================================================
+//  Get Task Status — POST /oreate/doc/getstatus (NOT GET!)
+//  Body: { docIdList: ["<docId>"] }
+// ====================================================================
 
 export async function getTaskStatus(cookies: CookieEntry[], docId: string) {
-  const resp = await oreateFetch(`/oreate/doc/getstatus?docIdList=${docId}`, cookies);
-  const data = await resp.json();
-  return data;
+  return oreateFetch('/oreate/doc/getstatus', cookies, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ docIdList: [docId] }),
+  });
 }
 
-export async function getHistory(cookies: CookieEntry[], pageNo = 1, pageSize = 20) {
-  const resp = await oreateFetch(
-    `/oreate/memory/getchatlist?pageNo=${pageNo}&pageSize=${pageSize}&chatType=aiVideo`,
-    cookies
-  );
-  const data = await resp.json();
-  return data;
+// ====================================================================
+//  Get History — GET /oreate/memory/getchatlist?pn=&rn= (NOT pageNo/pageSize!)
+// ====================================================================
+
+export async function getHistory(cookies: CookieEntry[], pn = 1, rn = 20) {
+  return oreateFetch(`/oreate/memory/getchatlist?pn=${pn}&rn=${rn}`, cookies);
 }

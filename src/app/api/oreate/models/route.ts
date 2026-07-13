@@ -4,20 +4,31 @@ import { parseCookies, getModelConfig, getSceneConfig } from '@/lib/oreate-clien
 export async function POST(request: NextRequest) {
   try {
     const { cookie } = await request.json();
-    const cookies = parseCookies(cookie);
 
+    if (!cookie) {
+      return NextResponse.json({ error: 'cookie is required' }, { status: 400 });
+    }
+
+    const cookies = parseCookies(cookie);
     if (cookies.length === 0) {
       return NextResponse.json({ error: 'Invalid cookie' }, { status: 400 });
     }
 
-    const [modelResp, sceneResp] = await Promise.all([
+    const [modelResult, sceneResult] = await Promise.all([
       getModelConfig(cookies),
       getSceneConfig(cookies),
     ]);
 
+    const modelData = modelResult.data as Record<string, unknown>;
+    const modelRespData = (modelData?.data as Record<string, unknown>) || {};
+    const sceneData = sceneResult.data as Record<string, unknown>;
+    const sceneRespData = (sceneData?.data as Record<string, unknown>) || {};
+
     return NextResponse.json({
-      models: modelResp.data?.models ?? [],
-      scenes: sceneResp.data?.scenes ?? [],
+      success: true,
+      models: modelRespData.models ?? [],
+      scenes: sceneRespData.scenes ?? [],
+      debug: { models: modelResult.debug, scenes: sceneResult.debug },
     });
   } catch (error) {
     console.error('Models error:', error);

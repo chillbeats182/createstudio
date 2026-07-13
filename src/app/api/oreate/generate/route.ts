@@ -1,47 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseCookies, submitGeneration } from '@/lib/oreate-client';
-
-interface Attachment {
-  bos_url: string;
-  fileName: string;
-  fileExt: string;
-  size: number;
-  doc_title: string;
-  doc_type: string;
-  originSize: number;
-}
-
-interface VideoConfig {
-  sceneId: string;
-  modelName: string;
-  duration: number;
-  resolution: string;
-  videoSize: string;
-  aiType: number;
-}
-
-interface MotionConfig {
-  characterImage: string;
-  motionVideo: string;
-  motDuration: string;
-  keepOriginalSound: boolean;
-}
+import { parseCookies, submitSSEGeneration } from '@/lib/oreate-client';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { cookie, mode, query, attachments, motion, videoConfig, sceneId } = body as {
+    const { cookie, sseRequest } = await request.json() as {
       cookie: string;
-      mode: string;
-      query: string;
-      attachments: Attachment[];
-      motion?: MotionConfig;
-      videoConfig: VideoConfig;
-      sceneId: string;
+      sseRequest: Record<string, unknown>;
     };
 
-    if (!cookie) {
-      return NextResponse.json({ error: 'Cookie is required' }, { status: 400 });
+    if (!cookie || !sseRequest) {
+      return NextResponse.json({ error: 'cookie and sseRequest are required' }, { status: 400 });
     }
 
     const cookies = parseCookies(cookie);
@@ -49,72 +17,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid cookie' }, { status: 400 });
     }
 
-    // Build the payload for OreateAI
-    const payload: Parameters<typeof submitGeneration>[1] = {
-      mode: 'chat_video',
-      query: query || '',
-      attachments: attachments || [],
-      videoConfig: {
-        sceneId: videoConfig?.sceneId || sceneId || 'text_or_image',
-        modelName: videoConfig?.modelName || 'Kling 2.6',
-        duration: videoConfig?.duration || 5,
-        resolution: videoConfig?.resolution || '720',
-        videoSize: videoConfig?.videoSize || '16:9',
-        aiType: videoConfig?.aiType || 14068,
-      },
-    };
-
-    // Add motion config if present
-    if (motion && (sceneId === 'motion' || videoConfig?.sceneId === 'motion')) {
-      payload.motion = {
-        characterImage: motion.characterImage || '',
-        motionVideo: motion.motionVideo || '',
-        motDuration: motion.motDuration || '3',
-        keepOriginalSound: motion.keepOriginalSound || false,
-      };
-    }
-
-    // Submit to OreateAI
-    const submitResp = await submitGeneration(cookies, payload);
-    const contentType = submitResp.headers.get('content-type') || '';
-
-    let result: Record<string, unknown> = {};
-
-    if (contentType.includes('text/event-stream')) {
-      const text = await submitResp.text();
-      const events = text.split('\n').filter((l) => l.startsWith('data:'));
-      for (const event of events) {
-        const data = event.replace(/^data:\s*/, '');
-        try {
-          result = JSON.parse(data);
-          if (result.status) break;
-        } catch {
-          // not JSON
-        }
-      }
-    } else {
-      try {
-        result = await submitResp.json();
-      } catch {
-        result = { raw: text };
-      }
-    }
-
-    // Extract docId / taskId
-    let docId = '';
-    let taskId = '';
-
-    if (result.data && typeof result.data === 'object') {
-      const d = result.data as Record<string, unknown>;
-      docId = (d.docId || d.docID || '') as string;
-      taskId = (d.taskId || d.chatId || docId) as string;
-    }
+    const result = await submitSSEGeneration(cookies, sseRequest);
 
     return NextResponse.json({
-      success: true,
-      docId,
-      taskId,
-      submitResult: result,
+      success: result.success,
+      docId: result.docId,
+      chatId: result.chatId,
+      events: result.events,
+      error: result.error,
+      debug: result.debug,
     });
   } catch (error) {
     console.error('Generate error:', error);

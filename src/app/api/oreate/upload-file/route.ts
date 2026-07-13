@@ -17,15 +17,21 @@ export async function POST(request: NextRequest) {
     }
 
     const arrayBuffer = await file.arrayBuffer();
-    const url = await uploadToGCS(
-      arrayBuffer,
-      bucket,
-      objectPath,
-      sessionkey,
-      file.type || 'application/octet-stream'
-    );
+    const contentType = file.type || 'application/octet-stream';
+    const result = await uploadToGCS(arrayBuffer, bucket, objectPath, sessionkey, contentType);
 
-    return NextResponse.json({ url, success: true });
+    if (result.data === '') {
+      return NextResponse.json(
+        { error: 'GCS upload failed', debug: result.debug },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      url: result.data,
+      debug: result.debug,
+    });
   } catch (error) {
     console.error('Upload file error:', error);
     return NextResponse.json(

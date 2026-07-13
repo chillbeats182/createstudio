@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseCookies, getUserInfo, getRestPoints } from '@/lib/oreate-client';
+import { parseCookies, authenticate } from '@/lib/oreate-client';
 
 export async function POST(request: NextRequest) {
   try {
@@ -15,23 +15,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid cookie format' }, { status: 400 });
     }
 
-    // Fetch user info and points in parallel
-    const [userResp, pointsResp] = await Promise.all([
-      getUserInfo(cookies),
-      getRestPoints(cookies),
-    ]);
+    const result = await authenticate(cookies);
 
-    if (userResp.status?.code !== 0) {
+    if (!result.success) {
       return NextResponse.json(
-        { error: 'Authentication failed', details: userResp.status },
+        { error: 'Authentication failed', debug: result.userDebug },
         { status: 401 }
       );
     }
 
     return NextResponse.json({
-      userInfo: userResp.data.basicInfo,
-      vipInfo: userResp.data.vipInfo,
-      restPoint: pointsResp.data?.restPoint ?? 0,
+      success: true,
+      userInfo: result.userInfo,
+      vipInfo: result.vipInfo,
+      restPoint: result.restPoint,
+      debug: { user: result.userDebug, points: result.pointsDebug },
     });
   } catch (error) {
     console.error('Auth error:', error);
