@@ -9,6 +9,7 @@ import (
         "net/http"
         "os"
         "path/filepath"
+        "strconv"
         "strings"
         "time"
 )
@@ -222,11 +223,12 @@ type ReferenceConfig struct {
 }
 
 // MotionConfig holds motion-specific configuration (inside videoConfig)
+// motDuration must be number (not string) when present, or omitted/empty
 type MotionConfig struct {
-        CharacterImage    string `json:"characterImage"`
-        MotionVideo       string `json:"motionVideo"`
-        MotDuration       string `json:"motDuration"`
-        KeepOriginalSound bool   `json:"keepOriginalSound"`
+        CharacterImage    string      `json:"characterImage"`
+        MotionVideo       string      `json:"motionVideo"`
+        MotDuration       interface{} `json:"motDuration"`
+        KeepOriginalSound bool        `json:"keepOriginalSound"`
 }
 
 // SSEMessage is a single message in the messages array
@@ -245,6 +247,7 @@ type SSERequest struct {
         ChatTitle  string            `json:"chatTitle"`
         ChatId     string            `json:"chatId"`
         FocusId    string            `json:"focusId"`
+        From       string            `json:"from"`
         ClientType string            `json:"clientType"`
         IsFirst    bool              `json:"isFirst"`
         Messages   []SSEMessage      `json:"messages"`
@@ -700,7 +703,7 @@ func generateChatID() string {
         if rnd < 0 {
                 rnd = -rnd
         }
-        return fmt.Sprintf("%d", ts+rnd)
+        return fmt.Sprintf("%x", ts+rnd)
 }
 
 // SubmitGeneration submits a video generation task via /oreate/sse/stream.
@@ -1167,12 +1170,31 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
 
         // Step 5: Build the SSE stream request body (matches website's send() flow)
         chatId := generateChatID()
+
+        // Parse motDuration to number (website sends number, not string)
+        var motDurationVal interface{}
+        if motDuration != "" {
+                if n, err := strconv.Atoi(motDuration); err == nil {
+                        motDurationVal = n
+                } else {
+                        motDurationVal = ""
+                }
+        } else {
+                motDurationVal = ""
+        }
+
+        // Rebuild videoConfig with correct motDuration type
+        if videoConfig.Motion != nil {
+                videoConfig.Motion.MotDuration = motDurationVal
+        }
+
         genReq := SSERequest{
                 Type:       "chat",
                 ChatType:   "aiVideo",
-                ChatTitle:  "",
+                ChatTitle:  "Unnamed Session",
                 ChatId:     chatId,
                 FocusId:    chatId,
+                From:       "",
                 ClientType: "pc",
                 IsFirst:    true,
                 Messages: []SSEMessage{
