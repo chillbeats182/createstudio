@@ -1128,9 +1128,9 @@ function WorkflowDebugTab() {
 
     toast.success(`Uploaded ${file.name} → GCS`);
     return {
-      bosUrl,
-      docTitle: fileNoExt,
-      docType: fileExt,
+      bos_url: bosUrl,
+      doc_title: fileNoExt,
+      doc_type: fileExt,
       size: file.size,
       fileRole: isVideo ? 'video' : 'image',
     };

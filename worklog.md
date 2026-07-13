@@ -247,3 +247,20 @@ Stage Summary:
 - SSE request now matches website's exact format including mirror data
 - Both canvas app and Go desktop app updated for consistency
 - Lint passes, dev server compiles, no console errors in browser
+---
+Task ID: 1
+Agent: Main
+Task: Fix workflow debug stopping at step 3 (Generate)
+
+Work Log:
+- Analyzed user's screenshot with VLM — discovered step 3 (Generate) shows red X, not step 4 (Poll)
+- Read dev.log — confirmed SSE request payload has attachments MISSING `bos_url`/`bosUrl` fields and motion config missing `characterImage`/`motionVideo`
+- Read page.tsx code — found `uploadOneFile` returns `{ bosUrl, docTitle, docType }` (camelCase) but Generate step reads `att.bos_url`, `att.doc_title`, `att.doc_type` (snake_case)
+- Fixed: Changed `uploadOneFile` return object to use snake_case keys matching the expected type
+- Verified: lint passes, page renders without errors in Agent Browser
+
+Stage Summary:
+- Root cause: Property name mismatch between upload result (camelCase) and Generate step consumption (snake_case)
+- Fix: Changed return object in `uploadOneFile` from `{ bosUrl, docTitle, docType }` to `{ bos_url, doc_title, doc_type }`
+- File changed: `/home/z/my-project/src/app/page.tsx` line 1130-1136
+- The SSE request will now include proper `bos_url`/`bosUrl` in attachments and `characterImage`/`motionVideo` in motion config
