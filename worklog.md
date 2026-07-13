@@ -314,3 +314,25 @@ Stage Summary:
 - deviceID/bid extracted from cookie like the website does
 - User needs to test again to see if extra fields fix the 200002 error
 - If still failing, the rawSSE field in step result will show the exact response
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix workflow debug step 3 (Generate/SSE) - "params error" 200002
+
+Work Log:
+- Analyzed real oreateai.com JavaScript bundle (index-DX4DGIXl.js, 3.5MB) to extract exact SSE request format
+- Found and analyzed key functions: Ype (fetchEventSource), ZCe (mirror data), nke (attachment formatter), getVideoConfig, buildVideoAttach, startSSE
+- Discovered website uses fetchEventSource which only sends 3 custom headers: Content-Type, locale, Client-Type
+- Discovered website conditionally includes ratio/resolution/duration in videoConfig based on model capabilities
+- Found upload-token should only include source:"aiImage" for image files, not video files
+- Fixed SSE headers in oreate-client.ts to match website (removed DEFAULT_HEADERS, kept only Content-Type, Accept, Client-Type, locale, Cookie)
+- Fixed getUploadToken to conditionally include source field
+- Rewrote videoConfig building in Generate step to check model capabilities before including ratio/resolution/duration
+- Added response header capture and enhanced debug logging
+- Verified code compiles cleanly and page renders correctly
+
+Stage Summary:
+- Key changes: oreate-client.ts (SSE headers stripped to match website, upload-token source fix), page.tsx (conditional videoConfig fields based on model capabilities), generate/route.ts (enhanced debug logging)
+- Root cause hypothesis: Server validates videoConfig fields against model capabilities; sending unsupported fields (ratio, resolution, duration) for models that don't support them triggers "params error" (code 200002)
+- The previous code always sent ratio:"16:9", resolution:"720", duration:5 regardless of model capabilities
+- User needs to re-test with valid cookie to verify fix

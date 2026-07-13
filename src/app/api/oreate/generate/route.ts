@@ -23,7 +23,11 @@ export async function POST(request: NextRequest) {
     const result = await submitSSEGeneration(cookies, sseRequest);
 
     // Log the FULL SSE response body for debugging
+    console.log('[Generate API] SSE Request headers sent:', JSON.stringify(result.debug.requestHeaders, null, 2));
     console.log('[Generate API] SSE Response status:', result.debug.responseStatus);
+    console.log('[Generate API] SSE Response headers:', JSON.stringify(Object.fromEntries(
+      result.debug.responseHeaders ? Object.entries(result.debug.responseHeaders) : []
+    )));
     console.log('[Generate API] SSE Response body (first 3000 chars):', result.debug.responseBody?.substring(0, 3000));
     console.log('[Generate API] Parsed events:', result.events.length, '| docId:', result.docId, '| chatId:', result.chatId, '| error:', result.error);
 

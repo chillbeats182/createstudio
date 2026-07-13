@@ -35,6 +35,7 @@ export interface DebugInfo {
   requestHeaders?: Record<string, string>;
   requestBody?: string;
   responseStatus: number;
+  responseHeaders?: Record<string, string>;
   responseBody: string;
   timestamp: number;
 }
@@ -292,13 +293,18 @@ export async function getUploadToken(
   cookies: CookieEntry[],
   fileMetas: Array<{ filename: string; fileExt: string; size: number }>
 ) {
+  // Website only adds source:"aiImage" for image files (jpg/jpeg/png/webp)
+  // Verified from live JS: j.includes(a)&&(t.source="aiImage")
+  const IMAGE_EXTS = ['jpg', 'jpeg', 'png', 'webp'];
+  const hasImage = fileMetas.some(f => IMAGE_EXTS.includes(f.fileExt.toLowerCase()));
+  const payload: Record<string, unknown> = { mFileList: fileMetas };
+  if (hasImage) {
+    payload.source = 'aiImage';
+  }
   return oreateFetch('/oreate/convert/getuploadbostoken', cookies, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      mFileList: fileMetas,
-      source: 'aiImage',
-    }),
+    body: JSON.stringify(payload),
   });
 }
 
@@ -360,19 +366,27 @@ export async function submitSSEGeneration(
   const body = JSON.stringify(sseRequest);
   const startTime = Date.now();
 
+  // Website's fetchEventSource only sends these headers (verified from live JS bundle)
+  // The browser auto-adds: User-Agent, Accept-Language, Host, Cookie (same-origin)
+  // fetchEventSource auto-adds: Accept: text/event-stream
   const headers: Record<string, string> = {
-    ...DEFAULT_HEADERS,
-    Cookie: cookieHeader,
     'Content-Type': 'application/json',
-    'Accept': 'text/event-stream, */*',
+    'Accept': 'text/event-stream',
     'Client-Type': 'PC',
     'locale': 'en-US',
+    'Cookie': cookieHeader,
   };
 
   const resp = await fetch(url, {
     method: 'POST',
     headers,
     body,
+  });
+
+  // Capture response headers
+  const responseHeaders: Record<string, string> = {};
+  resp.headers.forEach((value, key) => {
+    responseHeaders[key] = value;
   });
 
   const responseBody = await resp.text();
@@ -383,6 +397,7 @@ export async function submitSSEGeneration(
     requestHeaders: headers,
     requestBody: body,
     responseStatus: resp.status,
+    responseHeaders,
     responseBody: responseBody.substring(0, 5000),
     timestamp: Date.now(),
   };

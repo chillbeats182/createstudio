@@ -1307,19 +1307,32 @@ function WorkflowDebugTab() {
             }
           }
 
-          // --- Build videoConfig (matches Go getVideoConfig exactly) ---
+          // --- Find current model capabilities (from model config fetched in Auth step) ---
+          // Website's getVideoConfig conditionally includes ratio/resolution/duration
+          // based on model capabilities: K8(a?.params?.sizes?.values) && n.portion || ""
+          // Sending unsupported fields causes server "params error" (code 200002)
+          const currentModel = store.models.find((m) => m.modelName === modelName);
+          const hasSizeOptions = !!(currentModel?.videoSize && currentModel.videoSize.length > 0);
+          const hasResolutionOptions = !!(currentModel?.videoResolution && currentModel.videoResolution.length > 0);
+          const hasDurationOptions = !!(currentModel?.duration && currentModel.duration.length > 0);
+          const hasAudioSupport = !!currentModel?.supportAudio;
+
+          // --- Build videoConfig (matches website's getVideoConfig exactly) ---
           const videoConfig: Record<string, unknown> = {
             modelName,
             aiType,
             scene: sceneId,
-            isAudio: false,
+            isAudio: false, // Website always includes isAudio (false when not supported)
           };
 
           if (isMotion) {
-            videoConfig.ratio = store.selectedVideoSize || '16:9';
-            videoConfig.resolution = store.selectedResolution || '720';
-            videoConfig.duration = duration;
-            // motDuration: parse to int, or empty string (matches Go)
+            // Only include ratio/resolution/duration if model supports them
+            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
+            else videoConfig.ratio = '';
+            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
+            else videoConfig.resolution = '';
+            if (hasDurationOptions) videoConfig.duration = duration;
+            // motDuration: parse to int, or empty string (matches website: this.motionVideoDuration || "")
             let motDurationVal: number | string = '';
             if (store.motDuration) {
               const n = parseInt(store.motDuration);
@@ -1332,14 +1345,18 @@ function WorkflowDebugTab() {
               keepOriginalSound: store.keepOriginalSound || false,
             };
           } else if (sceneId === 'text_or_image') {
-            videoConfig.ratio = store.selectedVideoSize || '16:9';
-            videoConfig.resolution = store.selectedResolution || '720';
-            videoConfig.duration = duration;
+            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
+            else videoConfig.ratio = '';
+            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
+            else videoConfig.resolution = '';
+            if (hasDurationOptions) videoConfig.duration = duration;
             videoConfig.textOrImage = { image: characterImageUrl };
           } else if (sceneId === 'reference') {
-            videoConfig.ratio = store.selectedVideoSize || '16:9';
-            videoConfig.resolution = store.selectedResolution || '720';
-            videoConfig.duration = duration;
+            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
+            else videoConfig.ratio = '';
+            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
+            else videoConfig.resolution = '';
+            if (hasDurationOptions) videoConfig.duration = duration;
             const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
             const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
             videoConfig.reference = {
@@ -1350,9 +1367,11 @@ function WorkflowDebugTab() {
               keepOriginalSound: store.keepOriginalSound || false,
             };
           } else {
-            videoConfig.ratio = store.selectedVideoSize || '16:9';
-            videoConfig.resolution = store.selectedResolution || '720';
-            videoConfig.duration = duration;
+            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
+            else videoConfig.ratio = '';
+            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
+            else videoConfig.resolution = '';
+            if (hasDurationOptions) videoConfig.duration = duration;
           }
 
           // --- Build SSE request body (EXACT Go match — minimal fields only) ---
@@ -1397,8 +1416,8 @@ function WorkflowDebugTab() {
           addLog({
             id: logId,
             step: 'generate',
-            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName})`,
-            request: { url: '/api/oreate/generate', method: 'POST', body: 'sseRequest (see step result)' },
+            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName}, aiType=${aiType})`,
+            request: { url: '/api/oreate/generate', method: 'POST', body: `modelCaps: {hasSize:${hasSizeOptions}, hasRes:${hasResolutionOptions}, hasDur:${hasDurationOptions}} | sseRequest (see step result)` },
             response: { status: genResp.status, timing: genDuration, events: genData.events?.length || 0, docId: genData.docId, chatId: genData.chatId, error: genData.error, rawPreview: genData.rawResponsePreview || '' },
             success: genData.success || false,
             error: genData.error,
