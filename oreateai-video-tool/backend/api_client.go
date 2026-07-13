@@ -178,17 +178,19 @@ type UploadTokenResult struct {
         Error   string                      `json:"error,omitempty"`
 }
 
-// Attachment represents a file attachment in generation request (matches website format)
-type Attachment struct {
-        ID                 string  `json:"id"`
-        FileName           string  `json:"fileName"`
-        FileExt            string  `json:"fileExt"`
-        OriginSize         int64   `json:"originSize"`
-        FileSize           int64   `json:"fileSize"`
-        BosURL             string  `json:"bosUrl"`
-        BosObjectPath      string  `json:"bosObjectPath"`
-        Status             string  `json:"status"`
-        FileUploadProgress float64 `json:"fileUploadProgress"`
+// SSEAttachment represents a file attachment in the SSE stream request.
+// Matches the website's nke() function output exactly.
+type SSEAttachment struct {
+        BosURL    string `json:"bos_url"`
+        BosURL2   string `json:"bosUrl"`
+        DocID     string `json:"docId"`
+        DocTitle  string `json:"doc_title"`
+        DocType   string `json:"doc_type"`
+        Size      int64  `json:"size"`
+        Flag      string `json:"flag"`
+        Type      string `json:"type"`
+        Status    int    `json:"status"`
+        VideoDur  int64  `json:"videoDurationSec,omitempty"`
 }
 
 // VideoConfig holds the video generation configuration (matches website format)
@@ -227,21 +229,38 @@ type MotionConfig struct {
         KeepOriginalSound bool   `json:"keepOriginalSound"`
 }
 
-// GenerateRequest is the full generation payload (matches website format)
-type GenerateRequest struct {
-        ChatID      string        `json:"chatID"`
-        QueryID     string        `json:"queryID"`
-        ClientType  string        `json:"clientType"`
-        IsStream    bool          `json:"isStream"`
-        Query       string        `json:"query"`
-        Attachments []Attachment  `json:"attachments"`
-        VideoConfig VideoConfig   `json:"videoConfig"`
+// SSEMessage is a single message in the messages array
+// Matches the website's message format sent to /oreate/sse/stream
+type SSEMessage struct {
+        Role        string          `json:"role"`
+        Content     string          `json:"content"`
+        Attachments []SSEAttachment `json:"attachments"`
+}
+
+// SSERequest is the full body sent to /oreate/sse/stream.
+// Matches the website's request format exactly.
+type SSERequest struct {
+        Type       string            `json:"type"`
+        ChatType   string            `json:"chatType"`
+        ChatTitle  string            `json:"chatTitle"`
+        ChatId     string            `json:"chatId"`
+        FocusId    string            `json:"focusId"`
+        ClientType string            `json:"clientType"`
+        IsFirst    bool              `json:"isFirst"`
+        Messages   []SSEMessage      `json:"messages"`
+        VideoConfig VideoConfig      `json:"videoConfig,omitempty"`
+        Extra      map[string]string `json:"extra"`
+        // Mirror data (from ZCe)
+        JT    string `json:"jt"`
+        UA    string `json:"ua"`
+        JSEnv string `json:"js_env"`
 }
 
 // GenerateResult holds the generation response
 type GenerateResult struct {
         Success      bool                   `json:"success"`
         DocID        string                 `json:"docId"`
+        ChatID       string                 `json:"chatId"`
         SubmitResult map[string]interface{} `json:"submitResult"`
         Error        string                 `json:"error,omitempty"`
 }
@@ -340,7 +359,7 @@ type OreateAIClient struct {
 func NewOreateAIClient() *OreateAIClient {
         return &OreateAIClient{
                 httpClient: &http.Client{
-                        Timeout: 120 * time.Second,
+                        Timeout: 180 * time.Second,
                 },
         }
 }
@@ -673,25 +692,38 @@ func (a *App) UploadFile(filePath, bucket, objectPath, sessionKey string) (strin
         return "", fmt.Errorf("GCS upload returned status %d: %s", uploadResp.StatusCode, string(body))
 }
 
-// SubmitGeneration submits a video generation task.
-// The server may return either SSE stream or plain JSON.
-// Verified response format: {"status":{"code":0,"msg":"success"},"data":{"chatId":"..."}}
+// generateChatID creates a unique chat ID matching the website's FR() function:
+// (Date.now() * 1e6 + Math.floor(Math.random() * 1e6)).toString(36)
+func generateChatID() string {
+        ts := time.Now().UnixMilli() * 1000000
+        rnd := time.Now().UnixNano() % 1000000
+        if rnd < 0 {
+                rnd = -rnd
+        }
+        return fmt.Sprintf("%d", ts+rnd)
+}
+
+// SubmitGeneration submits a video generation task via /oreate/sse/stream.
+// This matches the website's actual workflow: POST to SSE endpoint, parse events.
+//
+// SSE event format: {"event":"setattr|start|generating|end|error","data":{...}}
 func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
-        var req GenerateRequest
+        var req SSERequest
         if err := json.Unmarshal([]byte(requestJSON), &req); err != nil {
                 return GenerateResult{Error: fmt.Sprintf("invalid request: %v", err)}
         }
 
         body, _ := json.Marshal(req)
 
-        fmt.Printf("[Generate] Submitting: scene=%s model=%s duration=%d res=%s ratio=%s aiType=%d attachments=%d\n",
-                req.VideoConfig.Scene, req.VideoConfig.ModelName,
-                req.VideoConfig.Duration, req.VideoConfig.Resolution, req.VideoConfig.Ratio,
-                req.VideoConfig.AiType, len(req.Attachments))
+        fmt.Printf("[Generate] Submitting to /oreate/sse/stream: chatType=%s scene=%s model=%s\n",
+                req.ChatType, req.VideoConfig.Scene, req.VideoConfig.ModelName)
+        fmt.Printf("[Generate] Request body:\n%s\n", string(body))
 
-        httpReq, _ := a.apiClient.newRequest("POST", "/oreate/create/chat", bytes.NewReader(body))
+        httpReq, _ := a.apiClient.newRequest("POST", "/oreate/sse/stream", bytes.NewReader(body))
         httpReq.Header.Set("Content-Type", "application/json")
-        httpReq.Header.Set("Accept", "application/json, text/event-stream, */*")
+        httpReq.Header.Set("Accept", "text/event-stream, */*")
+        httpReq.Header.Set("Client-Type", "PC")
+        httpReq.Header.Set("locale", "en-US")
 
         resp, err := a.apiClient.httpClient.Do(httpReq)
         if err != nil {
@@ -699,49 +731,20 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
         }
         defer resp.Body.Close()
 
+        fmt.Printf("[Generate] Response: status=%d content-type=%s\n", resp.StatusCode, resp.Header.Get("Content-Type"))
+
         respBody, _ := io.ReadAll(resp.Body)
         bodyStr := string(respBody)
 
-        fmt.Printf("[Generate] Response: %d bytes, content-type: %s\n", len(bodyStr), resp.Header.Get("Content-Type"))
-
-        // Try parsing as direct JSON first (server returns this format for non-SSE responses)
-        var directResult map[string]interface{}
-        if err := json.Unmarshal(respBody, &directResult); err == nil {
-                // Successfully parsed as JSON — check for errors
-                if status, ok := directResult["status"].(map[string]interface{}); ok {
-                        code, _ := status["code"].(float64)
-                        msg, _ := status["msg"].(string)
-                        errMsg, _ := status["errMsg"].(string)
-                        if code != 0 {
-                                return GenerateResult{
-                                        SubmitResult: directResult,
-                                        Error:        fmt.Sprintf("generation error (code %d): %s — %s", int(code), msg, errMsg),
-                                }
-                        }
+        if resp.StatusCode != 200 {
+                preview := bodyStr
+                if len(preview) > 500 {
+                        preview = preview[:500] + "..."
                 }
-
-                // Extract docId/chatId from the JSON response
-                docID := ""
-                if data, ok := directResult["data"].(map[string]interface{}); ok {
-                        // Try various field names the server might return
-                        for _, field := range []string{"docId", "docID", "chatId", "taskId"} {
-                                if id, ok := data[field].(string); ok && id != "" {
-                                        docID = id
-                                        break
-                                }
-                        }
-                }
-
-                fmt.Printf("[Generate] docId/chatId=%s\n", docID)
-
-                return GenerateResult{
-                        Success:      true,
-                        DocID:        docID,
-                        SubmitResult: directResult,
-                }
+                return GenerateResult{Error: fmt.Sprintf("server returned HTTP %d: %s", resp.StatusCode, preview)}
         }
 
-        // If not valid JSON, try SSE parsing
+        // Parse SSE events — each line is "data: {json}"
         type sseEvent struct {
                 raw    string
                 parsed map[string]interface{}
@@ -762,7 +765,8 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
                 var parsed map[string]interface{}
                 if err := json.Unmarshal([]byte(data), &parsed); err == nil {
                         events = append(events, sseEvent{raw: data, parsed: parsed})
-                        fmt.Printf("[Generate] SSE event: status=%v\n", parsed["status"])
+                        event, _ := parsed["event"].(string)
+                        fmt.Printf("[Generate] SSE event: %s\n", event)
                 }
         }
 
@@ -774,55 +778,76 @@ func (a *App) SubmitGeneration(requestJSON string) GenerateResult {
                 return GenerateResult{Error: fmt.Sprintf("invalid response (not JSON or SSE): %s", preview)}
         }
 
-        // Find best SSE event
-        var bestEvent *sseEvent
-        for i := range events {
-                ev := &events[i]
-                if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
-                        code, _ := status["code"].(float64)
-                        msg, _ := status["msg"].(string)
-                        if code != 0 && code != 1 {
-                                return GenerateResult{
-                                        SubmitResult: ev.parsed,
-                                        Error:        fmt.Sprintf("generation error (code %d): %s", int(code), msg),
-                                }
-                        }
-                }
-                if d, ok := ev.parsed["data"].(map[string]interface{}); ok {
-                        if _, has := d["docId"]; has || d["docID"] != nil || d["chatId"] != nil {
-                                bestEvent = ev
-                                break
-                        }
-                }
-                if bestEvent == nil {
-                        if status, ok := ev.parsed["status"].(map[string]interface{}); ok {
-                                if code, _ := status["code"].(float64); code == 0 {
-                                        bestEvent = ev
-                                }
-                        }
-                }
-        }
-
-        if bestEvent == nil {
-                bestEvent = &events[0]
-        }
-
+        // Process events in order
+        chatID := ""
         docID := ""
-        if data, ok := bestEvent.parsed["data"].(map[string]interface{}); ok {
-                for _, field := range []string{"docId", "docID", "chatId", "taskId"} {
-                        if id, ok := data[field].(string); ok && id != "" {
-                                docID = id
-                                break
+        hasError := false
+        errorMsg := ""
+
+        for _, ev := range events {
+                eventName, _ := ev.parsed["event"].(string)
+                eventData, _ := ev.parsed["data"].(map[string]interface{})
+
+                switch eventName {
+                case "setattr":
+                        // Server sends back chatId in setattr event
+                        if id, ok := eventData["chatId"].(string); ok && id != "" {
+                                chatID = id
+                                fmt.Printf("[Generate] Got chatId from setattr: %s\n", chatID)
                         }
+
+                case "error":
+                        hasError = true
+                        if code, ok := eventData["code"].(float64); ok {
+                                if msg, ok2 := eventData["msg"].(string); ok2 {
+                                        errorMsg = fmt.Sprintf("error code %d: %s", int(code), msg)
+                                } else {
+                                        errorMsg = fmt.Sprintf("error code %d", int(code))
+                                }
+                        } else if msg, ok := eventData["msg"].(string); ok {
+                                errorMsg = msg
+                        }
+                        fmt.Printf("[Generate] SSE error: %s\n", errorMsg)
+
+                case "generating":
+                        // Extract docId/chatId from generating event data if present
+                        if eventData != nil {
+                                if id, ok := eventData["chatId"].(string); ok && id != "" && chatID == "" {
+                                        chatID = id
+                                }
+                                if id, ok := eventData["docId"].(string); ok && id != "" {
+                                        docID = id
+                                }
+                                if id, ok := eventData["id"].(string); ok && id != "" && docID == "" {
+                                        docID = id
+                                }
+                        }
+
+                case "end":
+                        // Generation submitted successfully
+                        fmt.Printf("[Generate] SSE end event received\n")
                 }
         }
 
-        fmt.Printf("[Generate] docId/chatId=%s (from SSE)\n", docID)
+        if hasError {
+                return GenerateResult{
+                        SubmitResult: events[len(events)-1].parsed,
+                        Error:        errorMsg,
+                }
+        }
+
+        // Use chatId for polling if no docId (website polls by chatId via history)
+        if docID == "" && chatID != "" {
+                docID = chatID
+        }
+
+        fmt.Printf("[Generate] Success: chatId=%s docId=%s\n", chatID, docID)
 
         return GenerateResult{
                 Success:      true,
                 DocID:        docID,
-                SubmitResult: bestEvent.parsed,
+                ChatID:       chatID,
+                SubmitResult: events[len(events)-1].parsed,
         }
 }
 
@@ -1027,8 +1052,8 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                 fmt.Printf("[Gen] Uploaded %s → %s\n", f.name, uploadURL)
         }
 
-        // Step 3: Build attachments array (matches website format)
-        var attachments []Attachment
+        // Step 3: Build SSE attachments array (matches website's nke() function)
+        var sseAttachments []SSEAttachment
         characterURL := ""
         motionURL := ""
 
@@ -1038,32 +1063,32 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                 for _, f := range files {
                         if isVideoExt(f.ext) {
                                 motionURL = f.bosUrl
-                                attachments = append(attachments, Attachment{
-                                        ID:                 f.name,
-                                        FileName:           f.nameNoExt,
-                                        FileExt:            f.ext,
-                                        OriginSize:         f.size,
-                                        FileSize:           f.size,
-                                        BosURL:             f.bosUrl,
-                                        BosObjectPath:      f.objectPath,
-                                        Status:             "completed",
-                                        FileUploadProgress: 1,
+                                sseAttachments = append(sseAttachments, SSEAttachment{
+                                        BosURL:   f.bosUrl,
+                                        BosURL2:  f.bosUrl,
+                                        DocID:    "",
+                                        DocTitle: f.nameNoExt,
+                                        DocType:  f.ext,
+                                        Size:     f.size,
+                                        Flag:     "upload",
+                                        Type:     "file",
+                                        Status:   1,
                                 })
                         }
                 }
                 for _, f := range files {
                         if isImageExt(f.ext) {
                                 characterURL = f.bosUrl
-                                attachments = append(attachments, Attachment{
-                                        ID:                 f.name,
-                                        FileName:           f.nameNoExt,
-                                        FileExt:            f.ext,
-                                        OriginSize:         f.size,
-                                        FileSize:           f.size,
-                                        BosURL:             f.bosUrl,
-                                        BosObjectPath:      f.objectPath,
-                                        Status:             "completed",
-                                        FileUploadProgress: 1,
+                                sseAttachments = append(sseAttachments, SSEAttachment{
+                                        BosURL:   f.bosUrl,
+                                        BosURL2:  f.bosUrl,
+                                        DocID:    "",
+                                        DocTitle: f.nameNoExt,
+                                        DocType:  f.ext,
+                                        Size:     f.size,
+                                        Flag:     "upload",
+                                        Type:     "file",
+                                        Status:   1,
                                 })
                         }
                 }
@@ -1073,35 +1098,35 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                         if isImageExt(f.ext) {
                                 characterURL = f.bosUrl
                         }
-                        attachments = append(attachments, Attachment{
-                                ID:                 f.name,
-                                FileName:           f.nameNoExt,
-                                FileExt:            f.ext,
-                                OriginSize:         f.size,
-                                FileSize:           f.size,
-                                BosURL:             f.bosUrl,
-                                BosObjectPath:      f.objectPath,
-                                Status:             "completed",
-                                FileUploadProgress: 1,
+                        sseAttachments = append(sseAttachments, SSEAttachment{
+                                BosURL:   f.bosUrl,
+                                BosURL2:  f.bosUrl,
+                                DocID:    "",
+                                DocTitle: f.nameNoExt,
+                                DocType:  f.ext,
+                                Size:     f.size,
+                                Flag:     "upload",
+                                Type:     "file",
+                                Status:   1,
                         })
                 }
         }
 
-        // Step 4: Build videoConfig (matches website format)
+        // Step 4: Build videoConfig (matches website's getVideoConfig() exactly)
         videoConfig := VideoConfig{
-                ModelName:  modelName,
-                AiType:     aiType,
-                Scene:      sceneID,
-                IsAudio:    false,
+                ModelName: modelName,
+                AiType:    aiType,
+                Scene:     sceneID,
+                IsAudio:   false,
         }
 
         // Set duration, ratio, resolution based on scene
         if sceneID == "motion" {
-                // Motion scene: duration, ratio, resolution are NOT user-configurable
-                // They come from the uploaded video. Send empty values.
-                videoConfig.Ratio = ""
-                videoConfig.Resolution = ""
-                videoConfig.Duration = 0
+                // Website sends ratio/resolution/duration for motion too (from model capabilities)
+                // If durations are available, include duration
+                videoConfig.Ratio = videoSize
+                videoConfig.Resolution = resolution
+                videoConfig.Duration = duration
                 videoConfig.Motion = &MotionConfig{
                         CharacterImage:    characterURL,
                         MotionVideo:       motionURL,
@@ -1119,7 +1144,6 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                 videoConfig.Ratio = videoSize
                 videoConfig.Resolution = resolution
                 videoConfig.Duration = duration
-                // Build reference config: separate images and videos
                 var refImages, refVideos []string
                 for _, f := range files {
                         if isImageExt(f.ext) {
@@ -1136,21 +1160,36 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                         KeepOriginalSound: keepOriginalSound,
                 }
         } else {
-                // frame_based and other scenes
                 videoConfig.Ratio = videoSize
                 videoConfig.Resolution = resolution
                 videoConfig.Duration = duration
         }
 
-        // Step 5: Build the full generation request (matches website format)
-        genReq := GenerateRequest{
-                ChatID:      "",
-                QueryID:     "",
-                ClientType:  "pc",
-                IsStream:    true,
-                Query:       prompt,
-                Attachments: attachments,
+        // Step 5: Build the SSE stream request body (matches website's send() flow)
+        chatId := generateChatID()
+        genReq := SSERequest{
+                Type:       "chat",
+                ChatType:   "aiVideo",
+                ChatTitle:  "",
+                ChatId:     chatId,
+                FocusId:    chatId,
+                ClientType: "pc",
+                IsFirst:    true,
+                Messages: []SSEMessage{
+                        {
+                                Role:       "user",
+                                Content:    prompt,
+                                Attachments: sseAttachments,
+                        },
+                },
                 VideoConfig: videoConfig,
+                Extra: map[string]string{
+                        "doc_name":    "",
+                        "module_name": "gpt4o",
+                },
+                JT:    "",
+                UA:    UserAgent,
+                JSEnv: "h5",
         }
 
         reqJSON, _ := json.MarshalIndent(genReq, "", "  ")

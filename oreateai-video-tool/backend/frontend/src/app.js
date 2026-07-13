@@ -685,11 +685,18 @@
         progressFill.style.width = '20%';
         startPolling();
         toast('Task submitted! Waiting for result...', 'success');
+      } else if (result.chatId) {
+        // SSE stream mode: use chatId for history-based polling
+        state.currentDocId = result.chatId;
+        progressText.textContent = 'Task submitted — processing…';
+        progressFill.style.width = '20%';
+        startPolling();
+        toast('Task submitted! Waiting for result...', 'success');
       } else {
-        // No docId but no error either — check submitResult for clues
-        console.warn('[Generate] No docId returned. submitResult:', result.submitResult);
-        toast('Task submitted but no docId received. Check Go console for details.', 'info');
-        progressText.textContent = 'Submitted (no docId — check console)';
+        // No docId/chatId but no error either — check submitResult for clues
+        console.warn('[Generate] No docId/chatId returned. submitResult:', result.submitResult);
+        toast('Task submitted but no ID received. Check Go console for details.', 'info');
+        progressText.textContent = 'Submitted (no ID — check console)';
       }
     } catch (err) {
       console.error('[Generate] Exception:', err);
