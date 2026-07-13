@@ -385,3 +385,29 @@ Stage Summary:
 - Tertiary cause: `duration` field included when model doesn't support it
 - Files modified: /home/z/my-project/src/app/page.tsx
 - All fixes verified: lint clean, page renders, no runtime errors
+---
+Task ID: 1
+Agent: main
+Task: Fix Step 3 Generate/SSE "200002: params error" — find root cause via website JS analysis
+
+Work Log:
+- Read all current source files: page.tsx, generate/route.ts, oreate-client.ts, Go reference code
+- Opened https://www.oreateai.com/home/vertical/aiVideo with agent-browser
+- Discovered main JS chunk: index-DX4DGIXl.js (3.5MB) at cdn.oreateai.com
+- Downloaded and analyzed the JS bundle to find exact SSE request construction
+- Found the critical `getVideoConfig()` function and `nke()` attachment builder
+- Found the request body construction flow:
+  1. body = Object.assign({}, baseChatInfo, reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
+  2. body = fre(body) → adds clientType:"pc"
+  3. mirror = ZCe() → {jt, ua, js_env:"h5", extra:{email,vip,reg_ts,deviceID,bid}}
+  4. final = sy.merge(mirror, body) = Object.assign(mirror, body)
+- KEY FINDING: Object.assign is SHALLOW — body's extra OVERWRITES mirror's extra
+- Final extra sent to server = {doc_name:"", module_name:"gpt4o"} ONLY (2 fields)
+- Our code was sending 7 fields: doc_name, module_name, email, vip, reg_ts, deviceID, bid
+- Also found: website's baseChatInfo has focusId="" (empty string), not chatId
+
+Stage Summary:
+- ROOT CAUSE: `extra` object had 5 unexpected fields (email, vip, reg_ts, deviceID, bid) that the server rejects with "200002: params error"
+- FIXED: Removed extra fields from `extra` in both page.tsx (inline SSE request) and oreate-client.ts (buildSSERequest)
+- FIXED: Changed `focusId` from `chatId` to `""` (empty string) to match website
+- Files modified: src/app/page.tsx, src/lib/oreate-client.ts

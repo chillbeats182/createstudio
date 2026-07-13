@@ -194,8 +194,14 @@ export function buildMirrorData(cookies: CookieEntry[], userInfo?: Record<string
 
 /**
  * Build a complete SSE request body matching the website's exact format.
- * The website does: Object.assign({}, baseChatInfo, reqData, { extra: {...} })
- * Then merges mirror data via sy.merge(mirrorData, body)
+ * Verified from live JS bundle (index-DX4DGIXl.js):
+ *   1. body = Object.assign({}, baseChatInfo, reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
+ *   2. body = fre(body)  →  adds clientType:"pc"
+ *   3. mirror = ZCe()  →  {jt, ua, js_env:"h5", extra:{email,vip,reg_ts,deviceID,bid}}
+ *   4. final = sy.merge(mirror, body) = Object.assign(mirror, body)
+ *      → body's extra OVERWRITES mirror's extra
+ *      → final extra = {doc_name:"", module_name:"gpt4o"} ONLY
+ *      → focusId = "" in baseChatInfo (not chatId)
  */
 export function buildSSERequest(params: {
   chatId: string;
@@ -205,24 +211,23 @@ export function buildSSERequest(params: {
   cookies: CookieEntry[];
   userInfo?: Record<string, unknown>;
 }): Record<string, unknown> {
-  const { chatId, prompt, attachments, videoConfig, cookies, userInfo } = params;
-  const mirror = buildMirrorData(cookies, userInfo);
+  const { chatId, prompt, attachments, videoConfig, cookies } = params;
 
   return {
-    // Mirror fields (website merges these in via ZCe + sy.merge)
-    jt: mirror.jt,
-    ua: mirror.ua,
-    js_env: mirror.js_env,
+    // Mirror fields (from ZCe() — added by sy.merge, but their extra gets overwritten)
+    jt: '',
+    ua: DEFAULT_HEADERS['User-Agent'],
+    js_env: 'h5',
 
-    // Base chat info (from website's baseChatInfo)
+    // Base chat info (from website's baseChatInfo — focusId is "" not chatId)
     type: 'chat',
     chatType: 'aichat',
     chatTitle: 'Unnamed Session',
     chatId,
-    focusId: chatId,
+    focusId: '',
     from: '',
 
-    // Request data
+    // Request data (from fre() — adds clientType)
     clientType: 'pc',
     isFirst: true,
     messages: [{
@@ -232,11 +237,12 @@ export function buildSSERequest(params: {
     }],
     videoConfig,
 
-    // Extra — merged from both base and mirror
+    // CRITICAL: Website ONLY sends doc_name + module_name in extra.
+    // Mirror's email/vip/reg_ts/deviceID/bid are OVERWRITTEN by Object.assign.
+    // Sending extra fields here causes server "200002: params error".
     extra: {
       doc_name: '',
       module_name: 'gpt4o',
-      ...mirror.extra,
     },
   };
 }
