@@ -150,6 +150,97 @@ export function generateChatID(): string {
 }
 
 // ====================================================================
+//  Mirror Data — website's ZCe() merges these into every SSE request
+//  Fields: jt (anti-bot token), ua, js_env, extended extra
+// ====================================================================
+
+export interface MirrorData {
+  jt: string;
+  ua: string;
+  js_env: string;
+  extra: {
+    email: string;
+    vip: string;
+    reg_ts: number;
+    deviceID: string;
+    bid: string;
+  };
+}
+
+export function buildMirrorData(cookies: CookieEntry[], userInfo?: Record<string, unknown>): MirrorData {
+  const email = (userInfo?.email as string) || '';
+  const vipType = (userInfo?.vipType as number) ?? 0;
+  const createTime = (userInfo?.createTime as number) ?? 0;
+
+  const getCookieValue = (name: string): string => {
+    const c = cookies.find(c => c.name === name);
+    return c?.value || '';
+  };
+
+  return {
+    jt: '',  // Anti-bot token — empty for API calls (only browser generates this)
+    ua: DEFAULT_HEADERS['User-Agent'],
+    js_env: 'h5',
+    extra: {
+      email,
+      vip: String(vipType),
+      reg_ts: createTime,
+      deviceID: getCookieValue('OUID'),
+      bid: getCookieValue('__bid_n'),
+    },
+  };
+}
+
+/**
+ * Build a complete SSE request body matching the website's exact format.
+ * The website does: Object.assign({}, baseChatInfo, reqData, { extra: {...} })
+ * Then merges mirror data via sy.merge(mirrorData, body)
+ */
+export function buildSSERequest(params: {
+  chatId: string;
+  prompt: string;
+  attachments: Array<Record<string, unknown>>;
+  videoConfig: Record<string, unknown>;
+  cookies: CookieEntry[];
+  userInfo?: Record<string, unknown>;
+}): Record<string, unknown> {
+  const { chatId, prompt, attachments, videoConfig, cookies, userInfo } = params;
+  const mirror = buildMirrorData(cookies, userInfo);
+
+  return {
+    // Mirror fields (website merges these in via ZCe + sy.merge)
+    jt: mirror.jt,
+    ua: mirror.ua,
+    js_env: mirror.js_env,
+
+    // Base chat info (from website's baseChatInfo)
+    type: 'chat',
+    chatType: 'aichat',
+    chatTitle: 'Unnamed Session',
+    chatId,
+    focusId: chatId,
+    from: '',
+
+    // Request data
+    clientType: 'pc',
+    isFirst: true,
+    messages: [{
+      role: 'user',
+      content: prompt || '',
+      attachments,
+    }],
+    videoConfig,
+
+    // Extra — merged from both base and mirror
+    extra: {
+      doc_name: '',
+      module_name: 'gpt4o',
+      ...mirror.extra,
+    },
+  };
+}
+
+// ====================================================================
 //  Authenticate — /oreate/user/getuserinfo + /bizapi/point/getrestpoints
 // ====================================================================
 

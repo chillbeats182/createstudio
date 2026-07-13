@@ -209,3 +209,41 @@ Stage Summary:
 - Poll step error "No docId" fixed at 3 levels: Generate success criteria, runAll guard, and Poll fallback
 - SSE parsing improved to extract docId from any event type
 - Lint passes clean, dev server compiles, browser verification shows no errors
+
+---
+Task ID: 8
+Agent: Main Agent
+Task: Fix "error code 200002: params error" in Workflow Debug Generate step
+
+Work Log:
+- Analyzed screenshots: Generate step returns SSE events with error code 200002 "params error"
+- Downloaded and decompiled oreateai.com website JS bundles (home-DVW0jP-q.js, index-DX4DGIXl.js)
+- Found website's send() function at pos 3517507 in index-DX4DGIXl.js
+- Found website's getVideoConfig() function at pos 785560
+- Found website's ZCe() mirror data function at pos 702352
+- **ROOT CAUSE**: Website merges mirror data into SSE request body via `sy.merge(ZCe("",300), body)`. Canvas app was missing these fields.
+
+Mirror data fields the website sends (from ZCe function):
+  - `jt`: anti-bot JWT token (from pre() banti SDK) — sent as empty string on failure
+  - `ua`: window.navigator.userAgent
+  - `js_env`: "h5" (always)
+  - `extra.email`: user email
+  - `extra.vip`: VIP type as string
+  - `extra.reg_ts`: registration timestamp
+  - `extra.deviceID`: cookie value "OUID"
+  - `extra.bid`: cookie value "__bid_n"
+
+Also found: `chatTitle` should be "Unnamed Session" (not empty string)
+
+Fixes applied:
+1. Added `buildMirrorData()` and `buildSSERequest()` to oreate-client.ts
+2. Updated both Generate tab and Workflow Debug Generate step to use buildSSERequest()
+3. Updated Go api_client.go SSERequest struct to include JT, UA, JSEnv fields
+4. Updated Go GenerateVideo() to set JT="", UA=UserAgent, JSEnv="h5"
+5. Changed Extra from map[string]string to map[string]interface{} in Go (to support mixed types)
+6. Added request body logging to generate API route for future debugging
+
+Stage Summary:
+- SSE request now matches website's exact format including mirror data
+- Both canvas app and Go desktop app updated for consistency
+- Lint passes, dev server compiles, no console errors in browser

@@ -17,6 +17,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid cookie' }, { status: 400 });
     }
 
+    // Log the exact SSE request being sent (mask cookie for security)
+    console.log('[Generate API] SSE Request payload:', JSON.stringify(sseRequest, null, 2));
+
     const result = await submitSSEGeneration(cookies, sseRequest);
 
     return NextResponse.json({

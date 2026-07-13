@@ -240,8 +240,13 @@ type SSEMessage struct {
 }
 
 // SSERequest is the full body sent to /oreate/sse/stream.
-// Matches the website's request format exactly.
+// Matches the website's request format exactly (including mirror data from ZCe).
 type SSERequest struct {
+        // Mirror data fields (website's ZCe + sy.merge)
+        JT         string            `json:"jt"`
+        UA         string            `json:"ua"`
+        JSEnv      string            `json:"js_env"`
+        // Base chat info
         Type       string            `json:"type"`
         ChatType   string            `json:"chatType"`
         ChatTitle  string            `json:"chatTitle"`
@@ -252,7 +257,7 @@ type SSERequest struct {
         IsFirst    bool              `json:"isFirst"`
         Messages   []SSEMessage      `json:"messages"`
         VideoConfig VideoConfig      `json:"videoConfig,omitempty"`
-        Extra      map[string]string `json:"extra"`
+        Extra      map[string]interface{} `json:"extra"`
 }
 
 // GenerateResult holds the generation response
@@ -1185,6 +1190,11 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
         }
 
         genReq := SSERequest{
+                // Mirror data (website's ZCe + sy.merge)
+                JT:         "",
+                UA:         UserAgent,
+                JSEnv:      "h5",
+                // Base chat info
                 Type:       "chat",
                 ChatType:   "aichat",
                 ChatTitle:  "Unnamed Session",
@@ -1201,7 +1211,7 @@ func (a *App) GenerateVideo(imagePath, videoPath, prompt, sceneID, modelName str
                         },
                 },
                 VideoConfig: videoConfig,
-                Extra: map[string]string{
+                Extra: map[string]interface{}{
                         "doc_name":    "",
                         "module_name": "gpt4o",
                 },

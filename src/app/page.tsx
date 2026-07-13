@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 import { useAppStore } from '@/lib/store';
 import type { ModelOption, SceneOption, HistoryItem as HistoryItemType, WorkflowLog } from '@/lib/store';
-import { generateChatID } from '@/lib/oreate-client';
+import { generateChatID, buildSSERequest, parseCookies } from '@/lib/oreate-client';
 
 // ====================================================================
 //  Helpers
@@ -513,23 +513,15 @@ function GenerateTab() {
         };
       }
 
-      const sseRequest = {
-        type: 'chat',
-        chatType: 'aichat',
-        chatTitle: '',
+      const cookies = parseCookies(store.cookie);
+      const sseRequest = buildSSERequest({
         chatId,
-        focusId: chatId,
-        from: '',
-        clientType: 'pc',
-        isFirst: true,
-        messages: [{
-          role: 'user',
-          content: store.prompt || '',
-          attachments,
-        }],
-        videoConfig,
-        extra: { doc_name: '', module_name: 'gpt4o' },
-      };
+        prompt: store.prompt || '',
+        attachments: attachments as Array<Record<string, unknown>>,
+        videoConfig: videoConfig as unknown as Record<string, unknown>,
+        cookies,
+        userInfo: store.userInfo as Record<string, unknown> | undefined,
+      });
 
       // Step 4: Submit generation
       const genResp = await fetch('/api/oreate/generate', {
@@ -1346,24 +1338,16 @@ function WorkflowDebugTab() {
             };
           }
 
-          // Build full SSE request (matching Go SSERequest exactly)
-          const sseRequest = {
-            type: 'chat',
-            chatType: 'aichat',
-            chatTitle: '',
+          // Build full SSE request using buildSSERequest (matches website format with mirror data)
+          const cookies = parseCookies(store.cookie);
+          const sseRequest = buildSSERequest({
             chatId,
-            focusId: chatId,
-            from: '',
-            clientType: 'pc',
-            isFirst: true,
-            messages: [{
-              role: 'user',
-              content: store.prompt || 'test',
-              attachments: sseAttachments,
-            }],
-            videoConfig,
-            extra: { doc_name: '', module_name: 'gpt4o' },
-          };
+            prompt: store.prompt || 'test',
+            attachments: sseAttachments as Array<Record<string, unknown>>,
+            videoConfig: videoConfig as unknown as Record<string, unknown>,
+            cookies,
+            userInfo: store.userInfo as Record<string, unknown> | undefined,
+          });
 
           const genResp = await fetch('/api/oreate/generate', {
             method: 'POST',
