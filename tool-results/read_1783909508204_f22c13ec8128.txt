@@ -729,199 +729,209 @@
    729→      const result = await window.go.main.App.GetTaskStatus(state.currentDocId);
    730→
    731→      if (result.error) {
-   732→        stopPolling();
-   733→        progressText.textContent = 'Polling error: ' + result.error;
-   734→        progressFill.style.background = 'var(--danger)';
-   735→        toast('Polling error: ' + result.error, 'error');
-   736→        return;
-   737→      }
-   738→
-   739→      const statusData = result.data || {};
-   740→      const status = statusData.status;
-   741→
-   742→      console.log(`[Poll] docId=${state.currentDocId} status=${status} progress=${statusData.progress}`);
-   743→
-   744→      if (status === 1) {
-   745→        // Processing
-   746→        const progress = statusData.progress || 50;
-   747→        progressFill.style.width = Math.min(90, 20 + progress * 0.7) + '%';
-   748→        progressText.textContent = 'Processing… ' + (progress ? progress + '%' : '');
-   749→      } else if (status === 2) {
-   750→        // Completed
-   751→        stopPolling();
-   752→        progressFill.style.width = '100%';
-   753→        progressText.textContent = 'Completed!';
-   754→
-   755→        const videoUrl = statusData.videoUrl || statusData.video_url || statusData.url;
-   756→        if (videoUrl) {
-   757→          resultVideo.src = videoUrl;
-   758→          resultSection.style.display = 'block';
-   759→          toast('Video generated successfully!', 'success');
-   760→        } else {
-   761→          toast('Completed but no video URL in response', 'info');
-   762→          console.log('[Poll] Completed status data:', statusData);
-   763→        }
+   732→        // If polling returns error (e.g. params error from server), 
+   733→        // try refreshing history instead of giving up immediately
+   734→        console.warn('[Poll] Status error:', result.error);
+   735→        const pollCount = parseInt(progressText.dataset.pollCount || '0') + 1;
+   736→        progressText.dataset.pollCount = pollCount;
+   737→        
+   738→        if (pollCount >= 5) {
+   739→          stopPolling();
+   740→          progressText.textContent = 'Task submitted. Check History tab for results.';
+   741→          progressFill.style.width = '100%';
+   742→          progressFill.style.background = 'var(--warning, #f59e0b)';
+   743→          toast('Video may be processing. Check the History tab.', 'info');
+   744→          loadHistory();
+   745→        }
+   746→        return;
+   747→      }
+   748→
+   749→      const statusData = result.data || {};
+   750→      const status = statusData.status;
+   751→
+   752→      console.log(`[Poll] docId=${state.currentDocId} status=${status} progress=${statusData.progress}`);
+   753→
+   754→      if (status === 1) {
+   755→        // Processing
+   756→        const progress = statusData.progress || 50;
+   757→        progressFill.style.width = Math.min(90, 20 + progress * 0.7) + '%';
+   758→        progressText.textContent = 'Processing… ' + (progress ? progress + '%' : '');
+   759→      } else if (status === 2) {
+   760→        // Completed
+   761→        stopPolling();
+   762→        progressFill.style.width = '100%';
+   763→        progressText.textContent = 'Completed!';
    764→
-   765→        // Update credits
-   766→        try {
-   767→          const authResult = await window.go.main.App.Authenticate(state.cookieJSON);
-   768→          if (!authResult.error) {
-   769→            state.restPoint = authResult.restPoint;
-   770→            statCredits.textContent = authResult.restPoint;
-   771→            headerCreditsValue.textContent = authResult.restPoint;
-   772→          }
-   773→        } catch (e) { /* ignore */ }
+   765→        const videoUrl = statusData.videoUrl || statusData.video_url || statusData.url;
+   766→        if (videoUrl) {
+   767→          resultVideo.src = videoUrl;
+   768→          resultSection.style.display = 'block';
+   769→          toast('Video generated successfully!', 'success');
+   770→        } else {
+   771→          toast('Completed but no video URL in response', 'info');
+   772→          console.log('[Poll] Completed status data:', statusData);
+   773→        }
    774→
-   775→        // Refresh history
-   776→        loadHistory();
-   777→      } else if (status === 3 || status === -1 || status === 4) {
-   778→        // Failed
-   779→        stopPolling();
-   780→        progressFill.style.width = '100%';
-   781→        progressFill.style.background = 'var(--danger)';
-   782→        const errMsg = statusData.errorMsg || statusData.error || statusData.errMsg || 'Unknown error';
-   783→        progressText.textContent = 'Failed: ' + errMsg;
-   784→        toast('Generation failed: ' + errMsg, 'error');
-   785→        console.error('[Poll] Failed status data:', statusData);
-   786→        setTimeout(() => { progressFill.style.background = ''; }, 3000);
-   787→      }
-   788→    } catch (err) {
-   789→      console.error('[Poll] Error:', err);
-   790→    }
-   791→  }
-   792→
-   793→  // ============================================================
-   794→  //  History
-   795→  // ============================================================
-   796→  async function loadHistory() {
-   797→    if (!window.go) return;
-   798→
-   799→    btnRefreshHistory.disabled = true;
-   800→    historyEmpty.style.display = 'none';
-   801→
-   802→    // Remove existing items (not the empty state)
-   803→    historyList.querySelectorAll('.history-item').forEach((el) => el.remove());
-   804→
-   805→    try {
-   806→      const result = await window.go.main.App.GetHistory(1, 50);
-   807→
-   808→      if (result.error) {
-   809→        historyEmpty.style.display = 'block';
-   810→        return;
-   811→      }
-   812→
-   813→      state.history = result.items || [];
+   775→        // Update credits
+   776→        try {
+   777→          const authResult = await window.go.main.App.Authenticate(state.cookieJSON);
+   778→          if (!authResult.error) {
+   779→            state.restPoint = authResult.restPoint;
+   780→            statCredits.textContent = authResult.restPoint;
+   781→            headerCreditsValue.textContent = authResult.restPoint;
+   782→          }
+   783→        } catch (e) { /* ignore */ }
+   784→
+   785→        // Refresh history
+   786→        loadHistory();
+   787→      } else if (status === 3 || status === -1 || status === 4) {
+   788→        // Failed
+   789→        stopPolling();
+   790→        progressFill.style.width = '100%';
+   791→        progressFill.style.background = 'var(--danger)';
+   792→        const errMsg = statusData.errorMsg || statusData.error || statusData.errMsg || 'Unknown error';
+   793→        progressText.textContent = 'Failed: ' + errMsg;
+   794→        toast('Generation failed: ' + errMsg, 'error');
+   795→        console.error('[Poll] Failed status data:', statusData);
+   796→        setTimeout(() => { progressFill.style.background = ''; }, 3000);
+   797→      }
+   798→    } catch (err) {
+   799→      console.error('[Poll] Error:', err);
+   800→    }
+   801→  }
+   802→
+   803→  // ============================================================
+   804→  //  History
+   805→  // ============================================================
+   806→  async function loadHistory() {
+   807→    if (!window.go) return;
+   808→
+   809→    btnRefreshHistory.disabled = true;
+   810→    historyEmpty.style.display = 'none';
+   811→
+   812→    // Remove existing items (not the empty state)
+   813→    historyList.querySelectorAll('.history-item').forEach((el) => el.remove());
    814→
-   815→      if (state.history.length === 0) {
-   816→        historyEmpty.style.display = 'block';
-   817→        statHistory.textContent = '0';
-   818→        statCompleted.textContent = '0';
-   819→        return;
-   820→      }
-   821→
-   822→      statHistory.textContent = state.history.length;
-   823→      statCompleted.textContent = state.history.filter((h) => h.status === 2).length;
+   815→    try {
+   816→      const result = await window.go.main.App.GetHistory(1, 50);
+   817→
+   818→      if (result.error) {
+   819→        historyEmpty.style.display = 'block';
+   820→        return;
+   821→      }
+   822→
+   823→      state.history = result.items || [];
    824→
-   825→      state.history.forEach((item) => {
-   826→        const el = document.createElement('div');
-   827→        el.className = 'history-item';
-   828→
-   829→        const statusClass = item.status === 2 ? 'completed' : item.status === 1 ? 'processing' : 'failed';
-   830→        const statusText = item.status === 2 ? 'Done' : item.status === 1 ? 'Processing' : 'Failed';
-   831→        const date = new Date(item.createTime * 1000).toLocaleDateString();
-   832→
-   833→        el.innerHTML = `
-   834→          <div class="history-thumb">
-   835→            ${item.thumbnailUrl ? '<img src="' + item.thumbnailUrl + '" />' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}
-   836→          </div>
-   837→          <div class="history-info">
-   838→            <p class="history-title">${escapeHTML(item.title || item.prompt || 'Untitled')}</p>
-   839→            <div class="history-meta">
-   840→              <span>${item.modelName || '-'}</span>
-   841→              <span>${date}</span>
-   842→              <span class="badge-status ${statusClass}">${statusText}</span>
-   843→            </div>
-   844→          </div>
-   845→        `;
-   846→
-   847→        if (item.videoUrl) {
-   848→          el.addEventListener('click', () => openVideoDialog(item.videoUrl, item.title || 'Video'));
-   849→        }
-   850→
-   851→        historyList.appendChild(el);
-   852→      });
-   853→    } catch (e) {
-   854→      console.error('[History] Error:', e);
-   855→      historyEmpty.style.display = 'block';
-   856→    } finally {
-   857→      btnRefreshHistory.disabled = false;
-   858→    }
-   859→  }
+   825→      if (state.history.length === 0) {
+   826→        historyEmpty.style.display = 'block';
+   827→        statHistory.textContent = '0';
+   828→        statCompleted.textContent = '0';
+   829→        return;
+   830→      }
+   831→
+   832→      statHistory.textContent = state.history.length;
+   833→      statCompleted.textContent = state.history.filter((h) => h.status === 2).length;
+   834→
+   835→      state.history.forEach((item) => {
+   836→        const el = document.createElement('div');
+   837→        el.className = 'history-item';
+   838→
+   839→        const statusClass = item.status === 2 ? 'completed' : item.status === 1 ? 'processing' : 'failed';
+   840→        const statusText = item.status === 2 ? 'Done' : item.status === 1 ? 'Processing' : 'Failed';
+   841→        const date = new Date(item.createTime * 1000).toLocaleDateString();
+   842→
+   843→        el.innerHTML = `
+   844→          <div class="history-thumb">
+   845→            ${item.thumbnailUrl ? '<img src="' + item.thumbnailUrl + '" />' : '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}
+   846→          </div>
+   847→          <div class="history-info">
+   848→            <p class="history-title">${escapeHTML(item.title || item.prompt || 'Untitled')}</p>
+   849→            <div class="history-meta">
+   850→              <span>${item.modelName || '-'}</span>
+   851→              <span>${date}</span>
+   852→              <span class="badge-status ${statusClass}">${statusText}</span>
+   853→            </div>
+   854→          </div>
+   855→        `;
+   856→
+   857→        if (item.videoUrl) {
+   858→          el.addEventListener('click', () => openVideoDialog(item.videoUrl, item.title || 'Video'));
+   859→        }
    860→
-   861→  btnRefreshHistory.addEventListener('click', loadHistory);
-   862→
-   863→  // ============================================================
-   864→  //  Video Dialog
-   865→  // ============================================================
-   866→  function openVideoDialog(url, title) {
-   867→    dialogVideo.src = url;
-   868→    dialogTitle.textContent = title;
-   869→    videoDialog.style.display = 'flex';
-   870→    dialogVideo.play().catch(() => {});
-   871→  }
+   861→        historyList.appendChild(el);
+   862→      });
+   863→    } catch (e) {
+   864→      console.error('[History] Error:', e);
+   865→      historyEmpty.style.display = 'block';
+   866→    } finally {
+   867→      btnRefreshHistory.disabled = false;
+   868→    }
+   869→  }
+   870→
+   871→  btnRefreshHistory.addEventListener('click', loadHistory);
    872→
-   873→  dialogClose.addEventListener('click', closeDialog);
-   874→  videoDialog.addEventListener('click', (e) => {
-   875→    if (e.target === videoDialog) closeDialog();
-   876→  });
-   877→
-   878→  function closeDialog() {
-   879→    videoDialog.style.display = 'none';
-   880→    dialogVideo.pause();
-   881→    dialogVideo.src = '';
-   882→  }
-   883→
-   884→  // ============================================================
-   885→  //  Disconnect
-   886→  // ============================================================
-   887→  btnDisconnect.addEventListener('click', () => {
-   888→    stopPolling();
-   889→    state.authenticated = false;
-   890→    state.cookieJSON = '';
-   891→    state.models = [];
-   892→    state.scenes = [];
-   893→    state.history = [];
-   894→    state.imageFilePath = '';
-   895→    state.videoFilePath = '';
-   896→    state._imageFile = null;
-   897→    state._videoFile = null;
-   898→    clearImage();
-   899→    clearVideo();
-   900→    inputPrompt.value = '';
-   901→    progressSection.style.display = 'none';
-   902→    resultSection.style.display = 'none';
-   903→
-   904→    viewAuth.style.display = 'none';
-   905→    viewConnect.style.display = 'flex';
-   906→    headerCredits.style.display = 'none';
-   907→    toast('Disconnected', 'info');
-   908→  });
-   909→
-   910→  // ============================================================
-   911→  //  Helpers
-   912→  // ============================================================
-   913→  function escapeHTML(str) {
-   914→    const div = document.createElement('div');
-   915→    div.textContent = str;
-   916→    return div.innerHTML;
-   917→  }
-   918→
-   919→  // Keyboard shortcut for dialog close
-   920→  document.addEventListener('keydown', (e) => {
-   921→    if (e.key === 'Escape' && videoDialog.style.display === 'flex') {
-   922→      closeDialog();
-   923→    }
-   924→  });
-   925→
-   926→  console.log('[App] OreateAI Studio frontend loaded. Wails mode:', isWails);
-   927→})();
+   873→  // ============================================================
+   874→  //  Video Dialog
+   875→  // ============================================================
+   876→  function openVideoDialog(url, title) {
+   877→    dialogVideo.src = url;
+   878→    dialogTitle.textContent = title;
+   879→    videoDialog.style.display = 'flex';
+   880→    dialogVideo.play().catch(() => {});
+   881→  }
+   882→
+   883→  dialogClose.addEventListener('click', closeDialog);
+   884→  videoDialog.addEventListener('click', (e) => {
+   885→    if (e.target === videoDialog) closeDialog();
+   886→  });
+   887→
+   888→  function closeDialog() {
+   889→    videoDialog.style.display = 'none';
+   890→    dialogVideo.pause();
+   891→    dialogVideo.src = '';
+   892→  }
+   893→
+   894→  // ============================================================
+   895→  //  Disconnect
+   896→  // ============================================================
+   897→  btnDisconnect.addEventListener('click', () => {
+   898→    stopPolling();
+   899→    state.authenticated = false;
+   900→    state.cookieJSON = '';
+   901→    state.models = [];
+   902→    state.scenes = [];
+   903→    state.history = [];
+   904→    state.imageFilePath = '';
+   905→    state.videoFilePath = '';
+   906→    state._imageFile = null;
+   907→    state._videoFile = null;
+   908→    clearImage();
+   909→    clearVideo();
+   910→    inputPrompt.value = '';
+   911→    progressSection.style.display = 'none';
+   912→    resultSection.style.display = 'none';
+   913→
+   914→    viewAuth.style.display = 'none';
+   915→    viewConnect.style.display = 'flex';
+   916→    headerCredits.style.display = 'none';
+   917→    toast('Disconnected', 'info');
+   918→  });
+   919→
+   920→  // ============================================================
+   921→  //  Helpers
+   922→  // ============================================================
+   923→  function escapeHTML(str) {
+   924→    const div = document.createElement('div');
+   925→    div.textContent = str;
+   926→    return div.innerHTML;
+   927→  }
+   928→
+   929→  // Keyboard shortcut for dialog close
+   930→  document.addEventListener('keydown', (e) => {
+   931→    if (e.key === 'Escape' && videoDialog.style.display === 'flex') {
+   932→      closeDialog();
+   933→    }
+   934→  });
+   935→
+   936→  console.log('[App] OreateAI Studio frontend loaded. Wails mode:', isWails);
+   937→})();

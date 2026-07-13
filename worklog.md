@@ -84,4 +84,27 @@ Fixes Applied:
 Stage Summary:
 - v1.0.8 tagged and pushed to GitHub
 - CI/CD build triggered
-- Main fix: GCS upload 403 resolved by using direct PUT instead of resumable upload
+- Main fix: GCS upload 403 resolved by using direct PUT instead of resumable upload---
+Task ID: 1
+Agent: Main Agent
+Task: Fix "invalid response (not JSON or SSE)" error on Motion Mimicry generation
+
+Work Log:
+- Analyzed screenshot: error "Failed: invalid response (not JSON or SSE):" on Motion Mimicry scene
+- Fetched and analyzed oreateai.com website JS bundles (home-DVW0jP-q.js, index-DX4DGIXl.js — 3.5MB)
+- Discovered critical mismatch: website uses POST /oreate/sse/stream (SSE), app was using POST /oreate/create/chat
+- Extracted exact request format from website JS: SSERequest with messages[], chatType, isFirst, extra, mirror data
+- Extracted exact attachment format from website's nke() function: bos_url, doc_title, doc_type, flag, type, status
+- Extracted exact videoConfig structure from getVideoConfig() method for all scene types
+- Extracted SSE event format: {event: "setattr|start|generating|end|error", data: {...}}
+- Extracted required headers: Client-Type: PC, locale: en-US
+- Rewrote SubmitGeneration() to use /oreate/sse/stream with proper SSE parsing
+- Rewrote GenerateVideo() to build SSERequest body with correct format
+- Added generateChatID() matching website's FR() algorithm
+- Updated frontend to handle chatId fallback for polling
+
+Stage Summary:
+- Root cause: WRONG ENDPOINT. App used /oreate/create/chat (unused legacy endpoint), website uses /oreate/sse/stream
+- Secondary: Wrong request body format (flat attachments vs messages[] array), wrong attachment field names
+- Fix: Complete rewrite of API layer to match website's exact SSE workflow
+- Tagged v1.0.8 and pushed to GitHub
