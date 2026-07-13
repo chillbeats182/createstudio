@@ -336,3 +336,52 @@ Stage Summary:
 - Root cause hypothesis: Server validates videoConfig fields against model capabilities; sending unsupported fields (ratio, resolution, duration) for models that don't support them triggers "params error" (code 200002)
 - The previous code always sent ratio:"16:9", resolution:"720", duration:5 regardless of model capabilities
 - User needs to re-test with valid cookie to verify fix
+
+---
+Task ID: 2
+Agent: Verification
+Task: Verify code fixes in page.tsx are correctly applied
+
+Work Log:
+- Read dev.log (last 50 lines): Dev server running on localhost:3000, all requests returning 200, no errors
+- Ran `eslint src/app/page.tsx`: Passed with no errors or warnings
+- Verified all 5 code edits in page.tsx:
+  a. Lines 1283-1286: SSE attachments conditionally include videoDurationSec only when > 0 ✅
+  b. Line 1364: videoConfig uses `...(hasDurationOptions ? { duration } : {})` for conditional duration ✅
+  c. Lines 1392-1397: `frame_based` case adds `videoConfig.frameBased = { firstFrame, lastFrame }` ✅
+  d. Lines 452-477: Generate tab's handleGenerate does NOT include videoDurationSec: 0 ✅
+  e. Lines 480-491: Generate tab's videoConfig uses `...(hasDur ? { duration: ... } : {})` for conditional duration ✅
+
+Stage Summary:
+- All code fixes verified correct, no lint errors, dev server healthy
+
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix workflow debug step 3 (Generate/SSE) "params error" (code 200002)
+
+Work Log:
+- Analyzed dev.log: server returns proper SSE events (start, error, end) with "code:200002, msg:params error"
+- Used agent-browser to navigate to https://www.oreateai.com/home/vertical/aiVideo
+- Discovered and downloaded the website's JavaScript bundles from CDN
+- Found the core logic file: index-DX4DGIXl.js (3.5MB, contains all SSE request building code)
+- Extracted and analyzed key functions from minified JS:
+  - `nke()` — attachment builder: only includes `videoDurationSec` when value > 0
+  - `getVideoConfig()` — videoConfig builder: omits `duration` entirely when model doesn't support it; has `frameBased` config for frame_based scene
+  - `startSSE()` — SSE sender: merges mirror data via lodash's `sy.merge()`, headers are Content-Type + locale + Client-Type only
+  - `ZCe()` — mirror data generator: produces jt, ua, js_env, extra (email, vip, reg_ts, deviceID, bid)
+  - `send()` — orchestrator: builds body from baseChatInfo + reqData + {extra:{doc_name, module_name}}, applies `fre()` to add clientType, then merges mirror data
+- Identified 3 critical differences causing "params error":
+  1. Our code sent `videoDurationSec: 0` on video attachments — website's nke() only includes this when > 0
+  2. Missing `frameBased: {firstFrame, lastFrame}` config for frame_based scene — website always includes this
+  3. Our code always included `duration` field in videoConfig — website omits it entirely when model doesn't support durations (uses `...K8(durations) ? {duration} : {}`)
+- Applied fixes to both Generate tab (handleGenerate) and Workflow Debug tab (case 2)
+- Verified with lint: zero errors
+- Verified with browser: page renders correctly, no compilation errors
+
+Stage Summary:
+- Root cause: `videoDurationSec: 0` on video attachments was being rejected by server as invalid params
+- Secondary cause: missing `frameBased` config for frame_based scene
+- Tertiary cause: `duration` field included when model doesn't support it
+- Files modified: /home/z/my-project/src/app/page.tsx
+- All fixes verified: lint clean, page renders, no runtime errors

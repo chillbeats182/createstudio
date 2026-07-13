@@ -449,7 +449,7 @@ function GenerateTab() {
       store.setTaskStatus('generating');
       const chatId = generateChatID();
 
-      // Build attachments
+      // Build attachments (matches website's nke() — NO videoDurationSec when 0)
       const attachments: Array<Record<string, unknown>> = [];
       if (isMotion && videoUrl) {
         attachments.push({
@@ -462,7 +462,6 @@ function GenerateTab() {
           flag: 'upload',
           type: 'file',
           status: 1,
-          videoDurationSec: 0,
         });
       }
       attachments.push({
@@ -475,28 +474,34 @@ function GenerateTab() {
         flag: 'upload',
         type: 'file',
         status: 1,
-        videoDurationSec: 0,
       });
 
-      // Build videoConfig
+      // Build videoConfig (matches website's getVideoConfig EXACTLY)
+      const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+      const hasDur = !!(currentModel?.duration && currentModel.duration.length > 0);
       const videoConfig: Record<string, unknown> = {
         modelName: store.selectedModelName,
-        ratio: store.selectedVideoSize,
-        resolution: store.selectedResolution,
-        duration: store.selectedDuration,
+        ratio: store.selectedVideoSize || '',
+        resolution: store.selectedResolution || '',
         isAudio: false,
         aiType: store.selectedAiType,
         scene: store.selectedSceneId,
+        // duration: only included when model supports it (website: ...K8(durations) ? {duration} : {})
+        ...(hasDur ? { duration: Number(store.selectedDuration) || 5 } : {}),
       };
 
       if (scene === 'text_or_image') {
         videoConfig.textOrImage = { image: imageUrl };
       } else if (scene === 'motion') {
-        const motDur = parseInt(store.motDuration) || 3;
+        let motDurVal: number | string = '';
+        if (store.motDuration) {
+          const n = parseInt(store.motDuration);
+          motDurVal = isNaN(n) ? '' : n;
+        }
         videoConfig.motion = {
           characterImage: imageUrl,
           motionVideo: videoUrl,
-          motDuration: motDur,
+          motDuration: motDurVal,
           keepOriginalSound: store.keepOriginalSound,
         };
       } else if (scene === 'reference') {
@@ -511,6 +516,8 @@ function GenerateTab() {
           refTotalDuration: '',
           keepOriginalSound: store.keepOriginalSound,
         };
+      } else if (scene === 'frame_based') {
+        videoConfig.frameBased = { firstFrame: imageUrl, lastFrame: '' };
       }
 
       const cookies = parseCookies(store.cookie);
@@ -1249,17 +1256,20 @@ function WorkflowDebugTab() {
           const aiType = Number(store.selectedAiType) || 14172;
           const duration = Number(store.selectedDuration) || 5;
 
-          // --- Build SSE attachments (matches Go buildVideoAttach exactly) ---
+          // --- Build SSE attachments (matches website's nke() exactly) ---
+          // Website: nke() only includes videoDurationSec when value > 0
           const sseAttachments: Array<Record<string, unknown>> = [];
           let characterImageUrl = '';
           let motionVideoUrl = '';
+          let firstFrameUrl = '';
+          let lastFrameUrl = '';
 
           if (isMotion) {
-            // Motion: video first, then image
+            // Motion: video first, then image (matches website buildVideoAttach order)
             for (const att of attachments) {
               if (att.fileRole === 'video') {
                 motionVideoUrl = att.bos_url;
-                sseAttachments.push({
+                const a: Record<string, unknown> = {
                   bos_url: att.bos_url,
                   bosUrl: att.bos_url,
                   docId: '',
@@ -1269,7 +1279,12 @@ function WorkflowDebugTab() {
                   flag: 'upload',
                   type: 'file',
                   status: 1,
-                });
+                };
+                // Only include videoDurationSec when > 0 (website's nke: t.videoDurationSec > 0)
+                if (typeof att.videoDurationSec === 'number' && att.videoDurationSec > 0) {
+                  a.videoDurationSec = att.videoDurationSec;
+                }
+                sseAttachments.push(a);
               }
             }
             for (const att of attachments) {
@@ -1287,6 +1302,23 @@ function WorkflowDebugTab() {
                   status: 1,
                 });
               }
+            }
+          } else if (sceneId === 'frame_based') {
+            // frame_based: first frame then last frame (matches website buildVideoAttach)
+            for (const att of attachments) {
+              if (!firstFrameUrl) { firstFrameUrl = att.bos_url; }
+              else if (!lastFrameUrl) { lastFrameUrl = att.bos_url; }
+              sseAttachments.push({
+                bos_url: att.bos_url,
+                bosUrl: att.bos_url,
+                docId: '',
+                doc_title: att.doc_title,
+                doc_type: att.doc_type,
+                size: att.size,
+                flag: 'upload',
+                type: 'file',
+                status: 1,
+              });
             }
           } else {
             for (const att of attachments) {
@@ -1317,21 +1349,22 @@ function WorkflowDebugTab() {
           const hasDurationOptions = !!(currentModel?.duration && currentModel.duration.length > 0);
           const hasAudioSupport = !!currentModel?.supportAudio;
 
-          // --- Build videoConfig (matches website's getVideoConfig exactly) ---
+          // --- Build videoConfig (matches website's getVideoConfig EXACTLY) ---
+          // Website: ratio/resolution always present (empty string if not supported)
+          // Website: duration OMITTED entirely if model doesn't support it (spread with empty {})
+          // Website: isAudio depends on model capabilities
           const videoConfig: Record<string, unknown> = {
             modelName,
             aiType,
             scene: sceneId,
-            isAudio: false, // Website always includes isAudio (false when not supported)
+            ratio: hasSizeOptions ? (store.selectedVideoSize || '') : '',
+            resolution: hasResolutionOptions ? (store.selectedResolution || '') : '',
+            isAudio: hasAudioSupport ? !!store.supportAudio : false,
+            // duration: ONLY included when model supports durations (website: ...K8(durations) ? {duration} : {})
+            ...(hasDurationOptions ? { duration } : {}),
           };
 
           if (isMotion) {
-            // Only include ratio/resolution/duration if model supports them
-            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
-            else videoConfig.ratio = '';
-            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
-            else videoConfig.resolution = '';
-            if (hasDurationOptions) videoConfig.duration = duration;
             // motDuration: parse to int, or empty string (matches website: this.motionVideoDuration || "")
             let motDurationVal: number | string = '';
             if (store.motDuration) {
@@ -1345,18 +1378,8 @@ function WorkflowDebugTab() {
               keepOriginalSound: store.keepOriginalSound || false,
             };
           } else if (sceneId === 'text_or_image') {
-            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
-            else videoConfig.ratio = '';
-            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
-            else videoConfig.resolution = '';
-            if (hasDurationOptions) videoConfig.duration = duration;
             videoConfig.textOrImage = { image: characterImageUrl };
           } else if (sceneId === 'reference') {
-            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
-            else videoConfig.ratio = '';
-            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
-            else videoConfig.resolution = '';
-            if (hasDurationOptions) videoConfig.duration = duration;
             const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
             const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
             videoConfig.reference = {
@@ -1366,12 +1389,12 @@ function WorkflowDebugTab() {
               refTotalDuration: '',
               keepOriginalSound: store.keepOriginalSound || false,
             };
-          } else {
-            if (hasSizeOptions) videoConfig.ratio = store.selectedVideoSize || '';
-            else videoConfig.ratio = '';
-            if (hasResolutionOptions) videoConfig.resolution = store.selectedResolution || '';
-            else videoConfig.resolution = '';
-            if (hasDurationOptions) videoConfig.duration = duration;
+          } else if (sceneId === 'frame_based') {
+            // Website: frameBased: {firstFrame, lastFrame} (CRITICAL — was missing!)
+            videoConfig.frameBased = {
+              firstFrame: firstFrameUrl,
+              lastFrame: lastFrameUrl,
+            };
           }
 
           // --- Build SSE request body (EXACT Go match — minimal fields only) ---
