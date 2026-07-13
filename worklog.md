@@ -264,3 +264,28 @@ Stage Summary:
 - Fix: Changed return object in `uploadOneFile` from `{ bosUrl, docTitle, docType }` to `{ bos_url, doc_title, doc_type }`
 - File changed: `/home/z/my-project/src/app/page.tsx` line 1130-1136
 - The SSE request will now include proper `bos_url`/`bosUrl` in attachments and `characterImage`/`motionVideo` in motion config
+---
+Task ID: 2
+Agent: Main
+Task: Fix workflow debug stopping at step 3 - different approach
+
+Work Log:
+- Confirmed previous bos_url fix worked (dev log shows proper bos_url in SSE request)
+- But Generate still fails with 200 response in only 77ms (too fast for real SSE)
+- Deep-read Go api_client.go reference: found multiple differences
+  - Go Extra only has doc_name + module_name (ours had email/vip/deviceID/bid bloat)
+  - Go Duration is int (ours could be string from store)
+  - Go AiType is int (ours could be string from store)
+  - Go motDuration is interface{} parsed to int or "" (ours was always parseInt)
+- Rewrote entire Generate step (case 2) to build SSE request inline, matching Go EXACTLY
+- Removed buildSSERequest usage from Generate step (still used in main Generate tab)
+- Added rawResponsePreview to generate API route for debugging
+- Added detailed SSE response logging (status, body, events, docId, chatId)
+- Changed step result to show clean summary: docId, events, rawSSE preview
+- Verified: lint clean, page loads without errors
+
+Stage Summary:
+- Approach changed: instead of using buildSSERequest (which adds mirror bloat), now builds SSE request inline matching Go exactly
+- Files changed: page.tsx (Generate step rewrite), generate/route.ts (added response logging)
+- Key insight: Go only sends {doc_name, module_name} in extra, not email/vip/deviceID/bid
+- Next: user needs to test Run All again — the raw SSE response will now be visible in step 3 output

@@ -1233,7 +1233,7 @@ function WorkflowDebugTab() {
         }
 
         case 2: {
-          // === GENERATE ===
+          // === GENERATE (exact Go api_client.go match) ===
           const attachments = uploadedAttachmentsRef.current;
           if (attachments.length === 0) {
             toast.error('Run Upload step first to upload files');
@@ -1246,14 +1246,16 @@ function WorkflowDebugTab() {
           const sceneId = store.selectedSceneId || 'text_or_image';
           const modelName = store.selectedModelName || 'Kling 2.6';
           const isMotion = sceneId === 'motion';
+          const aiType = Number(store.selectedAiType) || 14172;
+          const duration = Number(store.selectedDuration) || 5;
 
-          // Build SSE attachments (matching Go desktop api_client.go exactly)
+          // --- Build SSE attachments (matches Go buildVideoAttach exactly) ---
           const sseAttachments: Array<Record<string, unknown>> = [];
           let characterImageUrl = '';
           let motionVideoUrl = '';
 
           if (isMotion) {
-            // Motion: video first, then image (matches Go buildVideoAttach)
+            // Motion: video first, then image
             for (const att of attachments) {
               if (att.fileRole === 'video') {
                 motionVideoUrl = att.bos_url;
@@ -1287,7 +1289,6 @@ function WorkflowDebugTab() {
               }
             }
           } else {
-            // text_or_image / reference: images first
             for (const att of attachments) {
               if (att.fileRole === 'image') {
                 characterImageUrl = att.bos_url;
@@ -1306,27 +1307,39 @@ function WorkflowDebugTab() {
             }
           }
 
-          // Build videoConfig (matching Go getVideoConfig())
+          // --- Build videoConfig (matches Go getVideoConfig exactly) ---
           const videoConfig: Record<string, unknown> = {
             modelName,
-            ratio: store.selectedVideoSize || '16:9',
-            resolution: store.selectedResolution || '720',
-            duration: store.selectedDuration || 5,
-            isAudio: false,
-            aiType: store.selectedAiType || 0,
+            aiType,
             scene: sceneId,
+            isAudio: false,
           };
 
           if (isMotion) {
+            videoConfig.ratio = store.selectedVideoSize || '16:9';
+            videoConfig.resolution = store.selectedResolution || '720';
+            videoConfig.duration = duration;
+            // motDuration: parse to int, or empty string (matches Go)
+            let motDurationVal: number | string = '';
+            if (store.motDuration) {
+              const n = parseInt(store.motDuration);
+              motDurationVal = isNaN(n) ? '' : n;
+            }
             videoConfig.motion = {
               characterImage: characterImageUrl,
               motionVideo: motionVideoUrl,
-              motDuration: store.motDuration ? parseInt(store.motDuration) : 3,
+              motDuration: motDurationVal,
               keepOriginalSound: store.keepOriginalSound || false,
             };
           } else if (sceneId === 'text_or_image') {
+            videoConfig.ratio = store.selectedVideoSize || '16:9';
+            videoConfig.resolution = store.selectedResolution || '720';
+            videoConfig.duration = duration;
             videoConfig.textOrImage = { image: characterImageUrl };
           } else if (sceneId === 'reference') {
+            videoConfig.ratio = store.selectedVideoSize || '16:9';
+            videoConfig.resolution = store.selectedResolution || '720';
+            videoConfig.duration = duration;
             const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
             const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
             videoConfig.reference = {
@@ -1336,49 +1349,68 @@ function WorkflowDebugTab() {
               refTotalDuration: '',
               keepOriginalSound: store.keepOriginalSound || false,
             };
+          } else {
+            videoConfig.ratio = store.selectedVideoSize || '16:9';
+            videoConfig.resolution = store.selectedResolution || '720';
+            videoConfig.duration = duration;
           }
 
-          // Build full SSE request using buildSSERequest (matches website format with mirror data)
-          const cookies = parseCookies(store.cookie);
-          const sseRequest = buildSSERequest({
+          // --- Build SSE request body (EXACT Go match — minimal fields only) ---
+          const sseRequest: Record<string, unknown> = {
+            jt: '',
+            ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+            js_env: 'h5',
+            type: 'chat',
+            chatType: 'aichat',
+            chatTitle: 'Unnamed Session',
             chatId,
-            prompt: store.prompt || 'test',
-            attachments: sseAttachments as Array<Record<string, unknown>>,
-            videoConfig: videoConfig as unknown as Record<string, unknown>,
-            cookies,
-            userInfo: store.userInfo as Record<string, unknown> | undefined,
-          });
+            focusId: chatId,
+            from: '',
+            clientType: 'pc',
+            isFirst: true,
+            messages: [{
+              role: 'user',
+              content: store.prompt || '',
+              attachments: sseAttachments,
+            }],
+            videoConfig,
+            extra: {
+              doc_name: '',
+              module_name: 'gpt4o',
+            },
+          };
 
+          // --- Call generate API ---
           const genResp = await fetch('/api/oreate/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ cookie: store.cookie, sseRequest }),
           });
           const genData = await genResp.json();
-          const duration = Date.now() - startTime;
+          const genDuration = Date.now() - startTime;
 
           addLog({
             id: logId,
             step: 'generate',
             action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName})`,
-            request: { url: '/api/oreate/generate', method: 'POST', body: formatJSON({ cookie: '...', sseRequest }) },
-            response: { status: genResp.status, body: formatJSON(genData), timing: duration },
+            request: { url: '/api/oreate/generate', method: 'POST', body: 'sseRequest (see step result)' },
+            response: { status: genResp.status, timing: genDuration, events: genData.events?.length || 0, docId: genData.docId, chatId: genData.chatId, error: genData.error, rawPreview: genData.rawResponsePreview || '' },
             success: genData.success || false,
             error: genData.error,
             timestamp: Date.now(),
           });
 
-          // Extract docId FIRST — it's the critical output of this step
+          // --- Extract docId from response (matches Go extraction) ---
           let docId = genData.docId || genData.chatId || '';
 
-          // Fallback: scan events for docId if top-level fields are empty
           if (!docId && genData.events && Array.isArray(genData.events)) {
             for (const ev of genData.events) {
-              const d = (ev as Record<string, unknown>).data as Record<string, unknown> | undefined;
+              const evObj = ev as Record<string, unknown>;
+              const d = (evObj.data || evObj) as Record<string, unknown>;
               if (!d) continue;
-              if (d.docId) { docId = d.docId as string; break; }
-              if (d.id) { docId = d.id as string; break; }
-              if (d.chatId) { docId = d.chatId as string; break; }
+              // Try all possible field names (matches Go's extraction logic)
+              docId = (d.docId as string) || (d.id as string) || (d.chatId as string) || '';
+              if (docId) break;
             }
           }
 
@@ -1388,20 +1420,35 @@ function WorkflowDebugTab() {
             store.setTaskId(docId);
           }
 
-          // Generate is only truly "ok" if we have a docId
           const hasEvents = genData.events && genData.events.length > 0;
           const genOk = !!docId && (genData.success || !!hasEvents);
 
-          setStepRes(2, { success: genOk, data: { ...genData, extractedDocId: docId || '(none)' }, duration });
+          // Include rawResponsePreview in step data for debugging
+          setStepRes(2, {
+            success: genOk,
+            data: {
+              docId: genData.docId || null,
+              chatId: genData.chatId || null,
+              extractedDocId: docId || '(none)',
+              eventsCount: genData.events?.length || 0,
+              events: genData.events,
+              success: genData.success,
+              error: genData.error,
+              rawSSE: genData.rawResponsePreview || '(no preview)',
+            },
+            duration: genDuration,
+          });
           store.setBuildReadiness('generate_endpoint', genResp.status === 200);
           store.setBuildReadiness('sse_parsing', !!hasEvents);
 
           if (genOk) {
             toast.success(`Generate submitted — docId: ${docId}`);
-          } else if (!docId && hasEvents) {
-            toast.error(`Generate: events received but no docId extracted — check SSE event data`);
+          } else if (hasEvents && !docId) {
+            toast.error(`Generate: ${genData.events.length} events but no docId — check raw SSE`);
+          } else if (genData.error) {
+            toast.error(`Generate failed: ${genData.error}`);
           } else {
-            toast.error(`Generate failed: ${genData.error || 'No events received'}`);
+            toast.error(`Generate failed: no response (${genDuration}ms) — check raw SSE output`);
           }
           break;
         }
