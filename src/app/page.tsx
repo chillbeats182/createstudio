@@ -291,6 +291,25 @@ async function handleConnect() {
     const modelData = await modelResp.json();
     if (modelData.success) {
       store.setModels(modelData.models, modelData.scenes);
+      // Auto-select first available model + resolution + ratio (website's _ensureDefaultMode + _reconcile)
+      const models = modelData.models || [];
+      const scenes = modelData.scenes || [];
+      if (models.length > 0) {
+        const firstModel = models[0];
+        store.setModel(firstModel.modelName);
+        // Set resolution from model's videoResolution (website defaults to first available)
+        if (firstModel.videoResolution?.length > 0) {
+          store.setResolution(firstModel.videoResolution[0]);
+        }
+        // Set ratio from model's videoSize (website defaults to first available)
+        if (firstModel.videoSize?.length > 0) {
+          store.setVideoSize(firstModel.videoSize[0].ratio);
+        }
+        // Set duration from model's duration (website defaults to first available)
+        if (firstModel.duration?.length > 0) {
+          store.setDuration(firstModel.duration[0].value);
+        }
+      }
     }
   } catch (err) {
     toast.error('Connection failed');
@@ -477,17 +496,34 @@ function GenerateTab() {
       });
 
       // Build videoConfig (matches website's getVideoConfig EXACTLY)
+      // Website's _reconcile(): aiType from UV(pointCost, {resolution, duration, audio})
       const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+      const isMot = scene === 'motion';
+      const isRef = scene === 'reference';
+      const costs = isMot
+        ? (currentModel?.pointCostMotion || [])
+        : isRef
+          ? (currentModel?.pointCostReference || [])
+          : (currentModel?.pointCostImage || []);
+      const genDuration = Number(store.selectedDuration) || 5;
+      const genResolution = store.selectedResolution || '';
+      const matchedCost = costs.find((c: {resolution?:string;duration?:number}) => {
+        const resOk = !c.resolution || c.resolution === genResolution;
+        const durOk = c.duration === undefined || c.duration === genDuration;
+        return resOk && durOk;
+      });
+      const genAiType = matchedCost?.aiType ?? 0;
+
       const hasDur = !!(currentModel?.duration && currentModel.duration.length > 0);
       const videoConfig: Record<string, unknown> = {
         modelName: store.selectedModelName,
         ratio: store.selectedVideoSize || '',
-        resolution: store.selectedResolution || '',
+        resolution: genResolution,
         isAudio: false,
-        aiType: store.selectedAiType,
+        aiType: genAiType,
         scene: store.selectedSceneId,
         // duration: only included when model supports it (website: ...K8(durations) ? {duration} : {})
-        ...(hasDur ? { duration: Number(store.selectedDuration) || 5 } : {}),
+        ...(hasDur ? { duration: genDuration } : {}),
       };
 
       if (scene === 'text_or_image') {
@@ -1195,6 +1231,15 @@ function WorkflowDebugTab() {
             const modelData = await modelResp.json();
             if (modelData.success || modelData.models) {
               store.setModels(modelData.models || [], modelData.scenes || []);
+              // Auto-select first model + defaults (same as sidebar auth)
+              const models = modelData.models || [];
+              if (models.length > 0) {
+                const firstModel = models[0];
+                store.setModel(firstModel.modelName);
+                if (firstModel.videoResolution?.length > 0) store.setResolution(firstModel.videoResolution[0]);
+                if (firstModel.videoSize?.length > 0) store.setVideoSize(firstModel.videoSize[0].ratio);
+                if (firstModel.duration?.length > 0) store.setDuration(firstModel.duration[0].value);
+              }
             }
             store.setBuildReadiness('models', !!(modelData.models || modelData.success));
             toast.success(`Auth OK — ${data.userInfo?.email || 'user'}, ${data.restPoint} credits`);
@@ -1240,7 +1285,7 @@ function WorkflowDebugTab() {
         }
 
         case 2: {
-          // === GENERATE (exact Go api_client.go match) ===
+          // === GENERATE (website-verified: _reconcile() + getVideoConfig() from live JS) ===
           const attachments = uploadedAttachmentsRef.current;
           if (attachments.length === 0) {
             toast.error('Run Upload step first to upload files');
@@ -1251,9 +1296,8 @@ function WorkflowDebugTab() {
 
           const chatId = generateChatID();
           const sceneId = store.selectedSceneId || 'text_or_image';
-          const modelName = store.selectedModelName || 'Kling 2.6';
+          const modelName = store.selectedModelName || '';
           const isMotion = sceneId === 'motion';
-          const aiType = Number(store.selectedAiType) || 14172;
           const duration = Number(store.selectedDuration) || 5;
 
           // --- Build SSE attachments (matches website's nke() exactly) ---
@@ -1339,20 +1383,41 @@ function WorkflowDebugTab() {
             }
           }
 
-          // --- Find current model capabilities (from model config fetched in Auth step) ---
-          // Website's getVideoConfig conditionally includes ratio/resolution/duration
-          // based on model capabilities: K8(a?.params?.sizes?.values) && n.portion || ""
-          // Sending unsupported fields causes server "params error" (code 200002)
+          // --- Find model from config (website: zP(modelsData, modelName)) ---
           const currentModel = store.models.find((m) => m.modelName === modelName);
+
+          // --- Website's _reconcile(): look up aiType from pointCost (UV function) ---
+          // UV() finds matching pointCost entry by resolution + duration + audio
+          // aiType comes from the matched entry, NOT a hardcoded default
+          // Website: aiType: (u?.aiType) ?? 0  (nullish coalescing, NOT logical OR)
+          const isRef = sceneId === 'reference';
+          const pointCostArray = isMotion
+            ? (currentModel?.pointCostMotion || [])
+            : isRef
+              ? (currentModel?.pointCostReference || [])
+              : (currentModel?.pointCostImage || []);
+
+          // Match by resolution + duration (website's X8: undefined matches anything)
+          const selectedResolution = store.selectedResolution || '';
+          const selectedDuration = duration;
+          const matchedCost = pointCostArray.find((c: {resolution?:string;duration?:number;audio?:boolean}) => {
+            const resMatch = !c.resolution || c.resolution === selectedResolution || c.resolution === String(selectedResolution);
+            const durMatch = c.duration === undefined || c.duration === selectedDuration;
+            return resMatch && durMatch;
+          });
+          const aiType = matchedCost?.aiType ?? 0;
+
+          // --- Build videoConfig (website's getVideoConfig EXACTLY) ---
+          // Website: ratio = K8(sizes.values) && n.portion || ""
+          // Website: resolution = K8(resolutions.values) && n.solution || ""
+          // Website: duration = K8(durations.values) ? {duration: Number(n.time||0)} : {}
+          // Website: isAudio = K8(supportAudio.values) ? !!n.supportAudio : false
+          // Website: aiType = n.aiType || 0
           const hasSizeOptions = !!(currentModel?.videoSize && currentModel.videoSize.length > 0);
           const hasResolutionOptions = !!(currentModel?.videoResolution && currentModel.videoResolution.length > 0);
           const hasDurationOptions = !!(currentModel?.duration && currentModel.duration.length > 0);
           const hasAudioSupport = !!currentModel?.supportAudio;
 
-          // --- Build videoConfig (matches website's getVideoConfig EXACTLY) ---
-          // Website: ratio/resolution always present (empty string if not supported)
-          // Website: duration OMITTED entirely if model doesn't support it (spread with empty {})
-          // Website: isAudio depends on model capabilities
           const videoConfig: Record<string, unknown> = {
             modelName,
             aiType,
@@ -1442,8 +1507,8 @@ function WorkflowDebugTab() {
           addLog({
             id: logId,
             step: 'generate',
-            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName}, aiType=${aiType})`,
-            request: { url: '/api/oreate/generate', method: 'POST', body: `modelCaps: {hasSize:${hasSizeOptions}, hasRes:${hasResolutionOptions}, hasDur:${hasDurationOptions}} | sseRequest (see step result)` },
+            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName}, aiType=${aiType} from pointCost)`,
+            request: { url: '/api/oreate/generate', method: 'POST', body: `pointCostMatch: ${matchedCost ? JSON.stringify({resolution:matchedCost.resolution,duration:matchedCost.duration,aiType:matchedCost.aiType}) : 'NO MATCH (aiType defaults to 0)'} | modelCaps: {hasSize:${hasSizeOptions}, hasRes:${hasResolutionOptions}, hasDur:${hasDurationOptions}, resOptions:${currentModel?.videoResolution?.join(',') || '[]'}}` },
             response: { status: genResp.status, timing: genDuration, events: genData.events?.length || 0, docId: genData.docId, chatId: genData.chatId, error: genData.error, rawPreview: genData.rawResponsePreview || '' },
             success: genData.success || false,
             error: genData.error,

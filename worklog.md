@@ -411,3 +411,28 @@ Stage Summary:
 - FIXED: Removed extra fields from `extra` in both page.tsx (inline SSE request) and oreate-client.ts (buildSSERequest)
 - FIXED: Changed `focusId` from `chatId` to `""` (empty string) to match website
 - Files modified: src/app/page.tsx, src/lib/oreate-client.ts
+---
+Task ID: 2
+Agent: main
+Task: Deep-dive website JS analysis to fix remaining 200002 params error
+
+Work Log:
+- Previous fix (extra field cleanup) did NOT resolve the issue
+- Analyzed actual failing request from dev.log: aiType=14172, resolution="720", modelName="Pixverse V5"
+- Deep-dived into website's index-DX4DGIXl.js (3.5MB) to trace exact data flow
+- Found website's _reconcile() function: aiType comes from UV(pointCost, {resolution, duration, audio})
+- UV() matches pointCost entry by resolution + duration + audio (function X8: undefined matches anything)
+- Found store.initialState had selectedAiType: 14172 (hardcoded wrong default)
+- Found store.initialState had selectedResolution: "720" (hardcoded, might not match model config)
+- Found store.initialState had selectedModelName: "Kling 2.6" (hardcoded, might not be available)
+- Found Workflow Debug step used `Number(store.selectedAiType) || 14172` (0||14172 = 14172 due to JS falsy)
+- Website defaults: aiType=0 (via ?? 0 nullish coalescing), resolution="" (empty string)
+
+Stage Summary:
+- ROOT CAUSE #1: aiType=14172 was hardcoded — server validates aiType must match the model's pointCost entry
+- ROOT CAUSE #2: resolution/ratio/duration defaults were hardcoded and might not match model config values
+- ROOT CAUSE #3: No auto-selection of first model's capabilities after fetching model config
+- FIXED: Store defaults to empty/0 (not hardcoded values)
+- FIXED: Both Generate tab and Workflow Debug step now look up aiType from pointCost array (matching UV function)
+- FIXED: Auth step now auto-selects first model + resolution + ratio + duration from model config
+- Files modified: src/lib/store.ts, src/app/page.tsx
