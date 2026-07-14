@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 
 import { useAppStore } from '@/lib/store';
 import type { ModelOption, SceneOption, HistoryItem as HistoryItemType, WorkflowLog } from '@/lib/store';
-import { generateChatID, buildSSERequest } from '@/lib/oreate-client';
+import { generateChatID, buildSSERequest, parseCookies } from '@/lib/oreate-client';
 
 // ====================================================================
 //  Helpers
@@ -1460,56 +1460,76 @@ function WorkflowDebugTab() {
             };
           }
 
-            type: 'chat',
-            chatType: 'aichat',
-            chatTitle: 'Unnamed Session',
+          // --- Build SSE request body (website-verified format) ---
+          const sseBody = buildSSERequest({
             chatId,
-            focusId: chatId,
-            from: '',
-            clientType: 'pc',
-            isFirst: true,
-            messages: [{
-              role: 'user',
-              content: store.prompt || '',
-              attachments: sseAttachments,
-            }],
+            prompt: store.prompt || '',
+            attachments: sseAttachments as Array<Record<string, unknown>>,
             videoConfig,
-            extra: {
-              doc_name: '',
-              module_name: 'gpt4o',
-            },
-          };
+            cookies: parseCookies(store.cookie),
+          });
+
+          // --- Submit SSE generation ---
+          const t0 = Date.now();
+          let genData: Record<string, unknown> = {};
+          let docId = '';
+          let genResp: Response | null = null;
+
+          try {
+            genResp = await fetch('/api/oreate/generate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ cookie: store.cookie, sseRequest: sseBody }),
+            });
+            genData = await genResp.json();
+          } catch (err) {
+            const genDuration = Date.now() - t0;
+            setStepRes(2, {
+              success: false,
+              data: { error: `Fetch error: ${err instanceof Error ? err.message : String(err)}` },
+              duration: genDuration,
+            });
+            toast.error(`Generate fetch failed: ${err instanceof Error ? err.message : String(err)}`);
+            setRunningStep(null);
+            return;
+          }
+
+          const genDuration = Date.now() - t0;
+          docId = (genData.docId as string) || (genData.chatId as string) || '';
+
           // Store docId for poll step
           if (docId) {
             generatedDocIdRef.current = docId;
             store.setTaskId(docId);
           }
 
-          const hasEvents = genData.events && genData.events.length > 0;
+          const hasEvents = genData.events && Array.isArray(genData.events) && genData.events.length > 0;
           const genOk = !!docId && (genData.success || !!hasEvents);
 
           // Include rawResponsePreview in step data for debugging
           setStepRes(2, {
             success: genOk,
             data: {
-              docId: genData.docId || null,
-              chatId: genData.chatId || null,
+              docId: (genData.docId as string) || null,
+              chatId: (genData.chatId as string) || null,
               extractedDocId: docId || '(none)',
-              eventsCount: genData.events?.length || 0,
+              eventsCount: (genData.events as unknown[])?.length || 0,
               events: genData.events,
               success: genData.success,
               error: genData.error,
-              rawSSE: genData.rawResponsePreview || '(no preview)',
+              rawSSE: (genData.rawResponsePreview as string) || '(no preview)',
             },
             duration: genDuration,
           });
-          store.setBuildReadiness('generate_endpoint', genResp.status === 200);
+          if (genResp) {
+            store.setBuildReadiness('generate_endpoint', genResp.status === 200);
+          }
           store.setBuildReadiness('sse_parsing', !!hasEvents);
 
           if (genOk) {
             toast.success(`Generate submitted — docId: ${docId}`);
           } else if (hasEvents && !docId) {
-            toast.error(`Generate: ${genData.events.length} events but no docId — check raw SSE`);
+            toast.error(`Generate: ${(genData.events as unknown[]).length} events but no docId — check raw SSE`);
           } else if (genData.error) {
             toast.error(`Generate failed: ${genData.error}`);
           } else {

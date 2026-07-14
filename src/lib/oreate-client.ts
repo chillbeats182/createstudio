@@ -156,39 +156,56 @@ export function generateChatID(): string {
 // ====================================================================
 
 /**
- * Build SSE request body matching Go desktop app (api_client.go).
- * Go sends: type, chatType, chatTitle, chatId, focusId=chatId, from, clientType, isFirst,
- *            messages, videoConfig, extra={doc_name:"", module_name:"gpt4o"}
- * Headers (set in submitSSEGeneration): User-Agent, Accept:"text/event-stream, */*",
+ * Build SSE request body matching real oreateai.com website JS (verified via agent-browser).
+ * Website sends: jt, ua, js_env, type, focusId, chatId, chatType:"aiVideo", from,
+ *   chatTitle, messages, isFirst, videoConfig, extra, clientType
+ * The request body includes mirror data (jt, ua, js_env) deep-merged via lodash _.merge().
+ * chatType MUST be "aiVideo" for video generation (NOT "aichat" — that causes 200002 error).
+ * Headers (set in submitSSEGeneration): User-Agent, Accept:"text/event-stream",
  *   Accept-Language, Referer, Origin, Sec-Fetch-*, Content-Type, Client-Type, locale, Cookie.
- */export function buildSSERequest(params: {
+ */
+export function buildSSERequest(params: {
   chatId: string;
   prompt: string;
   attachments: Array<Record<string, unknown>>;
   videoConfig: Record<string, unknown>;
   cookies: CookieEntry[];
 }): Record<string, unknown> {
-  const { chatId, prompt, attachments, videoConfig } = params;
+  const { chatId, prompt, attachments, videoConfig, cookies } = params;
+
+  // Extract bid from cookies (website's ZCe mirror data reads __bid_n cookie)
+  const bidCookie = cookies.find(c => c.name === '__bid_n');
+  const bid = bidCookie?.value || '';
 
   return {
+    // Mirror data fields (deep-merged into body via lodash _.merge on website)
+    jt: '',
+    ua: DEFAULT_HEADERS['User-Agent'],
+    js_env: 'h5',
+    // Main request fields
     type: 'chat',
-    chatType: 'aichat',
-    chatTitle: 'Unnamed Session',
-    chatId,
     focusId: chatId,
+    chatId,
+    chatType: 'aiVideo',
     from: '',
-    clientType: 'pc',
-    isFirst: true,
+    chatTitle: 'Unnamed Session',
     messages: [{
       role: 'user',
       content: prompt || '',
       attachments,
     }],
+    isFirst: true,
     videoConfig,
     extra: {
       doc_name: '',
       module_name: 'gpt4o',
+      email: '',
+      vip: 'undefined',
+      reg_ts: 0,
+      deviceID: '',
+      bid,
     },
+    clientType: 'pc',
   };
 }
 
