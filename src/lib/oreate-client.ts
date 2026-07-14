@@ -155,86 +155,28 @@ export function generateChatID(): string {
 //  Fields: jt (anti-bot token), ua, js_env, extended extra
 // ====================================================================
 
-export interface MirrorData {
-  jt: string;
-  ua: string;
-  js_env: string;
-  extra: {
-    email: string;
-    vip: string;
-    reg_ts: number;
-    deviceID: string;
-    bid: string;
-  };
-}
-
-export function buildMirrorData(cookies: CookieEntry[], userInfo?: Record<string, unknown>): MirrorData {
-  const email = (userInfo?.email as string) || '';
-  const vipType = (userInfo?.vipType as number) ?? 0;
-  const createTime = (userInfo?.createTime as number) ?? 0;
-
-  const getCookieValue = (name: string): string => {
-    const c = cookies.find(c => c.name === name);
-    return c?.value || '';
-  };
-
-  return {
-    jt: '',  // Anti-bot token — empty for API calls (only browser generates this)
-    ua: DEFAULT_HEADERS['User-Agent'],
-    js_env: 'h5',
-    extra: {
-      email,
-      vip: String(vipType),
-      reg_ts: createTime,
-      deviceID: getCookieValue('OUID'),
-      bid: getCookieValue('__bid_n'),
-    },
-  };
-}
-
 /**
  * Build SSE request body matching Go desktop app (api_client.go).
  * Go sends: type, chatType, chatTitle, chatId, focusId=chatId, from, clientType, isFirst,
  *            messages, videoConfig, extra={doc_name:"", module_name:"gpt4o"}
  * Headers (set in submitSSEGeneration): User-Agent, Accept:"text/event-stream, */*",
  *   Accept-Language, Referer, Origin, Sec-Fetch-*, Content-Type, Client-Type, locale, Cookie.
- */
-export function buildSSERequest(params: {
+ */export function buildSSERequest(params: {
   chatId: string;
   prompt: string;
   attachments: Array<Record<string, unknown>>;
   videoConfig: Record<string, unknown>;
   cookies: CookieEntry[];
-  userInfo?: Record<string, unknown>;
-  vipInfo?: Record<string, unknown>;
 }): Record<string, unknown> {
-  const { chatId, prompt, attachments, videoConfig, cookies, userInfo, vipInfo } = params;
-
-  const getCookieValue = (name: string): string => {
-    const c = cookies.find(c => c.name === name);
-    return c?.value || '';
-  };
-
-  // Mirror data (from ZCe())
-  const email = (userInfo?.email as string) || '';
-  const vipType = (vipInfo?.vipType as number) ?? 0;
-  const createTime = (userInfo?.createTime as number) ?? 0;
+  const { chatId, prompt, attachments, videoConfig } = params;
 
   return {
-    // Mirror fields (from ZCe())
-    jt: '',
-    ua: DEFAULT_HEADERS['User-Agent'],
-    js_env: 'h5',
-
-    // Base chat info (from website's baseChatInfo)
     type: 'chat',
     chatType: 'aichat',
     chatTitle: 'Unnamed Session',
     chatId,
-    focusId: chatId,  // Website sets focusId=chatId BEFORE building request
+    focusId: chatId,
     from: '',
-
-    // Request data (from fre() — adds clientType)
     clientType: 'pc',
     isFirst: true,
     messages: [{
@@ -243,9 +185,6 @@ export function buildSSERequest(params: {
       attachments,
     }],
     videoConfig,
-
-    // Extra fields: only doc_name + module_name (matches Go desktop app which works)
-    // The website uses lodash _.merge for mirror+body, but the server only needs these 2.
     extra: {
       doc_name: '',
       module_name: 'gpt4o',
