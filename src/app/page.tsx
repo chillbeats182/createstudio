@@ -564,6 +564,7 @@ function GenerateTab() {
         videoConfig: videoConfig as unknown as Record<string, unknown>,
         cookies,
         userInfo: store.userInfo as Record<string, unknown> | undefined,
+        vipInfo: store.vipInfo as Record<string, unknown> | undefined,
       });
 
       // Step 4: Submit generation
@@ -1463,21 +1464,22 @@ function WorkflowDebugTab() {
           }
 
           // --- Build SSE request body (EXACT website match from live JS bundle) ---
-          // Website: Object.assign({}, baseChatInfo, reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
-          // Then fre() adds clientType, then Object.assign(mirrorData, body) adds jt/ua/js_env
-          // Mirror's extra is OVERWRITTEN by body's extra → final extra = {doc_name, module_name} ONLY
-          // focusId is "" in website's baseChatInfo (not chatId)
+          // Verified: sy = lodash 4.17.21, sy.merge() = _.merge() (DEEP merge, NOT Object.assign!)
+          // ZCe() returns {jt, ua, js_env:"h5", extra:{email,vip,reg_ts,deviceID,bid}}
+          // body has {extra:{doc_name:"",module_name:"gpt4o"}}
+          // _.merge(mirror, body) DEEP merges extra → ALL 7 fields are sent
+          // focusId: matches Go desktop app (focusId = chatId)
           const sseRequest: Record<string, unknown> = {
-            // Mirror data (from ZCe() + sy.merge — but extra gets overwritten by body)
+            // Mirror data (from ZCe())
             jt: '',
             ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
             js_env: 'h5',
-            // Base chat info (from website's baseChatInfo — focusId is "" not chatId)
+            // Base chat info (from website's baseChatInfo)
             type: 'chat',
             chatType: 'aichat',
             chatTitle: 'Unnamed Session',
             chatId,
-            focusId: '',
+            focusId: chatId,  // Website sets focusId=chatId BEFORE building request
             from: '',
             clientType: 'pc',
             isFirst: true,
@@ -1487,8 +1489,7 @@ function WorkflowDebugTab() {
               attachments: sseAttachments,
             }],
             videoConfig,
-            // Website ONLY sends doc_name + module_name in extra
-            // (mirror's email/vip/reg_ts/deviceID/bid are overwritten by Object.assign)
+            // Extra: only doc_name + module_name (matches Go desktop app)
             extra: {
               doc_name: '',
               module_name: 'gpt4o',

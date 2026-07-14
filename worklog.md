@@ -436,3 +436,48 @@ Stage Summary:
 - FIXED: Both Generate tab and Workflow Debug step now look up aiType from pointCost array (matching UV function)
 - FIXED: Auth step now auto-selects first model + resolution + ratio + duration from model config
 - Files modified: src/lib/store.ts, src/app/page.tsx
+---
+Task ID: 1
+Agent: Main Agent
+Task: Fix step 3 Generate/SSE "200002: params error" by analyzing real website JS bundle
+
+Work Log:
+- Analyzed uploaded screenshots showing Workflow Step Tester stuck at step 3
+- Used agent-browser to navigate to https://www.oreateai.com, set auth cookies, explored UI
+- Downloaded the main JS bundle (index-DX4DGIXl.js, 3.5MB) from the CDN
+- Searched the bundle for the exact SSE request construction code
+
+CRITICAL FINDINGS:
+1. `sy.merge(v, c)` is NOT Object.assign — it's **lodash 4.17.21's `_.merge()`** (deep recursive merge)
+   - `sy = u9.exports` where u9 is lodash 4.17.21
+   - `_.merge` does DEEP merge: objects are recursively merged, not overwritten
+   - This means `extra` field gets ALL 7 keys: {email, vip, reg_ts, deviceID, bid, doc_name, module_name}
+   - Previous analysis incorrectly assumed Object.assign (shallow merge)
+
+2. `focusId` must equal `chatId`, not `""`
+   - Website code: `this.baseChatInfo.focusId===""&&(this.baseChatInfo.focusId=s)` sets focusId=chatId BEFORE building request
+   - Previous analysis incorrectly concluded focusId=""
+
+3. `ZCe()` function returns mirror data:
+   ```js
+   {jt: antiBotToken, ua: navigator.userAgent, js_env: "h5", 
+    extra: {email, vip: String(vipType), reg_ts: createTime, deviceID: cookie("OUID"), bid: cookie("__bid_n")}}
+   ```
+
+4. Full request flow:
+   - body = Object.assign({}, qu(baseChatInfo), reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
+   - body = fre(body) → adds clientType:"pc"
+   - mirror = ZCe() → {jt, ua, js_env, extra:{email,vip,reg_ts,deviceID,bid}}
+   - final = _.merge(mirror, body) → DEEP merge, ALL extra fields preserved
+   - headers: {Content-Type, locale:"en-US", Client-Type:"PC"}
+
+FIXES APPLIED:
+- `src/lib/oreate-client.ts`: Updated buildSSERequest() to include all 7 extra fields + focusId=chatId + vipInfo param
+- `src/app/page.tsx`: Updated inline SSE request (workflow tester case 2) with all 7 extra fields + focusId=chatId
+- `src/app/page.tsx`: Added vipInfo parameter to buildSSERequest call (main generate path)
+
+Stage Summary:
+- Root cause: lodash _.merge (deep merge) was misidentified as Object.assign (shallow merge) in previous sessions
+- This caused extra to only have 2 fields instead of required 7, triggering server validation error 200002
+- focusId was incorrectly set to "" instead of chatId
+- Both issues now fixed in oreate-client.ts and page.tsx

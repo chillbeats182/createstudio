@@ -193,15 +193,11 @@ export function buildMirrorData(cookies: CookieEntry[], userInfo?: Record<string
 }
 
 /**
- * Build a complete SSE request body matching the website's exact format.
- * Verified from live JS bundle (index-DX4DGIXl.js):
- *   1. body = Object.assign({}, baseChatInfo, reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
- *   2. body = fre(body)  →  adds clientType:"pc"
- *   3. mirror = ZCe()  →  {jt, ua, js_env:"h5", extra:{email,vip,reg_ts,deviceID,bid}}
- *   4. final = sy.merge(mirror, body) = Object.assign(mirror, body)
- *      → body's extra OVERWRITES mirror's extra
- *      → final extra = {doc_name:"", module_name:"gpt4o"} ONLY
- *      → focusId = "" in baseChatInfo (not chatId)
+ * Build SSE request body matching Go desktop app (api_client.go).
+ * Go sends: type, chatType, chatTitle, chatId, focusId=chatId, from, clientType, isFirst,
+ *            messages, videoConfig, extra={doc_name:"", module_name:"gpt4o"}
+ * Headers (set in submitSSEGeneration): User-Agent, Accept:"text/event-stream, */*",
+ *   Accept-Language, Referer, Origin, Sec-Fetch-*, Content-Type, Client-Type, locale, Cookie.
  */
 export function buildSSERequest(params: {
   chatId: string;
@@ -210,21 +206,32 @@ export function buildSSERequest(params: {
   videoConfig: Record<string, unknown>;
   cookies: CookieEntry[];
   userInfo?: Record<string, unknown>;
+  vipInfo?: Record<string, unknown>;
 }): Record<string, unknown> {
-  const { chatId, prompt, attachments, videoConfig, cookies } = params;
+  const { chatId, prompt, attachments, videoConfig, cookies, userInfo, vipInfo } = params;
+
+  const getCookieValue = (name: string): string => {
+    const c = cookies.find(c => c.name === name);
+    return c?.value || '';
+  };
+
+  // Mirror data (from ZCe())
+  const email = (userInfo?.email as string) || '';
+  const vipType = (vipInfo?.vipType as number) ?? 0;
+  const createTime = (userInfo?.createTime as number) ?? 0;
 
   return {
-    // Mirror fields (from ZCe() — added by sy.merge, but their extra gets overwritten)
+    // Mirror fields (from ZCe())
     jt: '',
     ua: DEFAULT_HEADERS['User-Agent'],
     js_env: 'h5',
 
-    // Base chat info (from website's baseChatInfo — focusId is "" not chatId)
+    // Base chat info (from website's baseChatInfo)
     type: 'chat',
     chatType: 'aichat',
     chatTitle: 'Unnamed Session',
     chatId,
-    focusId: '',
+    focusId: chatId,  // Website sets focusId=chatId BEFORE building request
     from: '',
 
     // Request data (from fre() — adds clientType)
@@ -237,9 +244,8 @@ export function buildSSERequest(params: {
     }],
     videoConfig,
 
-    // CRITICAL: Website ONLY sends doc_name + module_name in extra.
-    // Mirror's email/vip/reg_ts/deviceID/bid are OVERWRITTEN by Object.assign.
-    // Sending extra fields here causes server "200002: params error".
+    // Extra fields: only doc_name + module_name (matches Go desktop app which works)
+    // The website uses lodash _.merge for mirror+body, but the server only needs these 2.
     extra: {
       doc_name: '',
       module_name: 'gpt4o',
@@ -372,12 +378,19 @@ export async function submitSSEGeneration(
   const body = JSON.stringify(sseRequest);
   const startTime = Date.now();
 
-  // Website's fetchEventSource only sends these headers (verified from live JS bundle)
-  // The browser auto-adds: User-Agent, Accept-Language, Host, Cookie (same-origin)
-  // fetchEventSource auto-adds: Accept: text/event-stream
+  // Headers must match Go desktop app (api_client.go newRequest + SubmitGeneration)
+  // Go sends: User-Agent, Accept, Accept-Language, Referer, Origin, Sec-Fetch-*, Cookie,
+  //          Content-Type (overridden), Accept (overridden to "text/event-stream, */*"), Client-Type, locale
   const headers: Record<string, string> = {
+    'User-Agent': DEFAULT_HEADERS['User-Agent'],
+    'Accept': 'text/event-stream, */*',
+    'Accept-Language': DEFAULT_HEADERS['Accept-Language'],
+    'Referer': DEFAULT_HEADERS['Referer'],
+    'Origin': DEFAULT_HEADERS['Origin'],
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
     'Content-Type': 'application/json',
-    'Accept': 'text/event-stream',
     'Client-Type': 'PC',
     'locale': 'en-US',
     'Cookie': cookieHeader,

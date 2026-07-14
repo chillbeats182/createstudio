@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useRef, useCallback, useEffect } from 'react';
+     4→import { toast } from 'sonner';
+     5→import {
+     6→  Film, CreditCard, LogOut, Upload, X, Play, Loader2, Sparkles,
+     7→  History, ImagePlus, Video, Clock, Zap, Menu, Crown, User,
+     8→  CheckCircle2, XCircle, ChevronRight, Bug, Eye, Activity,
+     9→  ArrowRight, Shield, RotateCcw, Terminal, Send,
+    10→} from 'lucide-react';
+    11→
+    12→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+    13→import { Button } from '@/components/ui/button';
+    14→import { Input } from '@/components/ui/input';
+    15→import { Textarea } from '@/components/ui/textarea';
+    16→import {
+    17→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    18→} from '@/components/ui/select';
+    19→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    20→import { Badge } from '@/components/ui/badge';
+    21→import { Progress } from '@/components/ui/progress';
+    22→import { Separator } from '@/components/ui/separator';
+    23→import { ScrollArea } from '@/components/ui/scroll-area';
+    24→import { Label } from '@/components/ui/label';
+    25→import { Switch } from '@/components/ui/switch';
+    26→import {
+    27→  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+    28→} from '@/components/ui/sheet';
+    29→import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+    30→
+    31→import { useAppStore } from '@/lib/store';
+    32→import type { ModelOption, SceneOption, HistoryItem as HistoryItemType, WorkflowLog } from '@/lib/store';
+    33→import { generateChatID, buildSSERequest, parseCookies } from '@/lib/oreate-client';
+    34→
+    35→// ====================================================================
+    36→//  Helpers
+    37→// ====================================================================
+    38→
+    39→const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+    40→const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'webm'];
+    41→
+    42→function getExt(filename: string): string {
+    43→  const dot = filename.lastIndexOf('.');
+    44→  return dot >= 0 ? filename.substring(dot + 1).toLowerCase() : '';
+    45→}
+    46→
+    47→function getFilenameNoExt(filename: string): string {
+    48→  const dot = filename.lastIndexOf('.');
+    49→  return dot >= 0 ? filename.substring(0, dot) : filename;
+    50→}
+    51→
+    52→function formatJSON(obj: unknown): string {
+    53→  try {
+    54→    return JSON.stringify(obj, null, 2);
+    55→  } catch {
+    56→    return String(obj);
+    57→  }
+    58→}
+    59→
+    60→function timeAgo(ts: number): string {
+    61→  const diff = Date.now() - ts;
+    62→  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    63→  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    64→  return `${Math.floor(diff / 3600000)}h ago`;
+    65→}
+    66→
+    67→// ====================================================================
+    68→//  Main Page
+    69→// ====================================================================
+    70→
+    71→export default function TestCanvas() {
+    72→  const store = useAppStore();
+    73→
+    74→  return (
+    75→    <div className="min-h-screen flex flex-col bg-zinc-950 text-zinc-100">
+    76→      <Header />
+    77→      <div className="flex flex-1 overflow-hidden">
+    78→        {/* Desktop sidebar */}
+    79→        <aside className="hidden lg:block w-72 border-r border-zinc-800 bg-zinc-900/50 p-4 overflow-y-auto flex-shrink-0">
+    80→          <SidebarContent />
+    81→        </aside>
+    82→
+    83→        {/* Main content */}
+    84→        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+    85→          <Tabs value={store.activeTab} onValueChange={store.setActiveTab}>
+    86→            <TabsList className="bg-zinc-900 border border-zinc-800 mb-6">
+    87→              <TabsTrigger value="generate" className="gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+    88→                <Sparkles className="h-4 w-4" />
+    89→                <span className="hidden sm:inline">Generate</span>
+    90→              </TabsTrigger>
+    91→              <TabsTrigger value="debug" className="gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+    92→                <Bug className="h-4 w-4" />
+    93→                <span className="hidden sm:inline">Workflow Debug</span>
+    94→              </TabsTrigger>
+    95→              <TabsTrigger value="history" className="gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white">
+    96→                <History className="h-4 w-4" />
+    97→                <span className="hidden sm:inline">History</span>
+    98→              </TabsTrigger>
+    99→            </TabsList>
+   100→
+   101→            <TabsContent value="generate">
+   102→              <GenerateTab />
+   103→            </TabsContent>
+   104→            <TabsContent value="debug">
+   105→              <WorkflowDebugTab />
+   106→            </TabsContent>
+   107→            <TabsContent value="history">
+   108→              <HistoryTab />
+   109→            </TabsContent>
+   110→          </Tabs>
+   111→        </main>
+   112→      </div>
+   113→    </div>
+   114→  );
+   115→}
+   116→
+   117→// ====================================================================
+   118→//  Header
+   119→// ====================================================================
+   120→
+   121→function Header() {
+   122→  const store = useAppStore();
+   123→
+   124→  return (
+   125→    <header className="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm px-4 py-3 flex items-center justify-between flex-shrink-0">
+   126→      <div className="flex items-center gap-3">
+   127→        {/* Mobile menu */}
+   128→        <Sheet>
+   129→          <SheetTrigger asChild>
+   130→            <Button variant="ghost" size="icon" className="lg:hidden text-zinc-400 hover:text-zinc-100">
+   131→              <Menu className="h-5 w-5" />
+   132→            </Button>
+   133→          </SheetTrigger>
+   134→          <SheetContent side="left" className="bg-zinc-900 border-zinc-800 p-0 w-72">
+   135→            <SheetHeader className="p-4 border-b border-zinc-800">
+   136→              <SheetTitle className="text-zinc-100">OreateAI Studio</SheetTitle>
+   137→            </SheetHeader>
+   138→            <div className="p-4">
+   139→              <SidebarContent />
+   140→            </div>
+   141→          </SheetContent>
+   142→        </Sheet>
+   143→
+   144→        <div className="flex items-center gap-2">
+   145→          <Film className="h-6 w-6 text-emerald-500" />
+   146→          <h1 className="text-lg font-bold text-zinc-100">
+   147→            OreateAI Studio <span className="text-emerald-500">— Test Canvas</span>
+   148→          </h1>
+   149→        </div>
+   150→      </div>
+   151→
+   152→      <div className="flex items-center gap-3">
+   153→        {store.isAuthenticated && (
+   154→          <TooltipProvider>
+   155→            <Tooltip>
+   156→              <TooltipTrigger>
+   157→                <Badge variant="outline" className="border-emerald-700 text-emerald-400 bg-emerald-950/50 gap-1.5">
+   158→                  <Zap className="h-3 w-3" />
+   159→                  {store.restPoint} credits
+   160→                </Badge>
+   161→              </TooltipTrigger>
+   162→              <TooltipContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
+   163→                Remaining generation credits
+   164→              </TooltipContent>
+   165→            </Tooltip>
+   166→          </TooltipProvider>
+   167→        )}
+   168→        {store.isAuthenticated && (
+   169→          <Button
+   170→            variant="ghost"
+   171→            size="sm"
+   172→            className="text-zinc-400 hover:text-red-400"
+   173→            onClick={() => store.reset()}
+   174→          >
+   175→            <LogOut className="h-4 w-4 mr-1" />
+   176→            <span className="hidden sm:inline">Disconnect</span>
+   177→          </Button>
+   178→        )}
+   179→      </div>
+   180→    </header>
+   181→  );
+   182→}
+   183→
+   184→// ====================================================================
+   185→//  Sidebar Content
+   186→// ====================================================================
+   187→
+   188→function SidebarContent() {
+   189→  const store = useAppStore();
+   190→
+   191→  if (!store.isAuthenticated) {
+   192→    return (
+   193→      <div className="space-y-4">
+   194→        <Card className="bg-zinc-900 border-zinc-800">
+   195→          <CardHeader className="pb-3">
+   196→            <CardTitle className="text-sm text-zinc-300">Connect</CardTitle>
+   197→          </CardHeader>
+   198→          <CardContent className="space-y-3">
+   199→            <Textarea
+   200→              placeholder='Paste cookie JSON or "name=value; ..." string'
+   201→              className="bg-zinc-800 border-zinc-700 text-zinc-100 text-xs min-h-[120px] resize-none placeholder:text-zinc-600"
+   202→              value={store.cookie}
+   203→              onChange={(e) => store.setCookie(e.target.value)}
+   204→            />
+   205→            <Button
+   206→              className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
+   207→              onClick={handleConnect}
+   208→              disabled={!store.cookie.trim()}
+   209→            >
+   210→              <Shield className="h-4 w-4 mr-2" />
+   211→              Authenticate
+   212→            </Button>
+   213→          </CardContent>
+   214→        </Card>
+   215→      </div>
+   216→    );
+   217→  }
+   218→
+   219→  return (
+   220→    <div className="space-y-4">
+   221→      {/* User Info */}
+   222→      <Card className="bg-zinc-900 border-zinc-800">
+   223→        <CardHeader className="pb-3">
+   224→          <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   225→            <User className="h-4 w-4" />
+   226→            Account
+   227→          </CardTitle>
+   228→        </CardHeader>
+   229→        <CardContent className="space-y-2">
+   230→          <div className="flex items-center gap-2">
+   231→            {store.userInfo?.avatar ? (
+   232→              <img src={store.userInfo.avatar} alt="" className="w-8 h-8 rounded-full" />
+   233→            ) : (
+   234→              <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center text-xs font-bold text-white">
+   235→                {(store.userInfo?.email || 'U')[0].toUpperCase()}
+   236→              </div>
+   237→            )}
+   238→            <span className="text-sm text-zinc-200 truncate">{store.userInfo?.email || 'Unknown'}</span>
+   239→          </div>
+   240→          {store.vipInfo && store.vipInfo.vipType > 0 && (
+   241→            <Badge className="bg-amber-600 text-white border-0 gap-1">
+   242→              <Crown className="h-3 w-3" /> VIP
+   243→            </Badge>
+   244→          )}
+   245→        </CardContent>
+   246→      </Card>
+   247→
+   248→      {/* Credits */}
+   249→      <Card className="bg-zinc-900 border-zinc-800">
+   250→        <CardHeader className="pb-3">
+   251→          <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   252→            <CreditCard className="h-4 w-4" />
+   253→            Credits
+   254→          </CardTitle>
+   255→        </CardHeader>
+   256→        <CardContent>
+   257→          <div className="text-2xl font-bold text-emerald-400">{store.restPoint}</div>
+   258→          <p className="text-xs text-zinc-500 mt-1">Remaining generation credits</p>
+   259→        </CardContent>
+   260→      </Card>
+   261→    </div>
+   262→  );
+   263→}
+   264→
+   265→async function handleConnect() {
+   266→  const store = useAppStore.getState();
+   267→  if (!store.cookie.trim()) return;
+   268→
+   269→  try {
+   270→    const resp = await fetch('/api/oreate/auth', {
+   271→      method: 'POST',
+   272→      headers: { 'Content-Type': 'application/json' },
+   273→      body: JSON.stringify({ cookie: store.cookie }),
+   274→    });
+   275→    const data = await resp.json();
+   276→
+   277→    if (data.error) {
+   278→      toast.error(`Auth failed: ${data.error}`);
+   279→      return;
+   280→    }
+   281→
+   282→    store.setAuth(data.userInfo, data.vipInfo, data.restPoint);
+   283→    toast.success(`Connected as ${data.userInfo?.email || 'user'}`);
+   284→
+   285→    // Fetch models
+   286→    const modelResp = await fetch('/api/oreate/models', {
+   287→      method: 'POST',
+   288→      headers: { 'Content-Type': 'application/json' },
+   289→      body: JSON.stringify({ cookie: store.cookie }),
+   290→    });
+   291→    const modelData = await modelResp.json();
+   292→    if (modelData.success) {
+   293→      store.setModels(modelData.models, modelData.scenes);
+   294→      // Auto-select first available model + resolution + ratio (website's _ensureDefaultMode + _reconcile)
+   295→      const models = modelData.models || [];
+   296→      const scenes = modelData.scenes || [];
+   297→      if (models.length > 0) {
+   298→        const firstModel = models[0];
+   299→        store.setModel(firstModel.modelName);
+   300→        // Set resolution from model's videoResolution (website defaults to first available)
+   301→        if (firstModel.videoResolution?.length > 0) {
+   302→          store.setResolution(firstModel.videoResolution[0]);
+   303→        }
+   304→        // Set ratio from model's videoSize (website defaults to first available)
+   305→        if (firstModel.videoSize?.length > 0) {
+   306→          store.setVideoSize(firstModel.videoSize[0].ratio);
+   307→        }
+   308→        // Set duration from model's duration (website defaults to first available)
+   309→        if (firstModel.duration?.length > 0) {
+   310→          store.setDuration(firstModel.duration[0].value);
+   311→        }
+   312→      }
+   313→    }
+   314→  } catch (err) {
+   315→    toast.error('Connection failed');
+   316→  }
+   317→}
+   318→
+   319→// ====================================================================
+   320→//  Generate Tab
+   321→// ====================================================================
+   322→
+   323→function GenerateTab() {
+   324→  const store = useAppStore();
+   325→  const imageInputRef = useRef<HTMLInputElement>(null);
+   326→  const videoInputRef = useRef<HTMLInputElement>(null);
+   327→  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>('');
+   328→  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
+   329→  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   330→
+   331→  const scene = store.selectedSceneId;
+   332→  const isMotion = scene === 'motion';
+   333→  const needsImage = true; // all scenes need at least an image
+   334→  const needsVideo = isMotion;
+   335→
+   336→  // Find available models from scenes
+   337→  const availableModels: string[] = [];
+   338→  for (const s of store.scenes) {
+   339→    if (s.sceneId === scene) {
+   340→      for (const f of s.factory) {
+   341→        for (const m of f.models) {
+   342→          if (!availableModels.includes(m.modelName)) {
+   343→            availableModels.push(m.modelName);
+   344→          }
+   345→        }
+   346→      }
+   347→    }
+   348→  }
+   349→
+   350→  // Find point costs for current model/scene
+   351→  const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+   352→  let pointCost = 0;
+   353→  if (currentModel) {
+   354→    const costs = isMotion ? currentModel.pointCostMotion : scene === 'reference' ? currentModel.pointCostReference : currentModel.pointCostImage;
+   355→    const match = costs?.find(
+   356→      (c) =>
+   357→        (isMotion ? c.motDuration === parseInt(store.motDuration) : c.duration === store.selectedDuration) &&
+   358→        c.resolution === store.selectedResolution
+   359→    );
+   360→    pointCost = match?.point ?? 0;
+   361→  }
+   362→
+   363→  const canGenerate = store.isAuthenticated && store.imageFile && !store.isGenerating && store.restPoint >= pointCost;
+   364→
+   365→  const handleGenerate = async () => {
+   366→    if (!canGenerate || !store.imageFile) return;
+   367→
+   368→    store.setGenerating(true);
+   369→    store.setTaskProgress(0);
+   370→    store.setTaskStatus('uploading');
+   371→    store.setTaskVideoUrl(null);
+   372→    store.setTaskId(null);
+   373→
+   374→    try {
+   375→      // Step 1: Get upload token
+   376→      store.setTaskStatus('uploading');
+   377→      const filesToUpload: Array<{ filename: string; fileExt: string; size: number; file: File }> = [];
+   378→
+   379→      const imageNoExt = getFilenameNoExt(store.imageFile.name);
+   380→      const imageExt = getExt(store.imageFile.name);
+   381→      filesToUpload.push({ filename: imageNoExt, fileExt: imageExt, size: store.imageFile.size, file: store.imageFile });
+   382→
+   383→      if (store.videoFile) {
+   384→        const videoNoExt = getFilenameNoExt(store.videoFile.name);
+   385→        const videoExt = getExt(store.videoFile.name);
+   386→        filesToUpload.push({ filename: videoNoExt, fileExt: videoExt, size: store.videoFile.size, file: store.videoFile });
+   387→      }
+   388→
+   389→      const tokenResp = await fetch('/api/oreate/upload-token', {
+   390→        method: 'POST',
+   391→        headers: { 'Content-Type': 'application/json' },
+   392→        body: JSON.stringify({
+   393→          cookie: store.cookie,
+   394→          files: filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })),
+   395→        }),
+   396→      });
+   397→      const tokenData = await tokenResp.json();
+   398→
+   399→      if (tokenData.error || !tokenData.KeyList) {
+   400→        toast.error(`Upload token failed: ${tokenData.error || 'No KeyList'}`);
+   401→        store.setGenerating(false);
+   402→        store.setTaskStatus('idle');
+   403→        return;
+   404→      }
+   405→
+   406→      // Step 2: Upload files to GCS
+   407→      store.setTaskStatus('uploading');
+   408→      const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList;
+   409→      const uploadedUrls: string[] = [];
+   410→      const keys = Object.keys(keyList);
+   411→
+   412→      for (let i = 0; i < filesToUpload.length; i++) {
+   413→        const f = filesToUpload[i];
+   414→        // Match credential
+   415→        let matchedKey = keys.find((k) => k === f.filename || k === f.file || k.toLowerCase() === f.filename.toLowerCase());
+   416→        if (matchedKey === undefined && keys.length === 1) matchedKey = keys[0];
+   417→        if (matchedKey === undefined && i < keys.length) matchedKey = keys[i];
+   418→
+   419→        if (!matchedKey || !keyList[matchedKey]) {
+   420→          toast.error(`No upload credential for ${f.filename}`);
+   421→          store.setGenerating(false);
+   422→          store.setTaskStatus('idle');
+   423→          return;
+   424→        }
+   425→
+   426→        const cred = keyList[matchedKey];
+   427→        const formData = new FormData();
+   428→        formData.append('file', f.file);
+   429→        formData.append('bucket', cred.bucket);
+   430→        formData.append('objectPath', cred.objectPath);
+   431→        formData.append('sessionkey', cred.sessionkey);
+   432→
+   433→        const uploadResp = await fetch('/api/oreate/upload-file', {
+   434→          method: 'POST',
+   435→          body: formData,
+   436→        });
+   437→        const uploadData = await uploadResp.json();
+   438→
+   439→        if (!uploadData.success || !uploadData.url) {
+   440→          toast.error(`Upload failed: ${uploadData.error || 'Unknown'}`);
+   441→          store.setGenerating(false);
+   442→          store.setTaskStatus('idle');
+   443→          return;
+   444→        }
+   445→        uploadedUrls.push(uploadData.url);
+   446→      }
+   447→
+   448→      // Build URLs
+   449→      let imageUrl = uploadedUrls[0] || '';
+   450→      let videoUrl = '';
+   451→      if (isMotion && uploadedUrls.length > 1) {
+   452→        // For motion: video first, then image
+   453→        const imgIdx = filesToUpload.findIndex((f) => IMAGE_EXTS.includes(getExt(f.file.name)));
+   454→        const vidIdx = filesToUpload.findIndex((f) => VIDEO_EXTS.includes(getExt(f.file.name)));
+   455→        if (vidIdx >= 0 && imgIdx >= 0) {
+   456→          videoUrl = uploadedUrls[vidIdx];
+   457→          imageUrl = uploadedUrls[imgIdx];
+   458→        } else {
+   459→          imageUrl = uploadedUrls[0];
+   460→          videoUrl = uploadedUrls[1] || '';
+   461→        }
+   462→      }
+   463→
+   464→      setUploadedImageUrl(imageUrl);
+   465→      setUploadedVideoUrl(videoUrl);
+   466→
+   467→      // Step 3: Build SSE request
+   468→      store.setTaskStatus('generating');
+   469→      const chatId = generateChatID();
+   470→
+   471→      // Build attachments (matches website's nke() — NO videoDurationSec when 0)
+   472→      const attachments: Array<Record<string, unknown>> = [];
+   473→      if (isMotion && videoUrl) {
+   474→        attachments.push({
+   475→          bos_url: videoUrl,
+   476→          bosUrl: videoUrl,
+   477→          docId: '',
+   478→          doc_title: getFilenameNoExt(store.videoFile?.name || ''),
+   479→          doc_type: getExt(store.videoFile?.name || ''),
+   480→          size: store.videoFile?.size || 0,
+   481→          flag: 'upload',
+   482→          type: 'file',
+   483→          status: 1,
+   484→        });
+   485→      }
+   486→      attachments.push({
+   487→        bos_url: imageUrl,
+   488→        bosUrl: imageUrl,
+   489→        docId: '',
+   490→        doc_title: imageNoExt,
+   491→        doc_type: imageExt,
+   492→        size: store.imageFile.size,
+   493→        flag: 'upload',
+   494→        type: 'file',
+   495→        status: 1,
+   496→      });
+   497→
+   498→      // Build videoConfig (matches website's getVideoConfig EXACTLY)
+   499→      // Website's _reconcile(): aiType from UV(pointCost, {resolution, duration, audio})
+   500→      const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+   501→      const isMot = scene === 'motion';
+   502→      const isRef = scene === 'reference';
+   503→      const costs = isMot
+   504→        ? (currentModel?.pointCostMotion || [])
+   505→        : isRef
+   506→          ? (currentModel?.pointCostReference || [])
+   507→          : (currentModel?.pointCostImage || []);
+   508→      const genDuration = Number(store.selectedDuration) || 5;
+   509→      const genResolution = store.selectedResolution || '';
+   510→      const matchedCost = costs.find((c: {resolution?:string;duration?:number}) => {
+   511→        const resOk = !c.resolution || c.resolution === genResolution;
+   512→        const durOk = c.duration === undefined || c.duration === genDuration;
+   513→        return resOk && durOk;
+   514→      });
+   515→      const genAiType = matchedCost?.aiType ?? 0;
+   516→
+   517→      const hasDur = !!(currentModel?.duration && currentModel.duration.length > 0);
+   518→      const videoConfig: Record<string, unknown> = {
+   519→        modelName: store.selectedModelName,
+   520→        ratio: store.selectedVideoSize || '',
+   521→        resolution: genResolution,
+   522→        isAudio: false,
+   523→        aiType: genAiType,
+   524→        scene: store.selectedSceneId,
+   525→        // duration: only included when model supports it (website: ...K8(durations) ? {duration} : {})
+   526→        ...(hasDur ? { duration: genDuration } : {}),
+   527→      };
+   528→
+   529→      if (scene === 'text_or_image') {
+   530→        videoConfig.textOrImage = { image: imageUrl };
+   531→      } else if (scene === 'motion') {
+   532→        let motDurVal: number | string = '';
+   533→        if (store.motDuration) {
+   534→          const n = parseInt(store.motDuration);
+   535→          motDurVal = isNaN(n) ? '' : n;
+   536→        }
+   537→        videoConfig.motion = {
+   538→          characterImage: imageUrl,
+   539→          motionVideo: videoUrl,
+   540→          motDuration: motDurVal,
+   541→          keepOriginalSound: store.keepOriginalSound,
+   542→        };
+   543→      } else if (scene === 'reference') {
+   544→        const refImages: string[] = [];
+   545→        const refVideos: string[] = [];
+   546→        if (IMAGE_EXTS.includes(getExt(store.imageFile.name))) refImages.push(imageUrl);
+   547→        if (videoUrl && VIDEO_EXTS.includes(getExt(store.videoFile?.name || ''))) refVideos.push(videoUrl);
+   548→        videoConfig.reference = {
+   549→          referenceImages: refImages,
+   550→          referenceVideos: refVideos,
+   551→          refDuration: '',
+   552→          refTotalDuration: '',
+   553→          keepOriginalSound: store.keepOriginalSound,
+   554→        };
+   555→      } else if (scene === 'frame_based') {
+   556→        videoConfig.frameBased = { firstFrame: imageUrl, lastFrame: '' };
+   557→      }
+   558→
+   559→      const cookies = parseCookies(store.cookie);
+   560→      const sseRequest = buildSSERequest({
+   561→        chatId,
+   562→        prompt: store.prompt || '',
+   563→        attachments: attachments as Array<Record<string, unknown>>,
+   564→        videoConfig: videoConfig as unknown as Record<string, unknown>,
+   565→        cookies,
+   566→        userInfo: store.userInfo as Record<string, unknown> | undefined,
+   567→      });
+   568→
+   569→      // Step 4: Submit generation
+   570→      const genResp = await fetch('/api/oreate/generate', {
+   571→        method: 'POST',
+   572→        headers: { 'Content-Type': 'application/json' },
+   573→        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
+   574→      });
+   575→      const genData = await genResp.json();
+   576→
+   577→      if (!genData.success) {
+   578→        toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
+   579→        store.setGenerating(false);
+   580→        store.setTaskStatus('idle');
+   581→        return;
+   582→      }
+   583→
+   584→      const docId = genData.docId || genData.chatId;
+   585→      if (!docId) {
+   586→        toast.error('No docId returned from generation');
+   587→        store.setGenerating(false);
+   588→        store.setTaskStatus('idle');
+   589→        return;
+   590→      }
+   591→
+   592→      store.setTaskId(docId);
+   593→      store.setTaskStatus('polling');
+   594→      toast.success('Generation submitted, polling...');
+   595→
+   596→      // Step 5: Poll for completion
+   597→      let pollCount = 0;
+   598→      const maxPolls = 120;
+   599→
+   600→      pollRef.current = setInterval(async () => {
+   601→        pollCount++;
+   602→        if (pollCount > maxPolls) {
+   603→          if (pollRef.current) clearInterval(pollRef.current);
+   604→          store.setGenerating(false);
+   605→          store.setTaskStatus('timeout');
+   606→          toast.error('Generation timed out');
+   607→          return;
+   608→        }
+   609→
+   610→        try {
+   611→          const statusResp = await fetch('/api/oreate/task-status', {
+   612→            method: 'POST',
+   613→            headers: { 'Content-Type': 'application/json' },
+   614→            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
+   615→          });
+   616→          const statusData = await statusResp.json();
+   617→
+   618→          const progress = (statusData.progress as number) ?? 0;
+   619→          const videoUrl2 = (statusData.videoUrl as string) || '';
+   620→          const docStatus = (statusData.status as number) ?? -1;
+   621→
+   622→          store.setTaskProgress(Math.min(progress, 100));
+   623→
+   624→          // Status: 0=pending, 1=processing, 2=complete, 3=failed
+   625→          if (docStatus === 2 || (videoUrl2 && videoUrl2.startsWith('http'))) {
+   626→            if (pollRef.current) clearInterval(pollRef.current);
+   627→            store.setTaskProgress(100);
+   628→            store.setTaskVideoUrl(videoUrl2);
+   629→            store.setTaskStatus('complete');
+   630→            store.setGenerating(false);
+   631→            toast.success('Video generated!');
+   632→            return;
+   633→          }
+   634→
+   635→          if (docStatus === 3) {
+   636→            if (pollRef.current) clearInterval(pollRef.current);
+   637→            store.setTaskStatus('failed');
+   638→            store.setGenerating(false);
+   639→            toast.error('Generation failed on server');
+   640→            return;
+   641→          }
+   642→
+   643→          // Still processing
+   644→          store.setTaskProgress(Math.max(progress, Math.min(pollCount * 2, 95)));
+   645→        } catch {
+   646→          // continue polling
+   647→        }
+   648→      }, 3000);
+   649→    } catch (err) {
+   650→      store.setGenerating(false);
+   651→      store.setTaskStatus('idle');
+   652→      toast.error('Generation failed');
+   653→    }
+   654→  };
+   655→
+   656→  // Cleanup polling on unmount
+   657→  useEffect(() => {
+   658→    return () => {
+   659→      if (pollRef.current) clearInterval(pollRef.current);
+   660→    };
+   661→  }, []);
+   662→
+   663→  if (!store.isAuthenticated) {
+   664→    return (
+   665→      <Card className="bg-zinc-900 border-zinc-800 max-w-lg mx-auto mt-20">
+   666→        <CardHeader className="text-center">
+   667→          <Film className="h-12 w-12 text-emerald-500 mx-auto mb-2" />
+   668→          <CardTitle className="text-zinc-100">OreateAI Studio — Test Canvas</CardTitle>
+   669→          <CardDescription className="text-zinc-400">
+   670→            Connect with your OreateAI cookies to start testing
+   671→          </CardDescription>
+   672→        </CardHeader>
+   673→      </Card>
+   674→    );
+   675→  }
+   676→
+   677→  return (
+   678→    <div className="max-w-4xl mx-auto space-y-6">
+   679→      {/* Scene Selector */}
+   680→      <Card className="bg-zinc-900 border-zinc-800">
+   681→        <CardHeader className="pb-3">
+   682→          <CardTitle className="text-sm text-zinc-300">Scene</CardTitle>
+   683→        </CardHeader>
+   684→        <CardContent>
+   685→          <div className="flex gap-2 flex-wrap">
+   686→            {[
+   687→              { id: 'text_or_image', label: 'Text or Image' },
+   688→              { id: 'motion', label: 'Motion' },
+   689→              { id: 'reference', label: 'Reference' },
+   690→            ].map((s) => (
+   691→              <Button
+   692→                key={s.id}
+   693→                variant={store.selectedSceneId === s.id ? 'default' : 'outline'}
+   694→                size="sm"
+   695→                className={
+   696→                  store.selectedSceneId === s.id
+   697→                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   698→                    : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   699→                }
+   700→                onClick={() => {
+   701→                  store.setScene(s.id);
+   702→                  // Reset file selections on scene change
+   703→                  setUploadedImageUrl('');
+   704→                  setUploadedVideoUrl('');
+   705→                }}
+   706→              >
+   707→                {s.label}
+   708→              </Button>
+   709→            ))}
+   710→          </div>
+   711→        </CardContent>
+   712→      </Card>
+   713→
+   714→      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   715→        {/* Model Selector */}
+   716→        <Card className="bg-zinc-900 border-zinc-800">
+   717→          <CardHeader className="pb-3">
+   718→            <CardTitle className="text-sm text-zinc-300">Model</CardTitle>
+   719→          </CardHeader>
+   720→          <CardContent>
+   721→            <Select value={store.selectedModelName} onValueChange={(v) => {
+   722→              store.setModel(v);
+   723→              // Auto-update aiType
+   724→              const model = store.models.find((m) => m.modelName === v);
+   725→              if (model) {
+   726→                const costs = isMotion ? model.pointCostMotion : scene === 'reference' ? model.pointCostReference : model.pointCostImage;
+   727→                const match = costs?.find((c) => c.resolution === store.selectedResolution);
+   728→                if (match) store.setAiType(match.aiType);
+   729→              }
+   730→            }}>
+   731→              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+   732→                <SelectValue />
+   733→              </SelectTrigger>
+   734→              <SelectContent className="bg-zinc-800 border-zinc-700">
+   735→                {availableModels.length > 0
+   736→                  ? availableModels.map((m) => (
+   737→                      <SelectItem key={m} value={m} className="text-zinc-100 focus:bg-zinc-700">{m}</SelectItem>
+   738→                    ))
+   739→                  : store.models.map((m) => (
+   740→                      <SelectItem key={m.modelName} value={m.modelName} className="text-zinc-100 focus:bg-zinc-700">{m.modelName}</SelectItem>
+   741→                    ))}
+   742→              </SelectContent>
+   743→            </Select>
+   744→          </CardContent>
+   745→        </Card>
+   746→
+   747→        {/* Duration */}
+   748→        <Card className="bg-zinc-900 border-zinc-800">
+   749→          <CardHeader className="pb-3">
+   750→            <CardTitle className="text-sm text-zinc-300">Duration</CardTitle>
+   751→          </CardHeader>
+   752→          <CardContent>
+   753→            <div className="flex gap-2">
+   754→              {(currentModel?.duration || [{ icon: '5s', value: 5 }, { icon: '10s', value: 10 }]).map((d) => (
+   755→                <Button
+   756→                  key={d.value}
+   757→                  variant={store.selectedDuration === d.value ? 'default' : 'outline'}
+   758→                  size="sm"
+   759→                  className={
+   760→                    store.selectedDuration === d.value
+   761→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   762→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   763→                  }
+   764→                  onClick={() => store.setDuration(d.value)}
+   765→                >
+   766→                  {d.icon || `${d.value}s`}
+   767→                </Button>
+   768→              ))}
+   769→            </div>
+   770→          </CardContent>
+   771→        </Card>
+   772→
+   773→        {/* Resolution */}
+   774→        <Card className="bg-zinc-900 border-zinc-800">
+   775→          <CardHeader className="pb-3">
+   776→            <CardTitle className="text-sm text-zinc-300">Resolution</CardTitle>
+   777→          </CardHeader>
+   778→          <CardContent>
+   779→            <div className="flex gap-2">
+   780→              {(currentModel?.videoResolution || ['720', '1080']).map((r) => (
+   781→                <Button
+   782→                  key={r}
+   783→                  variant={store.selectedResolution === r ? 'default' : 'outline'}
+   784→                  size="sm"
+   785→                  className={
+   786→                    store.selectedResolution === r
+   787→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   788→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   789→                  }
+   790→                  onClick={() => store.setResolution(r)}
+   791→                >
+   792→                  {r}p
+   793→                </Button>
+   794→              ))}
+   795→            </div>
+   796→          </CardContent>
+   797→        </Card>
+   798→
+   799→        {/* Video Size */}
+   800→        <Card className="bg-zinc-900 border-zinc-800">
+   801→          <CardHeader className="pb-3">
+   802→            <CardTitle className="text-sm text-zinc-300">Video Size</CardTitle>
+   803→          </CardHeader>
+   804→          <CardContent>
+   805→            <div className="flex gap-2">
+   806→              {(currentModel?.videoSize || [{ icon: '1:1', ratio: '1:1' }, { icon: '16:9', ratio: '16:9' }, { icon: '9:16', ratio: '9:16' }]).map((s) => (
+   807→                <Button
+   808→                  key={s.ratio}
+   809→                  variant={store.selectedVideoSize === s.ratio ? 'default' : 'outline'}
+   810→                  size="sm"
+   811→                  className={
+   812→                    store.selectedVideoSize === s.ratio
+   813→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   814→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   815→                  }
+   816→                  onClick={() => store.setVideoSize(s.ratio)}
+   817→                >
+   818→                  {s.icon || s.ratio}
+   819→                </Button>
+   820→              ))}
+   821→            </div>
+   822→          </CardContent>
+   823→        </Card>
+   824→      </div>
+   825→
+   826→      {/* Motion-specific options */}
+   827→      {isMotion && (
+   828→        <Card className="bg-zinc-900 border-zinc-800">
+   829→          <CardHeader className="pb-3">
+   830→            <CardTitle className="text-sm text-zinc-300">Motion Options</CardTitle>
+   831→          </CardHeader>
+   832→          <CardContent className="space-y-4">
+   833→            <div>
+   834→              <Label className="text-zinc-400 text-xs">Motion Duration</Label>
+   835→              <div className="flex gap-2 mt-1">
+   836→                {['3', '4', '5'].map((d) => (
+   837→                  <Button
+   838→                    key={d}
+   839→                    variant={store.motDuration === d ? 'default' : 'outline'}
+   840→                    size="sm"
+   841→                    className={
+   842→                      store.motDuration === d
+   843→                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   844→                        : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   845→                    }
+   846→                    onClick={() => store.setMotDuration(d)}
+   847→                  >
+   848→                    {d}s
+   849→                  </Button>
+   850→                ))}
+   851→              </div>
+   852→            </div>
+   853→            <div className="flex items-center justify-between">
+   854→              <Label className="text-zinc-400 text-sm">Keep Original Sound</Label>
+   855→              <Switch
+   856→                checked={store.keepOriginalSound}
+   857→                onCheckedChange={store.setKeepOriginalSound}
+   858→                className="data-[state=checked]:bg-emerald-600"
+   859→              />
+   860→            </div>
+   861→          </CardContent>
+   862→        </Card>
+   863→      )}
+   864→
+   865→      {/* File Uploads */}
+   866→      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   867→        {/* Image Upload */}
+   868→        <Card className="bg-zinc-900 border-zinc-800">
+   869→          <CardHeader className="pb-3">
+   870→            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   871→              <ImagePlus className="h-4 w-4" /> Image Upload
+   872→            </CardTitle>
+   873→          </CardHeader>
+   874→          <CardContent>
+   875→            <input
+   876→              ref={imageInputRef}
+   877→              type="file"
+   878→              accept="image/*"
+   879→              className="hidden"
+   880→              onChange={(e) => {
+   881→                const file = e.target.files?.[0] || null;
+   882→                if (file) {
+   883→                  const url = URL.createObjectURL(file);
+   884→                  store.setImageFile(file, url);
+   885→                }
+   886→              }}
+   887→            />
+   888→            {store.imagePreview ? (
+   889→              <div className="relative group">
+   890→                <img src={store.imagePreview} alt="Preview" className="w-full h-40 object-cover rounded-md border border-zinc-700" />
+   891→                <Button
+   892→                  variant="destructive"
+   893→                  size="icon"
+   894→                  className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+   895→                  onClick={() => {
+   896→                    store.setImageFile(null, null);
+   897→                    setUploadedImageUrl('');
+   898→                  }}
+   899→                >
+   900→                  <X className="h-3 w-3" />
+   901→                </Button>
+   902→              </div>
+   903→            ) : (
+   904→              <button
+   905→                className="w-full h-32 border-2 border-dashed border-zinc-700 rounded-md flex flex-col items-center justify-center gap-2 text-zinc-500 hover:border-emerald-600 hover:text-emerald-500 transition-colors cursor-pointer"
+   906→                onClick={() => imageInputRef.current?.click()}
+   907→              >
+   908→                <Upload className="h-6 w-6" />
+   909→                <span className="text-xs">Drop image or click</span>
+   910→              </button>
+   911→            )}
+   912→          </CardContent>
+   913→        </Card>
+   914→
+   915→        {/* Video Upload (motion only) */}
+   916→        {isMotion && (
+   917→          <Card className="bg-zinc-900 border-zinc-800">
+   918→            <CardHeader className="pb-3">
+   919→              <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   920→                <Video className="h-4 w-4" /> Video Upload (Motion)
+   921→              </CardTitle>
+   922→            </CardHeader>
+   923→            <CardContent>
+   924→              <input
+   925→                ref={videoInputRef}
+   926→                type="file"
+   927→                accept="video/*"
+   928→                className="hidden"
+   929→                onChange={(e) => {
+   930→                  const file = e.target.files?.[0] || null;
+   931→                  if (file) {
+   932→                    const url = URL.createObjectURL(file);
+   933→                    store.setVideoFile(file, url);
+   934→                  }
+   935→                }}
+   936→              />
+   937→              {store.videoPreview ? (
+   938→                <div className="relative group">
+   939→                  <video src={store.videoPreview} className="w-full h-40 object-cover rounded-md border border-zinc-700" muted />
+   940→                  <Button
+   941→                    variant="destructive"
+   942→                    size="icon"
+   943→                    className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+   944→                    onClick={() => {
+   945→                      store.setVideoFile(null, null);
+   946→                      setUploadedVideoUrl('');
+   947→                    }}
+   948→                  >
+   949→                    <X className="h-3 w-3" />
+   950→                  </Button>
+   951→                </div>
+   952→              ) : (
+   953→                <button
+   954→                  className="w-full h-32 border-2 border-dashed border-zinc-700 rounded-md flex flex-col items-center justify-center gap-2 text-zinc-500 hover:border-emerald-600 hover:text-emerald-500 transition-colors cursor-pointer"
+   955→                  onClick={() => videoInputRef.current?.click()}
+   956→                >
+   957→                  <Video className="h-6 w-6" />
+   958→                  <span className="text-xs">Drop video or click</span>
+   959→                </button>
+   960→              )}
+   961→            </CardContent>
+   962→          </Card>
+   963→        )}
+   964→      </div>
+   965→
+   966→      {/* Prompt */}
+   967→      <Card className="bg-zinc-900 border-zinc-800">
+   968→        <CardHeader className="pb-3">
+   969→          <CardTitle className="text-sm text-zinc-300">Prompt</CardTitle>
+   970→        </CardHeader>
+   971→        <CardContent>
+   972→          <Textarea
+   973→            placeholder="Describe the video you want to generate..."
+   974→            className="bg-zinc-800 border-zinc-700 text-zinc-100 min-h-[80px] resize-none placeholder:text-zinc-600"
+   975→            value={store.prompt}
+   976→            onChange={(e) => store.setPrompt(e.target.value)}
+   977→          />
+   978→        </CardContent>
+   979→      </Card>
+   980→
+   981→      {/* Cost & Generate */}
+   982→      <div className="flex items-center justify-between gap-4">
+   983→        <div className="text-sm text-zinc-400">
+   984→          Cost: <span className="text-emerald-400 font-bold">{pointCost}</span> credits
+   985→          {store.restPoint < pointCost && (
+   986→            <span className="text-red-400 ml-2">(Insufficient credits)</span>
+   987→          )}
+   988→        </div>
+   989→        <Button
+   990→          size="lg"
+   991→          className="bg-emerald-600 hover:bg-emerald-700 text-white px-8"
+   992→          disabled={!canGenerate}
+   993→          onClick={handleGenerate}
+   994→        >
+   995→          {store.isGenerating ? (
+   996→            <>
+   997→              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+   998→              {store.taskStatus === 'uploading' ? 'Uploading...' : store.taskStatus === 'generating' ? 'Generating...' : 'Processing...'}
+   999→            </>
+  1000→          ) : (
+  1001→            <>
+  1002→              <Sparkles className="h-4 w-4 mr-2" />
+  1003→              Generate
+  1004→            </>
+  1005→          )}
+  1006→        </Button>
+  1007→      </div>
+  1008→
+  1009→      {/* Progress */}
+  1010→      {store.isGenerating && (
+  1011→        <Card className="bg-zinc-900 border-zinc-800">
+  1012→          <CardContent className="pt-6 space-y-3">
+  1013→            <div className="flex justify-between text-sm">
+  1014→              <span className="text-zinc-400 capitalize">{store.taskStatus}</span>
+  1015→              <span className="text-emerald-400">{store.taskProgress}%</span>
+  1016→            </div>
+  1017→            <Progress value={store.taskProgress} className="h-2 bg-zinc-800 [&>div]:bg-emerald-500" />
+  1018→          </CardContent>
+  1019→        </Card>
+  1020→      )}
+  1021→
+  1022→      {/* Video Player */}
+  1023→      {store.taskVideoUrl && (
+  1024→        <Card className="bg-zinc-900 border-zinc-800">
+  1025→          <CardHeader className="pb-3">
+  1026→            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+  1027→              <Play className="h-4 w-4 text-emerald-500" /> Generated Video
+  1028→            </CardTitle>
+  1029→          </CardHeader>
+  1030→          <CardContent>
+  1031→            <video
+  1032→              src={store.taskVideoUrl}
+  1033→              controls
+  1034→              className="w-full rounded-md border border-zinc-700"
+  1035→            />
+  1036→          </CardContent>
+  1037→        </Card>
+  1038→      )}
+  1039→    </div>
+  1040→  );
+  1041→}
+  1042→
+  1043→// ====================================================================
+  1044→//  Workflow Debug Tab
+  1045→// ====================================================================
+  1046→
+  1047→function WorkflowDebugTab() {
+  1048→  const store = useAppStore();
+  1049→  const [activeStep, setActiveStep] = useState(0);
+  1050→  const [stepResults, setStepResults] = useState<Record<number, { success: boolean; data: unknown; duration: number }>>({});
+  1051→  const [runningStep, setRunningStep] = useState<number | null>(null);
+  1052→  const [runningAll, setRunningAll] = useState(false);
+  1053→
+  1054→  // --- File inputs for debug workflow (independent from Generate tab) ---
+  1055→  const [debugImageFile, setDebugImageFile] = useState<File | null>(null);
+  1056→  const [debugImagePreview, setDebugImagePreview] = useState<string | null>(null);
+  1057→  const [debugVideoFile, setDebugVideoFile] = useState<File | null>(null);
+  1058→  const [debugVideoPreview, setDebugVideoPreview] = useState<string | null>(null);
+  1059→  const imageInputRef = useRef<HTMLInputElement>(null);
+  1060→  const videoInputRef = useRef<HTMLInputElement>(null);
+  1061→
+  1062→  // --- Chained data between steps ---
+  1063→  // Upload step stores uploaded file info here so Generate step can use it
+  1064→  const uploadedAttachmentsRef = useRef<Array<{
+  1065→    bos_url: string;
+  1066→    doc_title: string;
+  1067→    doc_type: string;
+  1068→    size: number;
+  1069→    fileRole: 'image' | 'video';
+  1070→  }>>([]);
+  1071→  // Generate step stores docId here so Poll step can use it
+  1072→  const generatedDocIdRef = useRef<string>('');
+  1073→
+  1074→  const steps = [
+  1075→    { id: 'auth', label: 'Auth', desc: 'Test cookie & fetch user info + models' },
+  1076→    { id: 'upload', label: 'Upload', desc: 'Upload token + GCS direct PUT' },
+  1077→    { id: 'generate', label: 'Generate', desc: 'Submit SSE stream request' },
+  1078→    { id: 'poll', label: 'Poll', desc: 'Poll task status until complete' },
+  1079→  ];
+  1080→
+  1081→  // Helper: get sessionkey from credential (handle both casings)
+  1082→  const getSessionKey = (cred: Record<string, unknown>): string => {
+  1083→    return (cred.sessionkey as string) || (cred.sessionKey as string) || (cred.accessToken as string) || '';
+  1084→  };
+  1085→
+  1086→  // Helper: upload a single file to GCS and return bos_url
+  1087→  const uploadOneFile = async (
+  1088→    file: File,
+  1089→    logIdBase: string,
+  1090→    stepLog: (log: Parameters<typeof store.addWorkflowLog>[0]) => void,
+  1091→  ): Promise<{ bosUrl: string; docTitle: string; docType: string; size: number; fileRole: 'image' | 'video' } | null> => {
+  1092→    const fileNoExt = getFilenameNoExt(file.name);
+  1093→    const fileExt = getExt(file.name);
+  1094→    const isImage = IMAGE_EXTS.includes(fileExt);
+  1095→    const isVideo = VIDEO_EXTS.includes(fileExt);
+  1096→
+  1097→    // 1) Get upload token
+  1098→    const tokenResp = await fetch('/api/oreate/upload-token', {
+  1099→      method: 'POST',
+  1100→      headers: { 'Content-Type': 'application/json' },
+  1101→      body: JSON.stringify({
+  1102→        cookie: store.cookie,
+  1103→        files: [{ filename: fileNoExt, fileExt, size: file.size }],
+  1104→      }),
+  1105→    });
+  1106→    const tokenData = await tokenResp.json();
+  1107→
+  1108→    stepLog({
+  1109→      id: `${logIdBase}-token`,
+  1110→      step: 'upload',
+  1111→      action: `POST /oreate/convert/getuploadbostoken (${file.name})`,
+  1112→      request: { url: '/api/oreate/upload-token', method: 'POST', body: formatJSON({ cookie: '...', files: [{ filename: fileNoExt, fileExt, size: file.size }] }) },
+  1113→      response: { status: tokenResp.status, body: formatJSON(tokenData), timing: 0 },
+  1114→      success: !!tokenData.success && !!tokenData.KeyList,
+  1115→      error: tokenData.error,
+  1116→      timestamp: Date.now(),
+  1117→    });
+  1118→
+  1119→    if (!tokenData.success || !tokenData.KeyList) {
+  1120→      toast.error(`Upload token failed for ${file.name}: ${tokenData.error}`);
+  1121→      return null;
+  1122→    }
+  1123→
+  1124→    // Find credential
+  1125→    const keys = Object.keys(tokenData.KeyList);
+  1126→    if (keys.length === 0) {
+  1127→      toast.error(`No upload credential returned for ${file.name}`);
+  1128→      return null;
+  1129→    }
+  1130→    const cred = tokenData.KeyList[keys[0]] as Record<string, unknown>;
+  1131→    const sessionkey = getSessionKey(cred);
+  1132→    const bucket = cred.bucket as string;
+  1133→    const objectPath = cred.objectPath as string;
+  1134→
+  1135→    if (!sessionkey) {
+  1136→      toast.error(`Empty sessionkey for ${file.name}`);
+  1137→      return null;
+  1138→    }
+  1139→
+  1140→    // 2) Upload to GCS via backend proxy (direct PUT)
+  1141→    const uploadStart = Date.now();
+  1142→    const formData = new FormData();
+  1143→    formData.append('file', file);
+  1144→    formData.append('bucket', bucket);
+  1145→    formData.append('objectPath', objectPath);
+  1146→    formData.append('sessionkey', sessionkey);
+  1147→
+  1148→    const uploadResp = await fetch('/api/oreate/upload-file', {
+  1149→      method: 'POST',
+  1150→      body: formData,
+  1151→    });
+  1152→    const uploadData = await uploadResp.json();
+  1153→
+  1154→    const bosUrl = uploadData.url || `https://storage.googleapis.com/${bucket}/${objectPath}`;
+  1155→
+  1156→    stepLog({
+  1157→      id: `${logIdBase}-gcs`,
+  1158→      step: 'upload',
+  1159→      action: `PUT GCS: ${bucket}/${objectPath} (${file.name})`,
+  1160→      request: { url: `https://storage.googleapis.com/${bucket}/${objectPath}`, method: 'PUT', body: `[Binary: ${file.size} bytes, Content-Type: ${file.type || 'application/octet-stream'}]` },
+  1161→      response: { status: uploadResp.status, body: formatJSON(uploadData), timing: Date.now() - uploadStart },
+  1162→      success: !!uploadData.success,
+  1163→      error: uploadData.error,
+  1164→      timestamp: Date.now(),
+  1165→    });
+  1166→
+  1167→    if (!uploadData.success) {
+  1168→      toast.error(`GCS upload failed for ${file.name}`);
+  1169→      return null;
+  1170→    }
+  1171→
+  1172→    toast.success(`Uploaded ${file.name} → GCS`);
+  1173→    return {
+  1174→      bos_url: bosUrl,
+  1175→      doc_title: fileNoExt,
+  1176→      doc_type: fileExt,
+  1177→      size: file.size,
+  1178→      fileRole: isVideo ? 'video' : 'image',
+  1179→    };
+  1180→  };
+  1181→
+  1182→  // Helper to update both state and ref for step results
+  1183→  const setStepRes = useCallback((idx: number, result: { success: boolean; data: unknown; duration: number }) => {
+  1184→    stepSuccessRef.current[idx] = result.success;
+  1185→    setStepResults((p) => ({ ...p, [idx]: result }));
+  1186→  }, []);
+  1187→
+  1188→  const runStep = async (stepIdx: number) => {
+  1189→    setRunningStep(stepIdx);
+  1190→    setActiveStep(stepIdx);
+  1191→
+  1192→    const logId = `step-${stepIdx}-${Date.now()}`;
+  1193→    const startTime = Date.now();
+  1194→    const addLog = (log: Parameters<typeof store.addWorkflowLog>[0]) => store.addWorkflowLog(log);
+  1195→
+  1196→    try {
+  1197→      switch (stepIdx) {
+  1198→        case 0: {
+  1199→          // === AUTH ===
+  1200→          const resp = await fetch('/api/oreate/auth', {
+  1201→            method: 'POST',
+  1202→            headers: { 'Content-Type': 'application/json' },
+  1203→            body: JSON.stringify({ cookie: store.cookie }),
+  1204→          });
+  1205→          const data = await resp.json();
+  1206→          const duration = Date.now() - startTime;
+  1207→
+  1208→          addLog({
+  1209→            id: logId,
+  1210→            step: 'auth',
+  1211→            action: 'POST /oreate/user/getuserinfo + /bizapi/point/getrestpoints',
+  1212→            request: { url: '/api/oreate/auth', method: 'POST', body: JSON.stringify({ cookie: `${store.cookie.substring(0, 60)}...` }) },
+  1213→            response: { status: resp.status, body: formatJSON(data), timing: duration },
+  1214→            success: data.success || false,
+  1215→            error: data.error,
+  1216→            timestamp: Date.now(),
+  1217→          });
+  1218→
+  1219→          const authOk = !data.error && data.success;
+  1220→          setStepRes(0, { success: authOk, data, duration });
+  1221→          store.setBuildReadiness('auth', authOk);
+  1222→
+  1223→          if (authOk) {
+  1224→            store.setAuth(data.userInfo, data.vipInfo, data.restPoint);
+  1225→            // Also fetch models
+  1226→            const modelResp = await fetch('/api/oreate/models', {
+  1227→              method: 'POST',
+  1228→              headers: { 'Content-Type': 'application/json' },
+  1229→              body: JSON.stringify({ cookie: store.cookie }),
+  1230→            });
+  1231→            const modelData = await modelResp.json();
+  1232→            if (modelData.success || modelData.models) {
+  1233→              store.setModels(modelData.models || [], modelData.scenes || []);
+  1234→              // Auto-select first model + defaults (same as sidebar auth)
+  1235→              const models = modelData.models || [];
+  1236→              if (models.length > 0) {
+  1237→                const firstModel = models[0];
+  1238→                store.setModel(firstModel.modelName);
+  1239→                if (firstModel.videoResolution?.length > 0) store.setResolution(firstModel.videoResolution[0]);
+  1240→                if (firstModel.videoSize?.length > 0) store.setVideoSize(firstModel.videoSize[0].ratio);
+  1241→                if (firstModel.duration?.length > 0) store.setDuration(firstModel.duration[0].value);
+  1242→              }
+  1243→            }
+  1244→            store.setBuildReadiness('models', !!(modelData.models || modelData.success));
+  1245→            toast.success(`Auth OK — ${data.userInfo?.email || 'user'}, ${data.restPoint} credits`);
+  1246→          } else {
+  1247→            toast.error(`Auth failed: ${data.error}`);
+  1248→          }
+  1249→          break;
+  1250→        }
+  1251→
+  1252→        case 1: {
+  1253→          // === UPLOAD ===
+  1254→          if (!debugImageFile) {
+  1255→            toast.error('Select an image file first (use the file picker above)');
+  1256→            setRunningStep(null);
+  1257→            setStepRes(1, { success: false, data: { error: 'No image file selected' }, duration: 0 });
+  1258→            return;
+  1259→          }
+  1260→
+  1261→          uploadedAttachmentsRef.current = [];
+  1262→          const allFiles: File[] = [debugImageFile];
+  1263→          if (debugVideoFile) allFiles.push(debugVideoFile);
+  1264→
+  1265→          const results: unknown[] = [];
+  1266→          let allOk = true;
+  1267→
+  1268→          for (const file of allFiles) {
+  1269→            const result = await uploadOneFile(file, logId, addLog);
+  1270→            if (result) {
+  1271→              uploadedAttachmentsRef.current.push(result);
+  1272→              results.push(result);
+  1273→            } else {
+  1274→              allOk = false;
+  1275→            }
+  1276→          }
+  1277→
+  1278→          const duration = Date.now() - startTime;
+  1279→          setStepRes(1, { success: allOk, data: { uploadedFiles: results }, duration });
+  1280→          store.setBuildReadiness('upload', allOk);
+  1281→          if (allOk) {
+  1282→            toast.success(`Upload complete — ${uploadedAttachmentsRef.current.length} file(s)`);
+  1283→          }
+  1284→          break;
+  1285→        }
+  1286→
+  1287→        case 2: {
+  1288→          // === GENERATE (website-verified: _reconcile() + getVideoConfig() from live JS) ===
+  1289→          const attachments = uploadedAttachmentsRef.current;
+  1290→          if (attachments.length === 0) {
+  1291→            toast.error('Run Upload step first to upload files');
+  1292→            setRunningStep(null);
+  1293→            setStepRes(2, { success: false, data: { error: 'No uploaded files. Run Upload step first.' }, duration: 0 });
+  1294→            return;
+  1295→          }
+  1296→
+  1297→          const chatId = generateChatID();
+  1298→          const sceneId = store.selectedSceneId || 'text_or_image';
+  1299→          const modelName = store.selectedModelName || '';
+  1300→          const isMotion = sceneId === 'motion';
+  1301→          const duration = Number(store.selectedDuration) || 5;
+  1302→
+  1303→          // --- Build SSE attachments (matches website's nke() exactly) ---
+  1304→          // Website: nke() only includes videoDurationSec when value > 0
+  1305→          const sseAttachments: Array<Record<string, unknown>> = [];
+  1306→          let characterImageUrl = '';
+  1307→          let motionVideoUrl = '';
+  1308→          let firstFrameUrl = '';
+  1309→          let lastFrameUrl = '';
+  1310→
+  1311→          if (isMotion) {
+  1312→            // Motion: video first, then image (matches website buildVideoAttach order)
+  1313→            for (const att of attachments) {
+  1314→              if (att.fileRole === 'video') {
+  1315→                motionVideoUrl = att.bos_url;
+  1316→                const a: Record<string, unknown> = {
+  1317→                  bos_url: att.bos_url,
+  1318→                  bosUrl: att.bos_url,
+  1319→                  docId: '',
+  1320→                  doc_title: att.doc_title,
+  1321→                  doc_type: att.doc_type,
+  1322→                  size: att.size,
+  1323→                  flag: 'upload',
+  1324→                  type: 'file',
+  1325→                  status: 1,
+  1326→                };
+  1327→                // Only include videoDurationSec when > 0 (website's nke: t.videoDurationSec > 0)
+  1328→                if (typeof att.videoDurationSec === 'number' && att.videoDurationSec > 0) {
+  1329→                  a.videoDurationSec = att.videoDurationSec;
+  1330→                }
+  1331→                sseAttachments.push(a);
+  1332→              }
+  1333→            }
+  1334→            for (const att of attachments) {
+  1335→              if (att.fileRole === 'image') {
+  1336→                characterImageUrl = att.bos_url;
+  1337→                sseAttachments.push({
+  1338→                  bos_url: att.bos_url,
+  1339→                  bosUrl: att.bos_url,
+  1340→                  docId: '',
+  1341→                  doc_title: att.doc_title,
+  1342→                  doc_type: att.doc_type,
+  1343→                  size: att.size,
+  1344→                  flag: 'upload',
+  1345→                  type: 'file',
+  1346→                  status: 1,
+  1347→                });
+  1348→              }
+  1349→            }
+  1350→          } else if (sceneId === 'frame_based') {
+  1351→            // frame_based: first frame then last frame (matches website buildVideoAttach)
+  1352→            for (const att of attachments) {
+  1353→              if (!firstFrameUrl) { firstFrameUrl = att.bos_url; }
+  1354→              else if (!lastFrameUrl) { lastFrameUrl = att.bos_url; }
+  1355→              sseAttachments.push({
+  1356→                bos_url: att.bos_url,
+  1357→                bosUrl: att.bos_url,
+  1358→                docId: '',
+  1359→                doc_title: att.doc_title,
+  1360→                doc_type: att.doc_type,
+  1361→                size: att.size,
+  1362→                flag: 'upload',
+  1363→                type: 'file',
+  1364→                status: 1,
+  1365→              });
+  1366→            }
+  1367→          } else {
+  1368→            for (const att of attachments) {
+  1369→              if (att.fileRole === 'image') {
+  1370→                characterImageUrl = att.bos_url;
+  1371→              }
+  1372→              sseAttachments.push({
+  1373→                bos_url: att.bos_url,
+  1374→                bosUrl: att.bos_url,
+  1375→                docId: '',
+  1376→                doc_title: att.doc_title,
+  1377→                doc_type: att.doc_type,
+  1378→                size: att.size,
+  1379→                flag: 'upload',
+  1380→                type: 'file',
+  1381→                status: 1,
+  1382→              });
+  1383→            }
+  1384→          }
+  1385→
+  1386→          // --- Find model from config (website: zP(modelsData, modelName)) ---
+  1387→          const currentModel = store.models.find((m) => m.modelName === modelName);
+  1388→
+  1389→          // --- Website's _reconcile(): look up aiType from pointCost (UV function) ---
+  1390→          // UV() finds matching pointCost entry by resolution + duration + audio
+  1391→          // aiType comes from the matched entry, NOT a hardcoded default
+  1392→          // Website: aiType: (u?.aiType) ?? 0  (nullish coalescing, NOT logical OR)
+  1393→          const isRef = sceneId === 'reference';
+  1394→          const pointCostArray = isMotion
+  1395→            ? (currentModel?.pointCostMotion || [])
+  1396→            : isRef
+  1397→              ? (currentModel?.pointCostReference || [])
+  1398→              : (currentModel?.pointCostImage || []);
+  1399→
+  1400→          // Match by resolution + duration (website's X8: undefined matches anything)
+  1401→          const selectedResolution = store.selectedResolution || '';
+  1402→          const selectedDuration = duration;
+  1403→          const matchedCost = pointCostArray.find((c: {resolution?:string;duration?:number;audio?:boolean}) => {
+  1404→            const resMatch = !c.resolution || c.resolution === selectedResolution || c.resolution === String(selectedResolution);
+  1405→            const durMatch = c.duration === undefined || c.duration === selectedDuration;
+  1406→            return resMatch && durMatch;
+  1407→          });
+  1408→          const aiType = matchedCost?.aiType ?? 0;
+  1409→
+  1410→          // --- Build videoConfig (website's getVideoConfig EXACTLY) ---
+  1411→          // Website: ratio = K8(sizes.values) && n.portion || ""
+  1412→          // Website: resolution = K8(resolutions.values) && n.solution || ""
+  1413→          // Website: duration = K8(durations.values) ? {duration: Number(n.time||0)} : {}
+  1414→          // Website: isAudio = K8(supportAudio.values) ? !!n.supportAudio : false
+  1415→          // Website: aiType = n.aiType || 0
+  1416→          const hasSizeOptions = !!(currentModel?.videoSize && currentModel.videoSize.length > 0);
+  1417→          const hasResolutionOptions = !!(currentModel?.videoResolution && currentModel.videoResolution.length > 0);
+  1418→          const hasDurationOptions = !!(currentModel?.duration && currentModel.duration.length > 0);
+  1419→          const hasAudioSupport = !!currentModel?.supportAudio;
+  1420→
+  1421→          const videoConfig: Record<string, unknown> = {
+  1422→            modelName,
+  1423→            aiType,
+  1424→            scene: sceneId,
+  1425→            ratio: hasSizeOptions ? (store.selectedVideoSize || '') : '',
+  1426→            resolution: hasResolutionOptions ? (store.selectedResolution || '') : '',
+  1427→            isAudio: hasAudioSupport ? !!store.supportAudio : false,
+  1428→            // duration: ONLY included when model supports durations (website: ...K8(durations) ? {duration} : {})
+  1429→            ...(hasDurationOptions ? { duration } : {}),
+  1430→          };
+  1431→
+  1432→          if (isMotion) {
+  1433→            // motDuration: parse to int, or empty string (matches website: this.motionVideoDuration || "")
+  1434→            let motDurationVal: number | string = '';
+  1435→            if (store.motDuration) {
+  1436→              const n = parseInt(store.motDuration);
+  1437→              motDurationVal = isNaN(n) ? '' : n;
+  1438→            }
+  1439→            videoConfig.motion = {
+  1440→              characterImage: characterImageUrl,
+  1441→              motionVideo: motionVideoUrl,
+  1442→              motDuration: motDurationVal,
+  1443→              keepOriginalSound: store.keepOriginalSound || false,
+  1444→            };
+  1445→          } else if (sceneId === 'text_or_image') {
+  1446→            videoConfig.textOrImage = { image: characterImageUrl };
+  1447→          } else if (sceneId === 'reference') {
+  1448→            const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
+  1449→            const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
+  1450→            videoConfig.reference = {
+  1451→              referenceImages: refImages,
+  1452→              referenceVideos: refVideos,
+  1453→              refDuration: '',
+  1454→              refTotalDuration: '',
+  1455→              keepOriginalSound: store.keepOriginalSound || false,
+  1456→            };
+  1457→          } else if (sceneId === 'frame_based') {
+  1458→            // Website: frameBased: {firstFrame, lastFrame} (CRITICAL — was missing!)
+  1459→            videoConfig.frameBased = {
+  1460→              firstFrame: firstFrameUrl,
+  1461→              lastFrame: lastFrameUrl,
+  1462→            };
+  1463→          }
+  1464→
+  1465→          // --- Build SSE request body (EXACT website match from live JS bundle) ---
+  1466→          // Website: Object.assign({}, baseChatInfo, reqData, {extra:{doc_name:"",module_name:"gpt4o"}})
+  1467→          // Then fre() adds clientType, then Object.assign(mirrorData, body) adds jt/ua/js_env
+  1468→          // Mirror's extra is OVERWRITTEN by body's extra → final extra = {doc_name, module_name} ONLY
+  1469→          // focusId is "" in website's baseChatInfo (not chatId)
+  1470→          const sseRequest: Record<string, unknown> = {
+  1471→            // Mirror data (from ZCe() + sy.merge — but extra gets overwritten by body)
+  1472→            jt: '',
+  1473→            ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+  1474→            js_env: 'h5',
+  1475→            // Base chat info (from website's baseChatInfo — focusId is "" not chatId)
+  1476→            type: 'chat',
+  1477→            chatType: 'aichat',
+  1478→            chatTitle: 'Unnamed Session',
+  1479→            chatId,
+  1480→            focusId: '',
+  1481→            from: '',
+  1482→            clientType: 'pc',
+  1483→            isFirst: true,
+  1484→            messages: [{
+  1485→              role: 'user',
+  1486→              content: store.prompt || '',
+  1487→              attachments: sseAttachments,
+  1488→            }],
+  1489→            videoConfig,
+  1490→            // Website ONLY sends doc_name + module_name in extra
+  1491→            // (mirror's email/vip/reg_ts/deviceID/bid are overwritten by Object.assign)
+  1492→            extra: {
+  1493→              doc_name: '',
+  1494→              module_name: 'gpt4o',
+  1495→            },
+  1496→          };
+  1497→
+  1498→          // --- Call generate API ---
+  1499→          const genResp = await fetch('/api/oreate/generate', {
+  1500→            method: 'POST',
+  1501→            headers: { 'Content-Type': 'application/json' },
+  1502→            body: JSON.stringify({ cookie: store.cookie, sseRequest }),
+  1503→          });
+  1504→          const genData = await genResp.json();
+  1505→          const genDuration = Date.now() - startTime;
+  1506→
+  1507→          addLog({
+  1508→            id: logId,
+  1509→            step: 'generate',
+  1510→            action: `POST /oreate/sse/stream (scene=${sceneId}, model=${modelName}, aiType=${aiType} from pointCost)`,
+  1511→            request: { url: '/api/oreate/generate', method: 'POST', body: `pointCostMatch: ${matchedCost ? JSON.stringify({resolution:matchedCost.resolution,duration:matchedCost.duration,aiType:matchedCost.aiType}) : 'NO MATCH (aiType defaults to 0)'} | modelCaps: {hasSize:${hasSizeOptions}, hasRes:${hasResolutionOptions}, hasDur:${hasDurationOptions}, resOptions:${currentModel?.videoResolution?.join(',') || '[]'}}` },
+  1512→            response: { status: genResp.status, timing: genDuration, events: genData.events?.length || 0, docId: genData.docId, chatId: genData.chatId, error: genData.error, rawPreview: genData.rawResponsePreview || '' },
+  1513→            success: genData.success || false,
+  1514→            error: genData.error,
+  1515→            timestamp: Date.now(),
+  1516→          });
+  1517→
+  1518→          // --- Extract docId from response (matches Go extraction) ---
+  1519→          let docId = genData.docId || genData.chatId || '';
+  1520→
+  1521→          if (!docId && genData.events && Array.isArray(genData.events)) {
+  1522→            for (const ev of genData.events) {
+  1523→              const evObj = ev as Record<string, unknown>;
+  1524→              const d = (evObj.data || evObj) as Record<string, unknown>;
+  1525→              if (!d) continue;
+  1526→              // Try all possible field names (matches Go's extraction logic)
+  1527→              docId = (d.docId as string) || (d.id as string) || (d.chatId as string) || '';
+  1528→              if (docId) break;
+  1529→            }
+  1530→          }
+  1531→
+  1532→          // Store docId for poll step
+  1533→          if (docId) {
+  1534→            generatedDocIdRef.current = docId;
+  1535→            store.setTaskId(docId);
+  1536→          }
+  1537→
+  1538→          const hasEvents = genData.events && genData.events.length > 0;
+  1539→          const genOk = !!docId && (genData.success || !!hasEvents);
+  1540→
+  1541→          // Include rawResponsePreview in step data for debugging
+  1542→          setStepRes(2, {
+  1543→            success: genOk,
+  1544→            data: {
+  1545→              docId: genData.docId || null,
+  1546→              chatId: genData.chatId || null,
+  1547→              extractedDocId: docId || '(none)',
+  1548→              eventsCount: genData.events?.length || 0,
+  1549→              events: genData.events,
+  1550→              success: genData.success,
+  1551→              error: genData.error,
+  1552→              rawSSE: genData.rawResponsePreview || '(no preview)',
+  1553→            },
+  1554→            duration: genDuration,
+  1555→          });
+  1556→          store.setBuildReadiness('generate_endpoint', genResp.status === 200);
+  1557→          store.setBuildReadiness('sse_parsing', !!hasEvents);
+  1558→
+  1559→          if (genOk) {
+  1560→            toast.success(`Generate submitted — docId: ${docId}`);
+  1561→          } else if (hasEvents && !docId) {
+  1562→            toast.error(`Generate: ${genData.events.length} events but no docId — check raw SSE`);
+  1563→          } else if (genData.error) {
+  1564→            toast.error(`Generate failed: ${genData.error}`);
+  1565→          } else {
+  1566→            toast.error(`Generate failed: no response (${genDuration}ms) — check raw SSE output`);
+  1567→          }
+  1568→          break;
+  1569→        }
+  1570→
+  1571→        case 3: {
+  1572→          // === POLL ===
+  1573→          let docId = generatedDocIdRef.current || store.currentTaskId || '';
+  1574→
+  1575→          // Fallback: try to extract docId from Generate step results
+  1576→          if (!docId && stepResults[2]) {
+  1577→            const genResult = stepResults[2].data as Record<string, unknown>;
+  1578→            const extracted = (genResult?.extractedDocId as string) || (genResult?.docId as string) || (genResult?.chatId as string) || '';
+  1579→            if (extracted && extracted !== '(none)') {
+  1580→              docId = extracted;
+  1581→              generatedDocIdRef.current = docId;
+  1582→              store.setTaskId(docId);
+  1583→            }
+  1584→          }
+  1585→
+  1586→          if (!docId) {
+  1587→            toast.error('Run Generate step first to get a docId');
+  1588→            setRunningStep(null);
+  1589→            setStepRes(3, { success: false, data: { error: 'No docId. Run Generate step first — make sure the Generate step succeeded and extracted a docId from SSE events.' }, duration: 0 });
+  1590→            return;
+  1591→          }
+  1592→
+  1593→          let pollSuccess = false;
+  1594→          let pollCount = 0;
+  1595→          let lastStatus = -1;
+  1596→          let videoUrl = '';
+  1597→          const maxPolls = 20;
+  1598→
+  1599→          for (let i = 0; i < maxPolls; i++) {
+  1600→            pollCount++;
+  1601→            const pollStart = Date.now();
+  1602→
+  1603→            const statusResp = await fetch('/api/oreate/task-status', {
+  1604→              method: 'POST',
+  1605→              headers: { 'Content-Type': 'application/json' },
+  1606→              body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
+  1607→            });
+  1608→            const statusData = await statusResp.json();
+  1609→
+  1610→            addLog({
+  1611→              id: `${logId}-poll-${i}`,
+  1612→              step: 'poll',
+  1613→              action: `POST /oreate/doc/getstatus (poll ${pollCount}/${maxPolls})`,
+  1614→              request: { url: '/api/oreate/task-status', method: 'POST', body: formatJSON({ cookie: '...', taskId: docId }) },
+  1615→              response: { status: statusResp.status, body: formatJSON(statusData), timing: Date.now() - pollStart },
+  1616→              success: statusData.success !== false,
+  1617→              timestamp: Date.now(),
+  1618→            });
+  1619→
+  1620→            if (statusResp.status === 200 && statusData.success) {
+  1621→              pollSuccess = true;
+  1622→              lastStatus = statusData.status ?? -1;
+  1623→              videoUrl = statusData.videoUrl || '';
+  1624→              // status 2 = completed, status 3 = failed
+  1625→              if (lastStatus === 2 || lastStatus === 3 || videoUrl) break;
+  1626→            }
+  1627→
+  1628→            // Wait 4 seconds between polls
+  1629→            if (i < maxPolls - 1) await new Promise((r) => setTimeout(r, 4000));
+  1630→          }
+  1631→
+  1632→          const duration = Date.now() - startTime;
+  1633→          const finalData = {
+  1634→            docId,
+  1635→            polls: pollCount,
+  1636→            finalStatus: lastStatus,
+  1637→            videoUrl: videoUrl || null,
+  1638→            completed: lastStatus === 2 || !!videoUrl,
+  1639→          };
+  1640→
+  1641→          setStepRes(3, { success: pollSuccess, data: finalData, duration });
+  1642→          store.setBuildReadiness('polling', pollSuccess);
+  1643→
+  1644→          if (videoUrl) {
+  1645→            store.setTaskVideoUrl(videoUrl);
+  1646→            store.setTaskStatus('completed');
+  1647→            store.setTaskProgress(100);
+  1648→            toast.success(`Video ready! Polled ${pollCount} times`);
+  1649→          } else if (lastStatus === 3) {
+  1650→            toast.error(`Generation failed (status=3) after ${pollCount} polls`);
+  1651→          } else {
+  1652→            toast[pollSuccess ? 'info' : 'error'](`Poll ${pollSuccess ? 'endpoint working' : 'failed'} — ${pollCount} polls, status=${lastStatus}`);
+  1653→          }
+  1654→          break;
+  1655→        }
+  1656→      }
+  1657→    } catch (err) {
+  1658→      addLog({
+  1659→        id: logId,
+  1660→        step: ['auth', 'upload', 'generate', 'poll'][stepIdx] as WorkflowLog['step'],
+  1661→        action: `Step ${stepIdx + 1} exception`,
+  1662→        success: false,
+  1663→        error: err instanceof Error ? err.message : 'Unknown error',
+  1664→        timestamp: Date.now(),
+  1665→      });
+  1666→      setStepRes(stepIdx, { success: false, data: { error: String(err) }, duration: Date.now() - startTime });
+  1667→      toast.error(`Step ${stepIdx + 1} error: ${err instanceof Error ? err.message : 'Unknown'}`);
+  1668→    }
+  1669→
+  1670→    setRunningStep(null);
+  1671→  };
+  1672→
+  1673→  // "Run All" — runs steps 0→1→2→3 sequentially
+  1674→  const stepSuccessRef = useRef<Record<number, boolean>>({});
+  1675→  const runAll = async () => {
+  1676→    setRunningAll(true);
+  1677→    for (let i = 0; i < 4; i++) {
+  1678→      if (!store.cookie.trim()) {
+  1679→        toast.error('Cookie required');
+  1680→        break;
+  1681→      }
+  1682→      await runStep(i);
+  1683→      // Check ref (updated synchronously in runStep)
+  1684→      if (stepSuccessRef.current[i] === false) {
+  1685→        toast.error(`Workflow stopped at step ${i + 1} (${steps[i].label}) — check logs below`);
+  1686→        break;
+  1687→      }
+  1688→      // After Generate step, verify docId was extracted before proceeding to Poll
+  1689→      if (i === 2 && !generatedDocIdRef.current) {
+  1690→        toast.error('Generate step did not produce a docId — cannot Poll. Check Generate step output for SSE event data.');
+  1691→        setStepRes(3, { success: false, data: { error: 'No docId from Generate step' }, duration: 0 });
+  1692→        break;
+  1693→      }
+  1694→    }
+  1695→    setRunningAll(false);
+  1696→  };
+  1697→
+  1698→  const readinessChecks = [
+  1699→    { key: 'auth', label: 'Auth working' },
+  1700→    { key: 'upload', label: 'Upload working' },
+  1701→    { key: 'generate_endpoint', label: 'Generate endpoint responding' },
+  1702→    { key: 'sse_parsing', label: 'SSE parsing working' },
+  1703→    { key: 'models', label: 'Model config fetched' },
+  1704→    { key: 'polling', label: 'Task polling working' },
+  1705→  ];
+  1706→
+  1707→  const allPassed = readinessChecks.every((c) => store.buildReadiness[c.key]);
+  1708→  const passedCount = readinessChecks.filter((c) => store.buildReadiness[c.key]).length;
+  1709→
+  1710→  return (
+  1711→    <div className="max-w-5xl mx-auto space-y-6">
+  1712→      {/* File Picker + Run All */}
+  1713→      <Card className="bg-zinc-900 border-zinc-800">
+  1714→        <CardHeader className="pb-3">
+  1715→          <div className="flex items-center justify-between">
+  1716→            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+  1717→              <Upload className="h-4 w-4 text-emerald-500" />
+  1718→              Test Files & Run
+  1719→            </CardTitle>
+  1720→            <div className="flex items-center gap-2">
+  1721→              <Button
+  1722→                size="sm"
+  1723→                variant="outline"
+  1724→                className="border-amber-600 text-amber-400 hover:bg-amber-950 hover:text-amber-300"
+  1725→                onClick={runAll}
+  1726→                disabled={runningAll || runningStep !== null || !store.cookie.trim() || !debugImageFile}
+  1727→              >
+  1728→                {runningAll ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
+  1729→                {runningAll ? 'Running All…' : 'Run All (Auth→Upload→Generate→Poll)'}
+  1730→              </Button>
+  1731→            </div>
+  1732→          </div>
+  1733→        </CardHeader>
+  1734→        <CardContent>
+  1735→          <div className="grid gap-4 sm:grid-cols-2">
+  1736→            {/* Image file picker */}
+  1737→            <div
+  1738→              className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 bg-zinc-950/50 transition-colors hover:border-emerald-600/50"
+  1739→              onClick={() => imageInputRef.current?.click()}
+  1740→            >
+  1741→              <input
+  1742→                ref={imageInputRef}
+  1743→                type="file"
+  1744→                accept="image/*"
+  1745→                className="hidden"
+  1746→                onChange={(e) => {
+  1747→                  const file = e.target.files?.[0];
+  1748→                  if (file) {
+  1749→                    setDebugImageFile(file);
+  1750→                    setDebugImagePreview(URL.createObjectURL(file));
+  1751→                    toast.success(`Image: ${file.name} (${(file.size / 1024).toFixed(0)}KB)`);
+  1752→                  }
+  1753→                }}
+  1754→              />
+  1755→              {debugImagePreview ? (
+  1756→                <div className="relative h-full w-full p-2">
+  1757→                  <img src={debugImagePreview} alt="preview" className="max-h-[100px] mx-auto rounded object-contain" />
+  1758→                  <button
+  1759→                    className="absolute right-1 top-1 rounded-full bg-zinc-900/80 p-0.5 text-zinc-300 hover:text-red-400"
+  1760→                    onClick={(e) => { e.stopPropagation(); setDebugImageFile(null); setDebugImagePreview(null); }}
+  1761→                  >
+  1762→                    <X className="h-3 w-3" />
+  1763→                  </button>
+  1764→                </div>
+  1765→              ) : (
+  1766→                <div className="flex flex-col items-center gap-1 p-3 text-center">
+  1767→                  <ImagePlus className="h-5 w-5 text-zinc-500" />
+  1768→                  <p className="text-xs text-zinc-400">Source Image *</p>
+  1769→                  <p className="text-[10px] text-zinc-600">Required — click to select</p>
+  1770→                </div>
+  1771→              )}
+  1772→            </div>
+  1773→
+  1774→            {/* Video file picker (for motion scene) */}
+  1775→            <div
+  1776→              className="relative flex min-h-[120px] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-zinc-700 bg-zinc-950/50 transition-colors hover:border-emerald-600/50"
+  1777→              onClick={() => videoInputRef.current?.click()}
+  1778→            >
+  1779→              <input
+  1780→                ref={videoInputRef}
+  1781→                type="file"
+  1782→                accept="video/*"
+  1783→                className="hidden"
+  1784→                onChange={(e) => {
+  1785→                  const file = e.target.files?.[0];
+  1786→                  if (file) {
+  1787→                    setDebugVideoFile(file);
+  1788→                    setDebugVideoPreview(URL.createObjectURL(file));
+  1789→                    toast.success(`Video: ${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`);
+  1790→                  }
+  1791→                }}
+  1792→              />
+  1793→              {debugVideoPreview ? (
+  1794→                <div className="relative h-full w-full p-2">
+  1795→                  <video src={debugVideoPreview} className="max-h-[100px] mx-auto rounded object-contain" muted />
+  1796→                  <button
+  1797→                    className="absolute right-1 top-1 rounded-full bg-zinc-900/80 p-0.5 text-zinc-300 hover:text-red-400"
+  1798→                    onClick={(e) => { e.stopPropagation(); setDebugVideoFile(null); setDebugVideoPreview(null); }}
+  1799→                  >
+  1800→                    <X className="h-3 w-3" />
+  1801→                  </button>
+  1802→                </div>
+  1803→              ) : (
+  1804→                <div className="flex flex-col items-center gap-1 p-3 text-center">
+  1805→                  <Video className="h-5 w-5 text-zinc-500" />
+  1806→                  <p className="text-xs text-zinc-400">Motion Video</p>
+  1807→                  <p className="text-[10px] text-zinc-600">Optional — for motion scene</p>
+  1808→                </div>
+  1809→              )}
+  1810→            </div>
+  1811→          </div>
+  1812→
+  1813→          {/* Quick config row */}
+  1814→          <div className="flex flex-wrap items-center gap-3 mt-3 pt-3 border-t border-zinc-800">
+  1815→            <div className="flex items-center gap-1.5">
+  1816→              <Label className="text-[10px] text-zinc-500">Scene:</Label>
+  1817→              <Select value={store.selectedSceneId} onValueChange={store.setScene}>
+  1818→                <SelectTrigger className="h-7 w-[140px] border-zinc-700 bg-zinc-950 text-xs">
+  1819→                  <SelectValue />
+  1820→                </SelectTrigger>
+  1821→                <SelectContent className="border-zinc-700 bg-zinc-900">
+  1822→                  {store.scenes.map((s) => (
+  1823→                    <SelectItem key={s.sceneId} value={s.sceneId} className="text-xs">
+  1824→                      {s.sceneName.en || s.sceneName.zh || s.sceneId}
+  1825→                    </SelectItem>
+  1826→                  ))}
+  1827→                </SelectContent>
+  1828→              </Select>
+  1829→            </div>
+  1830→            <div className="flex items-center gap-1.5">
+  1831→              <Label className="text-[10px] text-zinc-500">Model:</Label>
+  1832→              <Select value={store.selectedModelName} onValueChange={store.setModel}>
+  1833→                <SelectTrigger className="h-7 w-[140px] border-zinc-700 bg-zinc-950 text-xs">
+  1834→                  <SelectValue />
+  1835→                </SelectTrigger>
+  1836→                <SelectContent className="border-zinc-700 bg-zinc-900">
+  1837→                  {store.models.map((m) => (
+  1838→                    <SelectItem key={m.modelName} value={m.modelName} className="text-xs">
+  1839→                      {m.modelName}
+  1840→                    </SelectItem>
+  1841→                  ))}
+  1842→                </SelectContent>
+  1843→              </Select>
+  1844→            </div>
+  1845→            <div className="flex items-center gap-1.5">
+  1846→              <Label className="text-[10px] text-zinc-500">Prompt:</Label>
+  1847→              <Input
+  1848→                className="h-7 w-[200px] border-zinc-700 bg-zinc-950 text-xs"
+  1849→                placeholder="Describe the video…"
+  1850→                value={store.prompt}
+  1851→                onChange={(e) => store.setPrompt(e.target.value)}
+  1852→              />
+  1853→            </div>
+  1854→          </div>
+  1855→        </CardContent>
+  1856→      </Card>
+  1857→
+  1858→      {/* Step Indicator */}
+  1859→      <Card className="bg-zinc-900 border-zinc-800">
+  1860→        <CardHeader className="pb-4">
+  1861→          <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+  1862→            <Terminal className="h-4 w-4 text-emerald-500" />
+  1863→            Workflow Step Tester
+  1864→          </CardTitle>
+  1865→          <CardDescription className="text-zinc-500 text-xs">
+  1866→            Run each step individually to debug the API workflow
+  1867→          </CardDescription>
+  1868→        </CardHeader>
+  1869→        <CardContent>
+  1870→          <div className="flex items-center gap-2 overflow-x-auto pb-2">
+  1871→            {steps.map((step, idx) => (
+  1872→              <React.Fragment key={step.id}>
+  1873→                <button
+  1874→                  className="flex flex-col items-center gap-1 min-w-[80px] group"
+  1875→                  onClick={() => setActiveStep(idx)}
+  1876→                >
+  1877→                  <div className={`w-10 h-10 rounded-full flex items-center justify-center border-2 transition-colors ${
+  1878→                    stepResults[idx]?.success
+  1879→                      ? 'border-emerald-500 bg-emerald-950 text-emerald-400'
+  1880→                      : stepResults[idx] && !stepResults[idx].success
+  1881→                        ? 'border-red-500 bg-red-950 text-red-400'
+  1882→                        : runningStep === idx
+  1883→                          ? 'border-amber-500 bg-amber-950 text-amber-400 animate-pulse'
+  1884→                          : activeStep === idx
+  1885→                            ? 'border-emerald-600 bg-zinc-800 text-zinc-200'
+  1886→                            : 'border-zinc-700 bg-zinc-900 text-zinc-500'
+  1887→                  }`}>
+  1888→                    {runningStep === idx ? (
+  1889→                      <Loader2 className="h-4 w-4 animate-spin" />
+  1890→                    ) : stepResults[idx]?.success ? (
+  1891→                      <CheckCircle2 className="h-4 w-4" />
+  1892→                    ) : stepResults[idx] && !stepResults[idx].success ? (
+  1893→                      <XCircle className="h-4 w-4" />
+  1894→                    ) : (
+  1895→                      <span className="text-xs font-bold">{idx + 1}</span>
+  1896→                    )}
+  1897→                  </div>
+  1898→                  <span className="text-xs text-zinc-400 group-hover:text-zinc-200">{step.label}</span>
+  1899→                </button>
+  1900→                {idx < steps.length - 1 && (
+  1901→                  <ArrowRight className="h-4 w-4 text-zinc-700 flex-shrink-0 mt-[-16px]" />
+  1902→                )}
+  1903→              </React.Fragment>
+  1904→            ))}
+  1905→          </div>
+  1906→        </CardContent>
+  1907→      </Card>
+  1908→
+  1909→      {/* Active Step Detail */}
+  1910→      <Card className="bg-zinc-900 border-zinc-800">
+  1911→        <CardHeader className="pb-3">
+  1912→          <div className="flex items-center justify-between">
+  1913→            <div>
+  1914→              <CardTitle className="text-sm text-zinc-200">
+  1915→                Step {activeStep + 1}: {steps[activeStep].label}
+  1916→              </CardTitle>
+  1917→              <CardDescription className="text-zinc-500 text-xs mt-1">
+  1918→                {steps[activeStep].desc}
+  1919→              </CardDescription>
+  1920→            </div>
+  1921→            <div className="flex items-center gap-2">
+  1922→              {stepResults[activeStep] && (
+  1923→                <Badge variant="outline" className="text-xs">
+  1924→                  {stepResults[activeStep].duration}ms
+  1925→                </Badge>
+  1926→              )}
+  1927→              <Button
+  1928→                size="sm"
+  1929→                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+  1930→                onClick={() => runStep(activeStep)}
+  1931→                disabled={runningStep !== null || !store.cookie.trim()}
+  1932→              >
+  1933→                {runningStep === activeStep ? (
+  1934→                  <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+  1935→                ) : (
+  1936→                  <Send className="h-3 w-3 mr-1" />
+  1937→                )}
+  1938→                Run
+  1939→              </Button>
+  1940→            </div>
+  1941→          </div>
+  1942→        </CardHeader>
+  1943→        {stepResults[activeStep] && (
+  1944→          <CardContent>
+  1945→            <div className="rounded-md bg-zinc-950 border border-zinc-800 p-4 overflow-auto max-h-96">
+  1946→              <pre className="text-xs text-zinc-300 whitespace-pre-wrap break-words font-mono">
+  1947→                {formatJSON(stepResults[activeStep].data)}
+  1948→              </pre>
+  1949→            </div>
+  1950→          </CardContent>
+  1951→        )}
+  1952→      </Card>
+  1953→
+  1954→      {/* Build Readiness Panel */}
+  1955→      <Card className="bg-zinc-900 border-zinc-800">
+  1956→        <CardHeader className="pb-3">
+  1957→          <div className="flex items-center justify-between">
+  1958→            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+  1959→              <Shield className="h-4 w-4 text-emerald-500" />
+  1960→              Build Readiness
+  1961→            </CardTitle>
+  1962→            <Button
+  1963→              variant="ghost"
+  1964→              size="sm"
+  1965→              className="text-zinc-500 hover:text-zinc-300"
+  1966→              onClick={() => {
+  1967→                store.setBuildReadiness('__reset', false);
+  1968→                Object.keys(store.buildReadiness).forEach((k) => {
+  1969→                  if (k !== '__reset') store.setBuildReadiness(k, false);
+  1970→                });
+  1971→              }}
+  1972→            >
+  1973→              <RotateCcw className="h-3 w-3 mr-1" />
+  1974→              Reset
+  1975→            </Button>
+  1976→          </div>
+  1977→        </CardHeader>
+  1978→        <CardContent>
+  1979→          <div className="space-y-2">
+  1980→            {readinessChecks.map((check) => (
+  1981→              <div key={check.key} className="flex items-center gap-2 text-sm">
+  1982→                {store.buildReadiness[check.key] ? (
+  1983→                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+  1984→                ) : (
+  1985→                  <XCircle className="h-4 w-4 text-zinc-700" />
+  1986→                )}
+  1987→                <span className={store.buildReadiness[check.key] ? 'text-emerald-400' : 'text-zinc-500'}>
+  1988→                  {check.label}
+  1989→                </span>
+  1990→              </div>
+  1991→            ))}
+  1992→          </div>
+  1993→          <Separator className="my-4 bg-zinc-800" />
+  1994→          <div className={`text-sm font-medium ${allPassed ? 'text-emerald-400' : 'text-amber-400'}`}>
+  1995→            {allPassed ? (
+  1996→              <span className="flex items-center gap-2">
+  1997→                <CheckCircle2 className="h-4 w-4" />
+  1998→                All tests passed — Ready to build desktop exe
+  1999→              </span>
+  2000→            ) : (
+
+[showing lines 1-2000 of 2239; use offset=2001 with limit to continue reading]
