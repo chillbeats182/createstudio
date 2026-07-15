@@ -32,6 +32,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAppStore } from '@/lib/store';
 import type { ModelOption, SceneOption, HistoryItem as HistoryItemType } from '@/lib/store';
 import { generateChatID, buildSSERequest, parseCookies } from '@/lib/oreate-client';
+import { apiAuth, apiModels, apiUploadToken, apiUploadFile, apiGenerate, apiTaskStatus, apiHistory } from '@/lib/api-adapter';
 
 // ====================================================================
 //  Helpers
@@ -73,12 +74,7 @@ async function handleConnect() {
   if (!store.cookie.trim()) return;
 
   try {
-    const resp = await fetch('/api/oreate/auth', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie: store.cookie }),
-    });
-    const data = await resp.json();
+    const data = await apiAuth(store.cookie);
 
     if (data.error) {
       toast.error(`Auth failed: ${data.error}`);
@@ -89,12 +85,7 @@ async function handleConnect() {
     toast.success(`Connected as ${data.userInfo?.email || 'user'}`);
 
     // Fetch models
-    const modelResp = await fetch('/api/oreate/models', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cookie: store.cookie }),
-    });
-    const modelData = await modelResp.json();
+    const modelData = await apiModels(store.cookie);
     if (modelData.success) {
       store.setModels(modelData.models, modelData.scenes);
       const models = modelData.models || [];
@@ -790,15 +781,7 @@ function QuickGenerateButton() {
           filesToUpload.push({ filename: videoNoExt, fileExt: videoExt, size: store.videoFile.size, file: store.videoFile });
         }
 
-        const tokenResp = await fetch('/api/oreate/upload-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cookie: store.cookie,
-            files: filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })),
-          }),
-        });
-        const tokenData = await tokenResp.json();
+        const tokenData = await apiUploadToken(store.cookie, filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })));
 
         if (tokenData.error || !tokenData.KeyList) {
           toast.error(`Upload token failed: ${tokenData.error || 'No KeyList'}`);
@@ -808,7 +791,7 @@ function QuickGenerateButton() {
         }
 
         store.setTaskStatus('uploading');
-        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList;
+        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList!;
         const uploadedUrls: string[] = [];
         const keys = Object.keys(keyList);
 
@@ -826,17 +809,7 @@ function QuickGenerateButton() {
           }
 
           const cred = keyList[matchedKey];
-          const formData = new FormData();
-          formData.append('file', f.file);
-          formData.append('bucket', cred.bucket);
-          formData.append('objectPath', cred.objectPath);
-          formData.append('sessionkey', cred.sessionkey);
-
-          const uploadResp = await fetch('/api/oreate/upload-file', {
-            method: 'POST',
-            body: formData,
-          });
-          const uploadData = await uploadResp.json();
+          const uploadData = await apiUploadFile(f.file, cred.bucket, cred.objectPath, cred.sessionkey);
 
           if (!uploadData.success || !uploadData.url) {
             toast.error(`Upload failed: ${uploadData.error || 'Unknown'}`);
@@ -962,12 +935,7 @@ function QuickGenerateButton() {
         userInfo: store.userInfo as Record<string, unknown> | null,
       });
 
-      const genResp = await fetch('/api/oreate/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
-      });
-      const genData = await genResp.json();
+      const genData = await apiGenerate(store.cookie, sseRequest);
 
       if (!genData.success) {
         toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
@@ -1002,12 +970,7 @@ function QuickGenerateButton() {
         }
 
         try {
-          const statusResp = await fetch('/api/oreate/task-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
-          });
-          const statusData = await statusResp.json();
+          const statusData = await apiTaskStatus(store.cookie, docId);
 
           const progress = (statusData.progress as number) ?? 0;
           const videoUrl2 = (statusData.videoUrl as string) || '';
@@ -1147,15 +1110,7 @@ function CreateTab() {
           filesToUpload.push({ filename: videoNoExt, fileExt: videoExt, size: store.videoFile.size, file: store.videoFile });
         }
 
-        const tokenResp = await fetch('/api/oreate/upload-token', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            cookie: store.cookie,
-            files: filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })),
-          }),
-        });
-        const tokenData = await tokenResp.json();
+        const tokenData = await apiUploadToken(store.cookie, filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })));
 
         if (tokenData.error || !tokenData.KeyList) {
           toast.error(`Upload token failed: ${tokenData.error || 'No KeyList'}`);
@@ -1165,7 +1120,7 @@ function CreateTab() {
         }
 
         store.setTaskStatus('uploading');
-        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList;
+        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList!;
         const uploadedUrls: string[] = [];
         const keys = Object.keys(keyList);
 
@@ -1183,17 +1138,7 @@ function CreateTab() {
           }
 
           const cred = keyList[matchedKey];
-          const formData = new FormData();
-          formData.append('file', f.file);
-          formData.append('bucket', cred.bucket);
-          formData.append('objectPath', cred.objectPath);
-          formData.append('sessionkey', cred.sessionkey);
-
-          const uploadResp = await fetch('/api/oreate/upload-file', {
-            method: 'POST',
-            body: formData,
-          });
-          const uploadData = await uploadResp.json();
+          const uploadData = await apiUploadFile(f.file, cred.bucket, cred.objectPath, cred.sessionkey);
 
           if (!uploadData.success || !uploadData.url) {
             toast.error(`Upload failed: ${uploadData.error || 'Unknown'}`);
@@ -1322,12 +1267,7 @@ function CreateTab() {
         userInfo: store.userInfo as Record<string, unknown> | null,
       });
 
-      const genResp = await fetch('/api/oreate/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
-      });
-      const genData = await genResp.json();
+      const genData = await apiGenerate(store.cookie, sseRequest);
 
       if (!genData.success) {
         toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
@@ -1362,12 +1302,7 @@ function CreateTab() {
         }
 
         try {
-          const statusResp = await fetch('/api/oreate/task-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
-          });
-          const statusData = await statusResp.json();
+          const statusData = await apiTaskStatus(store.cookie, docId);
 
           const progress = (statusData.progress as number) ?? 0;
           const videoUrl2 = (statusData.videoUrl as string) || '';
@@ -1920,12 +1855,7 @@ function HistoryTab() {
     setLoading(true);
     store.setHistoryLoading(true);
     try {
-      const resp = await fetch('/api/oreate/history', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ cookie: store.cookie, pn: 1, rn: 20 }),
-      });
-      const data = await resp.json();
+      const data = await apiHistory(store.cookie, 1, 20);
 
       if (data.success) {
         store.setHistory(data.items);

@@ -904,3 +904,44 @@ Stage Summary:
 - Responsive design with mobile hamburger menu
 - All generation logic preserved from original code
 - Screenshots saved: dashboard-final.png, screenshot-create.png, screenshot-history.png
+
+---
+Task ID: 2
+Agent: Main
+Task: Set up Tauri v2 for desktop exe builds with dual-mode API adapter
+
+Work Log:
+- Read existing project structure: page.tsx (2069 lines), oreate-client.ts, all 7 API routes, store.ts, worklog.md
+- Updated .gitignore: added Tauri target/, temp file patterns, negated exceptions for config files
+- Updated next.config.ts: changed output to "export", added unoptimized images, kept ignoreBuildErrors
+- Updated package.json: added @tauri-apps/api, @tauri-apps/plugin-http deps; tauri devDep; tauri scripts; simplified build script for static export
+- Created src/lib/api-adapter.ts: dual-mode adapter with isTauri() detection, 7 exported functions (apiAuth, apiModels, apiUploadToken, apiUploadFile, apiGenerate, apiTaskStatus, apiHistory), Tauri mode uses dynamic imports to call oreate-client directly, web mode proxies through existing /api/oreate/* routes
+- Created src-tauri/ project structure:
+  - Cargo.toml: tauri v2, http plugin, shell plugin
+  - build.rs, src/main.rs, src/lib.rs with greet command
+  - tauri.conf.json: frontendDist ../out, NSIS target, HTTP scope for oreateai.com and storage.googleapis.com
+  - capabilities/default.json: core:default, http:default with URL allowlists, shell:allow-open
+  - icons/: generated placeholder 32x32.png, 128x128.png, 128x128@2x.png, icon.ico, icon.icns
+- Created .github/workflows/build.yml: Windows + macOS builds with bun, Rust cache, tauri-action
+- Updated page.tsx: replaced all 9 fetch('/api/oreate/...') calls with adapter functions, added import for all 7 adapter functions
+- Verified: ESLint passes with 0 errors, dev server compiles successfully (GET / 200)
+
+Files Created:
+- src/lib/api-adapter.ts (285 lines)
+- src-tauri/Cargo.toml, build.rs, src/main.rs, src/lib.rs, tauri.conf.json
+- src-tauri/capabilities/default.json
+- src-tauri/icons/ (5 placeholder icon files)
+- .github/workflows/build.yml
+
+Files Modified:
+- .gitignore (appended Tauri/temp entries)
+- next.config.ts (output: "export", unoptimized images)
+- package.json (Tauri deps, scripts, simplified build)
+- src/app/page.tsx (9 fetch calls → adapter functions)
+
+Stage Summary:
+- Tauri v2 project scaffolded with HTTP plugin for direct external API calls
+- api-adapter.ts provides transparent dual-mode: web mode uses existing API routes (no behavior change), Tauri mode calls oreate-client.ts directly (bypasses CORS)
+- All existing API routes remain untouched — they still work for web dev mode
+- GitHub Actions workflow ready for Windows/macOS CI builds
+- App verified working in web mode (dev server compiles, no errors)

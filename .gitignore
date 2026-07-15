@@ -36,7 +36,6 @@ yarn-error.log*
 # vercel
 .vercel
 
-
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -46,9 +45,39 @@ local-*
 *.log
 dev.log
 dev.out.log
+server.log
 test
 prompt
 
-server.log
 # Skills directory
 /skills/
+
+# Tauri build artifacts
+src-tauri/target/
+
+# Temp/working files (project root only)
+/captured-js/
+/tool-results/
+/upload/
+/download/
+/oreateai-video-tool/
+/dashboard-screenshot.png
+/dashboard-final.png
+/screenshot-*.png
+
+# Root-level data files (not configs)
+/*.json
+!/.github/**/*.json
+/*.txt
+/*.mp4
+/*.html
+
+# But KEEP these root configs
+!/package.json
+!/tsconfig.json
+!/tailwind.config.ts
+!/components.json
+!/postcss.config.mjs
+!/next.config.ts
+!/eslint.config.mjs
+!/Caddyfile
