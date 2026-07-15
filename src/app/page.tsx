@@ -124,13 +124,6 @@ async function handleConnect() {
 export default function DashboardPage() {
   const store = useAppStore();
 
-  // Set default tab to dashboard on first load
-  useEffect(() => {
-    if (store.activeTab === 'generate') {
-      store.setActiveTab('dashboard');
-    }
-  }, []);
-
   const handleTabChange = (val: string) => {
     store.setActiveTab(val);
   };

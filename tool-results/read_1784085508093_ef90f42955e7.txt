@@ -1,0 +1,2002 @@
+     1→'use client';
+     2→
+     3→import React, { useState, useRef, useCallback, useEffect } from 'react';
+     4→import { toast } from 'sonner';
+     5→import {
+     6→  Film, CreditCard, LogOut, Upload, X, Play, Loader2, Sparkles,
+     7→  History, ImagePlus, Video, Clock, Zap, Menu, Crown, User,
+     8→  CheckCircle2, XCircle, LayoutDashboard, Wand2, Timer, Monitor,
+     9→  LayoutGrid, Settings2, ChevronDown,
+    10→} from 'lucide-react';
+    11→
+    12→import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+    13→import { Button } from '@/components/ui/button';
+    14→import { Input } from '@/components/ui/input';
+    15→import { Textarea } from '@/components/ui/textarea';
+    16→import {
+    17→  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+    18→} from '@/components/ui/select';
+    19→import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+    20→import { Badge } from '@/components/ui/badge';
+    21→import { Progress } from '@/components/ui/progress';
+    22→import { Separator } from '@/components/ui/separator';
+    23→import { ScrollArea } from '@/components/ui/scroll-area';
+    24→import { Label } from '@/components/ui/label';
+    25→import { Switch } from '@/components/ui/switch';
+    26→import {
+    27→  Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger,
+    28→} from '@/components/ui/sheet';
+    29→import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+    30→import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+    31→
+    32→import { useAppStore } from '@/lib/store';
+    33→import type { ModelOption, SceneOption, HistoryItem as HistoryItemType } from '@/lib/store';
+    34→import { generateChatID, buildSSERequest, parseCookies } from '@/lib/oreate-client';
+    35→
+    36→// ====================================================================
+    37→//  Helpers
+    38→// ====================================================================
+    39→
+    40→const IMAGE_EXTS = ['png', 'jpg', 'jpeg', 'webp', 'gif'];
+    41→const VIDEO_EXTS = ['mp4', 'mov', 'avi', 'webm'];
+    42→
+    43→function getExt(filename: string): string {
+    44→  const dot = filename.lastIndexOf('.');
+    45→  return dot >= 0 ? filename.substring(dot + 1).toLowerCase() : '';
+    46→}
+    47→
+    48→function getFilenameNoExt(filename: string): string {
+    49→  const dot = filename.lastIndexOf('.');
+    50→  return dot >= 0 ? filename.substring(0, dot) : filename;
+    51→}
+    52→
+    53→function timeAgo(ts: number): string {
+    54→  const diff = Date.now() - ts;
+    55→  if (diff < 60000) return `${Math.floor(diff / 1000)}s ago`;
+    56→  if (diff < 3600000) return `${Math.floor(diff / 60000)}m ago`;
+    57→  if (diff < 86400000) return `${Math.floor(diff / 3600000)}h ago`;
+    58→  return `${Math.floor(diff / 86400000)}d ago`;
+    59→}
+    60→
+    61→function formatNumber(n: number): string {
+    62→  if (n >= 1000000) return `${(n / 1000000).toFixed(1)}M`;
+    63→  if (n >= 1000) return `${(n / 1000).toFixed(1)}K`;
+    64→  return String(n);
+    65→}
+    66→
+    67→// ====================================================================
+    68→//  Connect Logic (shared)
+    69→// ====================================================================
+    70→
+    71→async function handleConnect() {
+    72→  const store = useAppStore.getState();
+    73→  if (!store.cookie.trim()) return;
+    74→
+    75→  try {
+    76→    const resp = await fetch('/api/oreate/auth', {
+    77→      method: 'POST',
+    78→      headers: { 'Content-Type': 'application/json' },
+    79→      body: JSON.stringify({ cookie: store.cookie }),
+    80→    });
+    81→    const data = await resp.json();
+    82→
+    83→    if (data.error) {
+    84→      toast.error(`Auth failed: ${data.error}`);
+    85→      return;
+    86→    }
+    87→
+    88→    store.setAuth(data.userInfo, data.vipInfo, data.restPoint);
+    89→    toast.success(`Connected as ${data.userInfo?.email || 'user'}`);
+    90→
+    91→    // Fetch models
+    92→    const modelResp = await fetch('/api/oreate/models', {
+    93→      method: 'POST',
+    94→      headers: { 'Content-Type': 'application/json' },
+    95→      body: JSON.stringify({ cookie: store.cookie }),
+    96→    });
+    97→    const modelData = await modelResp.json();
+    98→    if (modelData.success) {
+    99→      store.setModels(modelData.models, modelData.scenes);
+   100→      const models = modelData.models || [];
+   101→      if (models.length > 0) {
+   102→        const firstModel = models[0];
+   103→        store.setModel(firstModel.modelName);
+   104→        if (firstModel.videoResolution?.length > 0) {
+   105→          store.setResolution(firstModel.videoResolution[0]);
+   106→        }
+   107→        if (firstModel.videoSize?.length > 0) {
+   108→          store.setVideoSize(firstModel.videoSize[0].ratio);
+   109→        }
+   110→        if (firstModel.duration?.length > 0) {
+   111→          store.setDuration(firstModel.duration[0].value);
+   112→        }
+   113→      }
+   114→    }
+   115→  } catch {
+   116→    toast.error('Connection failed');
+   117→  }
+   118→}
+   119→
+   120→// ====================================================================
+   121→//  Main Page
+   122→// ====================================================================
+   123→
+   124→export default function DashboardPage() {
+   125→  const store = useAppStore();
+   126→
+   127→  // Set default tab to dashboard on first load
+   128→  useEffect(() => {
+   129→    if (store.activeTab === 'generate') {
+   130→      store.setActiveTab('dashboard');
+   131→    }
+   132→  }, []);
+   133→
+   134→  const handleTabChange = (val: string) => {
+   135→    store.setActiveTab(val);
+   136→  };
+   137→
+   138→  return (
+   139→    <div className="min-h-screen flex flex-col bg-background">
+   140→      <Header />
+   141→      <main className="flex-1">
+   142→        <Tabs value={store.activeTab} onValueChange={handleTabChange} className="h-full">
+   143→          <div className="hidden">
+   144→            <TabsList>
+   145→              <TabsTrigger value="dashboard" />
+   146→              <TabsTrigger value="create" />
+   147→              <TabsTrigger value="history" />
+   148→            </TabsList>
+   149→          </div>
+   150→          <TabsContent value="dashboard" className="mt-0">
+   151→            <DashboardTab />
+   152→          </TabsContent>
+   153→          <TabsContent value="create" className="mt-0">
+   154→            <CreateTab />
+   155→          </TabsContent>
+   156→          <TabsContent value="history" className="mt-0">
+   157→            <HistoryTab />
+   158→          </TabsContent>
+   159→        </Tabs>
+   160→      </main>
+   161→      <Footer />
+   162→    </div>
+   163→  );
+   164→}
+   165→
+   166→// ====================================================================
+   167→//  Header
+   168→// ====================================================================
+   169→
+   170→function Header() {
+   171→  const store = useAppStore();
+   172→
+   173→  const navItems = [
+   174→    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+   175→    { id: 'create', label: 'Create', icon: Wand2 },
+   176→    { id: 'history', label: 'History', icon: History },
+   177→  ];
+   178→
+   179→  return (
+   180→    <header className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+   181→      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+   182→        <div className="flex h-16 items-center justify-between">
+   183→          {/* Left: Logo + Desktop Nav */}
+   184→          <div className="flex items-center gap-6">
+   185→            {/* Mobile hamburger */}
+   186→            <Sheet>
+   187→              <SheetTrigger asChild>
+   188→                <Button variant="ghost" size="icon" className="md:hidden">
+   189→                  <Menu className="h-5 w-5" />
+   190→                </Button>
+   191→              </SheetTrigger>
+   192→              <SheetContent side="left" className="w-64 p-0">
+   193→                <SheetHeader className="p-4 border-b border-border">
+   194→                  <SheetTitle className="flex items-center gap-2">
+   195→                    <Film className="h-5 w-5 text-emerald-600" />
+   196→                    OreateAI Studio
+   197→                  </SheetTitle>
+   198→                </SheetHeader>
+   199→                <nav className="p-3 space-y-1">
+   200→                  {navItems.map((item) => (
+   201→                    <Button
+   202→                      key={item.id}
+   203→                      variant={store.activeTab === item.id ? 'secondary' : 'ghost'}
+   204→                      className={`w-full justify-start gap-3 ${store.activeTab === item.id ? 'bg-emerald-50 text-emerald-700' : ''}`}
+   205→                      onClick={() => {
+   206→                        store.setActiveTab(item.id);
+   207→                      }}
+   208→                    >
+   209→                      <item.icon className="h-4 w-4" />
+   210→                      {item.label}
+   211→                    </Button>
+   212→                  ))}
+   213→                  {store.isAuthenticated && (
+   214→                    <>
+   215→                      <Separator className="my-2" />
+   216→                      <Button
+   217→                        variant="ghost"
+   218→                        className="w-full justify-start gap-3 text-red-600 hover:text-red-700 hover:bg-red-50"
+   219→                        onClick={() => store.reset()}
+   220→                      >
+   221→                        <LogOut className="h-4 w-4" />
+   222→                        Disconnect
+   223→                      </Button>
+   224→                    </>
+   225→                  )}
+   226→                </nav>
+   227→              </SheetContent>
+   228→            </Sheet>
+   229→
+   230→            {/* Logo */}
+   231→            <button
+   232→              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+   233→              onClick={() => store.setActiveTab('dashboard')}
+   234→            >
+   235→              <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-600 text-white">
+   236→                <Film className="h-4 w-4" />
+   237→              </div>
+   238→              <span className="font-bold text-lg text-foreground hidden sm:inline">
+   239→                OreateAI <span className="text-emerald-600">Studio</span>
+   240→              </span>
+   241→            </button>
+   242→
+   243→            {/* Desktop Nav */}
+   244→            <nav className="hidden md:flex items-center gap-1">
+   245→              {navItems.map((item) => (
+   246→                <Button
+   247→                  key={item.id}
+   248→                  variant="ghost"
+   249→                  size="sm"
+   250→                  className={`gap-2 rounded-lg ${store.activeTab === item.id ? 'bg-emerald-50 text-emerald-700 font-medium' : 'text-muted-foreground hover:text-foreground'}`}
+   251→                  onClick={() => store.setActiveTab(item.id)}
+   252→                >
+   253→                  <item.icon className="h-4 w-4" />
+   254→                  {item.label}
+   255→                </Button>
+   256→              ))}
+   257→            </nav>
+   258→          </div>
+   259→
+   260→          {/* Right: Credits + User */}
+   261→          <div className="flex items-center gap-3">
+   262→            {store.isAuthenticated && (
+   263→              <TooltipProvider>
+   264→                <Tooltip>
+   265→                  <TooltipTrigger asChild>
+   266→                    <Badge variant="secondary" className="gap-1.5 bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 cursor-default">
+   267→                      <Zap className="h-3 w-3" />
+   268→                      {formatNumber(store.restPoint)}
+   269→                    </Badge>
+   270→                  </TooltipTrigger>
+   271→                  <TooltipContent>
+   272→                    <p>{store.restPoint} credits remaining</p>
+   273→                  </TooltipContent>
+   274→                </Tooltip>
+   275→              </TooltipProvider>
+   276→            )}
+   277→
+   278→            {store.isAuthenticated && (
+   279→              <div className="flex items-center gap-3">
+   280→                <div className="hidden sm:flex items-center gap-2">
+   281→                  <Avatar className="h-8 w-8">
+   282→                    {store.userInfo?.avatar ? (
+   283→                      <AvatarImage src={store.userInfo.avatar} alt={store.userInfo.email} />
+   284→                    ) : null}
+   285→                    <AvatarFallback className="bg-emerald-100 text-emerald-700 text-xs font-semibold">
+   286→                      {(store.userInfo?.email || 'U')[0].toUpperCase()}
+   287→                    </AvatarFallback>
+   288→                  </Avatar>
+   289→                  <div className="flex flex-col">
+   290→                    <span className="text-sm font-medium text-foreground leading-tight truncate max-w-[140px]">
+   291→                      {store.userInfo?.email || 'User'}
+   292→                    </span>
+   293→                    {store.vipInfo && store.vipInfo.vipType > 0 && (
+   294→                      <Badge variant="outline" className="text-[10px] px-1 py-0 border-amber-300 text-amber-700 bg-amber-50 mt-0.5 w-fit">
+   295→                        <Crown className="h-2.5 w-2.5 mr-0.5" /> VIP
+   296→                      </Badge>
+   297→                    )}
+   298→                  </div>
+   299→                </div>
+   300→                <Separator orientation="vertical" className="h-8 hidden sm:block" />
+   301→                <Button
+   302→                  variant="ghost"
+   303→                  size="icon"
+   304→                  className="text-muted-foreground hover:text-red-600"
+   305→                  onClick={() => store.reset()}
+   306→                >
+   307→                  <LogOut className="h-4 w-4" />
+   308→                  <span className="sr-only">Disconnect</span>
+   309→                </Button>
+   310→              </div>
+   311→            )}
+   312→          </div>
+   313→        </div>
+   314→      </div>
+   315→    </header>
+   316→  );
+   317→}
+   318→
+   319→// ====================================================================
+   320→//  Footer
+   321→// ====================================================================
+   322→
+   323→function Footer() {
+   324→  return (
+   325→    <footer className="border-t border-border bg-background mt-auto">
+   326→      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+   327→        <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+   328→          <p className="text-sm text-muted-foreground">
+   329→            &copy; {new Date().getFullYear()} OreateAI Studio
+   330→          </p>
+   331→          <p className="text-xs text-muted-foreground">
+   332→            AI Video Generation Dashboard
+   333→          </p>
+   334→        </div>
+   335→      </div>
+   336→    </footer>
+   337→  );
+   338→}
+   339→
+   340→// ====================================================================
+   341→//  Dashboard Tab
+   342→// ====================================================================
+   343→
+   344→function DashboardTab() {
+   345→  const store = useAppStore();
+   346→
+   347→  // Not authenticated: hero connect card
+   348→  if (!store.isAuthenticated) {
+   349→    return (
+   350→      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+   351→        <div className="flex items-center justify-center min-h-[60vh]">
+   352→          <Card className="w-full max-w-lg rounded-xl border-border shadow-sm">
+   353→            <CardHeader className="text-center pb-2">
+   354→              <div className="mx-auto mb-4 flex items-center justify-center w-16 h-16 rounded-2xl bg-emerald-100">
+   355→                <Film className="h-8 w-8 text-emerald-600" />
+   356→              </div>
+   357→              <CardTitle className="text-2xl">Connect to Get Started</CardTitle>
+   358→              <CardDescription className="text-muted-foreground mt-2">
+   359→                Paste your OreateAI session cookie to authenticate and start generating AI videos.
+   360→              </CardDescription>
+   361→            </CardHeader>
+   362→            <CardContent className="space-y-4">
+   363→              <Textarea
+   364→                placeholder='Paste cookie JSON array or "name=value; ..." string'
+   365→                className="min-h-[120px] resize-none rounded-lg"
+   366→                value={store.cookie}
+   367→                onChange={(e) => store.setCookie(e.target.value)}
+   368→              />
+   369→              <Button
+   370→                className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg h-11"
+   371→                onClick={handleConnect}
+   372→                disabled={!store.cookie.trim()}
+   373→              >
+   374→                <Sparkles className="h-4 w-4 mr-2" />
+   375→                Connect & Authenticate
+   376→              </Button>
+   377→            </CardContent>
+   378→          </Card>
+   379→        </div>
+   380→      </div>
+   381→    );
+   382→  }
+   383→
+   384→  // Authenticated dashboard
+   385→  const planName = store.vipInfo && store.vipInfo.vipType > 0 ? 'VIP' : 'Free';
+   386→  const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+   387→
+   388→  return (
+   389→    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+   390→      {/* Welcome Banner */}
+   391→      <Card className="rounded-xl border-border shadow-sm bg-gradient-to-r from-emerald-600 to-emerald-500 text-white border-0">
+   392→        <CardContent className="p-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+   393→          <div>
+   394→            <h1 className="text-xl sm:text-2xl font-bold">
+   395→              Welcome back, {store.userInfo?.email?.split('@')[0] || 'User'}!
+   396→            </h1>
+   397→            <p className="text-emerald-100 mt-1 text-sm">
+   398→              You have <span className="font-semibold text-white">{store.restPoint} credits</span> remaining. Start creating amazing AI videos.
+   399→            </p>
+   400→          </div>
+   401→          <Button
+   402→            variant="secondary"
+   403→            className="bg-white/20 hover:bg-white/30 text-white border-0 backdrop-blur-sm rounded-lg"
+   404→            onClick={() => store.setActiveTab('create')}
+   405→          >
+   406→            <Wand2 className="h-4 w-4 mr-2" />
+   407→            Create Video
+   408→          </Button>
+   409→        </CardContent>
+   410→      </Card>
+   411→
+   412→      {/* Stats Row */}
+   413→      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+   414→        <StatCard
+   415→          icon={Zap}
+   416→          iconBg="bg-emerald-100"
+   417→          iconColor="text-emerald-600"
+   418→          label="Credits"
+   419→          value={String(store.restPoint)}
+   420→          sublabel="Remaining"
+   421→        />
+   422→        <StatCard
+   423→          icon={LayoutGrid}
+   424→          iconBg="bg-teal-50"
+   425→          iconColor="text-teal-600"
+   426→          label="Models"
+   427→          value={String(store.models.length)}
+   428→          sublabel="Available"
+   429→        />
+   430→        <StatCard
+   431→          icon={History}
+   432→          iconBg="bg-amber-50"
+   433→          iconColor="text-amber-600"
+   434→          label="History"
+   435→          value={String(store.history.length)}
+   436→          sublabel="Items loaded"
+   437→        />
+   438→        <StatCard
+   439→          icon={Crown}
+   440→          iconBg="bg-rose-50"
+   441→          iconColor="text-rose-600"
+   442→          label="Plan"
+   443→          value={planName}
+   444→          sublabel={store.vipInfo?.vipType ? `Type ${store.vipInfo.vipType}` : 'Upgrade for more'}
+   445→        />
+   446→      </div>
+   447→
+   448→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+   449→        {/* Quick Generate (2/3 width) */}
+   450→        <Card className="lg:col-span-2 rounded-xl border-border shadow-sm">
+   451→          <CardHeader className="pb-4">
+   452→            <CardTitle className="flex items-center gap-2 text-lg">
+   453→              <Sparkles className="h-5 w-5 text-emerald-600" />
+   454→              Quick Generate
+   455→            </CardTitle>
+   456→            <CardDescription>Enter a prompt and click generate, or switch to the Create tab for advanced options.</CardDescription>
+   457→          </CardHeader>
+   458→          <CardContent className="space-y-4">
+   459→            <Textarea
+   460→              placeholder="Describe the video you want to generate..."
+   461→              className="min-h-[100px] resize-none rounded-lg"
+   462→              value={store.prompt}
+   463→              onChange={(e) => store.setPrompt(e.target.value)}
+   464→            />
+   465→
+   466→            {/* Compact selectors row */}
+   467→            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+   468→              {/* Scene */}
+   469→              <div className="space-y-1.5">
+   470→                <Label className="text-xs font-medium text-muted-foreground">Scene</Label>
+   471→                <Select value={store.selectedSceneId} onValueChange={(v) => store.setScene(v)}>
+   472→                  <SelectTrigger className="rounded-lg">
+   473→                    <SelectValue />
+   474→                  </SelectTrigger>
+   475→                  <SelectContent>
+   476→                    {store.scenes.length > 0 ? store.scenes.map((s) => (
+   477→                      <SelectItem key={s.sceneId} value={s.sceneId}>
+   478→                        {s.sceneName.en || s.sceneName.zh || s.sceneId}
+   479→                      </SelectItem>
+   480→                    )) : (
+   481→                      <>
+   482→                        <SelectItem value="text_or_image">Text or Image</SelectItem>
+   483→                        <SelectItem value="motion">Motion</SelectItem>
+   484→                        <SelectItem value="reference">Reference</SelectItem>
+   485→                      </>
+   486→                    )}
+   487→                  </SelectContent>
+   488→                </Select>
+   489→              </div>
+   490→
+   491→              {/* Model */}
+   492→              <div className="space-y-1.5">
+   493→                <Label className="text-xs font-medium text-muted-foreground">Model</Label>
+   494→                <Select value={store.selectedModelName} onValueChange={(v) => {
+   495→                  store.setModel(v);
+   496→                  const model = store.models.find((m) => m.modelName === v);
+   497→                  if (model) {
+   498→                    const isMotion = store.selectedSceneId === 'motion';
+   499→                    const costs = isMotion ? model.pointCostMotion : store.selectedSceneId === 'reference' ? model.pointCostReference : model.pointCostImage;
+   500→                    const match = costs?.find((c) => c.resolution === store.selectedResolution);
+   501→                    if (match) store.setAiType(match.aiType);
+   502→                  }
+   503→                }}>
+   504→                  <SelectTrigger className="rounded-lg">
+   505→                    <SelectValue />
+   506→                  </SelectTrigger>
+   507→                  <SelectContent>
+   508→                    {store.models.map((m) => (
+   509→                      <SelectItem key={m.modelName} value={m.modelName}>{m.modelName}</SelectItem>
+   510→                    ))}
+   511→                  </SelectContent>
+   512→                </Select>
+   513→              </div>
+   514→
+   515→              {/* Resolution */}
+   516→              <div className="space-y-1.5">
+   517→                <Label className="text-xs font-medium text-muted-foreground">Resolution</Label>
+   518→                <div className="flex gap-1.5">
+   519→                  {(currentModel?.videoResolution || ['720', '1080']).map((r) => (
+   520→                    <Button
+   521→                      key={r}
+   522→                      variant={store.selectedResolution === r ? 'default' : 'outline'}
+   523→                      size="sm"
+   524→                      className={`flex-1 rounded-lg ${store.selectedResolution === r ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+   525→                      onClick={() => store.setResolution(r)}
+   526→                    >
+   527→                      {r}p
+   528→                    </Button>
+   529→                  ))}
+   530→                </div>
+   531→              </div>
+   532→            </div>
+   533→
+   534→            {/* Duration + Ratio row */}
+   535→            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+   536→              <div className="space-y-1.5">
+   537→                <Label className="text-xs font-medium text-muted-foreground">Duration</Label>
+   538→                <div className="flex gap-1.5">
+   539→                  {(currentModel?.duration || [{ icon: '5s', value: 5 }, { icon: '10s', value: 10 }]).map((d) => (
+   540→                    <Button
+   541→                      key={d.value}
+   542→                      variant={store.selectedDuration === d.value ? 'default' : 'outline'}
+   543→                      size="sm"
+   544→                      className={`flex-1 rounded-lg ${store.selectedDuration === d.value ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+   545→                      onClick={() => store.setDuration(d.value)}
+   546→                    >
+   547→                      {d.icon || `${d.value}s`}
+   548→                    </Button>
+   549→                  ))}
+   550→                </div>
+   551→              </div>
+   552→              <div className="space-y-1.5">
+   553→                <Label className="text-xs font-medium text-muted-foreground">Ratio</Label>
+   554→                <div className="flex gap-1.5">
+   555→                  {(currentModel?.videoSize || [{ icon: '1:1', ratio: '1:1' }, { icon: '16:9', ratio: '16:9' }, { icon: '9:16', ratio: '9:16' }]).map((s) => (
+   556→                    <Button
+   557→                      key={s.ratio}
+   558→                      variant={store.selectedVideoSize === s.ratio ? 'default' : 'outline'}
+   559→                      size="sm"
+   560→                      className={`flex-1 rounded-lg ${store.selectedVideoSize === s.ratio ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+   561→                      onClick={() => store.setVideoSize(s.ratio)}
+   562→                    >
+   563→                      {s.icon || s.ratio}
+   564→                    </Button>
+   565→                  ))}
+   566→                </div>
+   567→              </div>
+   568→            </div>
+   569→
+   570→            <div className="flex items-center justify-between pt-2">
+   571→              <p className="text-sm text-muted-foreground">
+   572→                For file uploads and advanced options, use the{' '}
+   573→                <button
+   574→                  className="text-emerald-600 font-medium hover:underline"
+   575→                  onClick={() => store.setActiveTab('create')}
+   576→                >
+   577→                  Create tab
+   578→                </button>
+   579→              </p>
+   580→              <QuickGenerateButton />
+   581→            </div>
+   582→
+   583→            {/* Progress */}
+   584→            {store.isGenerating && (
+   585→              <div className="space-y-2 pt-2">
+   586→                <div className="flex justify-between text-sm">
+   587→                  <span className="text-muted-foreground capitalize">{store.taskStatus}</span>
+   588→                  <span className="text-emerald-600 font-medium">{store.taskProgress}%</span>
+   589→                </div>
+   590→                <Progress value={store.taskProgress} className="h-2 [&>div]:bg-emerald-500" />
+   591→              </div>
+   592→            )}
+   593→
+   594→            {/* Video Player */}
+   595→            {store.taskVideoUrl && (
+   596→              <div className="pt-2">
+   597→                <video
+   598→                  src={store.taskVideoUrl}
+   599→                  controls
+   600→                  className="w-full rounded-lg border border-border"
+   601→                />
+   602→              </div>
+   603→            )}
+   604→          </CardContent>
+   605→        </Card>
+   606→
+   607→        {/* Recent History (1/3 width) */}
+   608→        <Card className="rounded-xl border-border shadow-sm">
+   609→          <CardHeader className="pb-3">
+   610→            <div className="flex items-center justify-between">
+   611→              <CardTitle className="text-base flex items-center gap-2">
+   612→                <Clock className="h-4 w-4 text-emerald-600" />
+   613→                Recent History
+   614→              </CardTitle>
+   615→              <Button
+   616→                variant="ghost"
+   617→                size="sm"
+   618→                className="text-xs text-emerald-600 hover:text-emerald-700"
+   619→                onClick={() => store.setActiveTab('history')}
+   620→              >
+   621→                View all
+   622→              </Button>
+   623→            </div>
+   624→          </CardHeader>
+   625→          <CardContent>
+   626→            {store.history.length === 0 ? (
+   627→              <div className="text-center py-8">
+   628→                <History className="h-8 w-8 mx-auto mb-2 text-muted-foreground/40" />
+   629→                <p className="text-sm text-muted-foreground">No history yet</p>
+   630→                <p className="text-xs text-muted-foreground/60 mt-1">Generated videos will appear here</p>
+   631→              </div>
+   632→            ) : (
+   633→              <ScrollArea className="max-h-[480px]">
+   634→                <div className="space-y-3 pr-3">
+   635→                  {store.history.slice(0, 6).map((item) => (
+   636→                    <div
+   637→                      key={item.docId || item.chatId}
+   638→                      className="group flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors cursor-pointer"
+   639→                    >
+   640→                      <div className="w-16 h-12 rounded-md overflow-hidden bg-muted flex-shrink-0 flex items-center justify-center">
+   641→                        {item.thumbnailUrl ? (
+   642→                          <img src={item.thumbnailUrl} alt="" className="w-full h-full object-cover" />
+   643→                        ) : item.videoUrl ? (
+   644→                          <video src={item.videoUrl} className="w-full h-full object-cover" muted />
+   645→                        ) : (
+   646→                          <Film className="h-4 w-4 text-muted-foreground/40" />
+   647→                        )}
+   648→                      </div>
+   649→                      <div className="flex-1 min-w-0">
+   650→                        <div className="flex items-center gap-1.5 mb-0.5">
+   651→                          <Badge
+   652→                            variant="outline"
+   653→                            className={`text-[10px] px-1.5 py-0 ${
+   654→                              item.status === 2
+   655→                                ? 'border-emerald-300 text-emerald-700 bg-emerald-50'
+   656→                                : item.status === 3
+   657→                                  ? 'border-red-300 text-red-700 bg-red-50'
+   658→                                  : 'border-border text-muted-foreground'
+   659→                            }`}
+   660→                          >
+   661→                            {item.status === 2 ? 'Done' : item.status === 3 ? 'Failed' : 'Processing'}
+   662→                          </Badge>
+   663→                          {item.createTime && (
+   664→                            <span className="text-[10px] text-muted-foreground">{timeAgo(item.createTime)}</span>
+   665→                          )}
+   666→                        </div>
+   667→                        <p className="text-xs text-foreground truncate">
+   668→                          {item.prompt || item.title || 'Untitled'}
+   669→                        </p>
+   670→                      </div>
+   671→                      {item.videoUrl && (
+   672→                        <a
+   673→                          href={item.videoUrl}
+   674→                          target="_blank"
+   675→                          rel="noopener noreferrer"
+   676→                          className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 mt-1"
+   677→                        >
+   678→                          <Button variant="ghost" size="icon" className="h-7 w-7">
+   679→                            <Play className="h-3.5 w-3.5 text-emerald-600" />
+   680→                          </Button>
+   681→                        </a>
+   682→                      )}
+   683→                    </div>
+   684→                  ))}
+   685→                </div>
+   686→              </ScrollArea>
+   687→            )}
+   688→          </CardContent>
+   689→        </Card>
+   690→      </div>
+   691→    </div>
+   692→  );
+   693→}
+   694→
+   695→// ====================================================================
+   696→//  Stat Card
+   697→// ====================================================================
+   698→
+   699→function StatCard({
+   700→  icon: Icon,
+   701→  iconBg,
+   702→  iconColor,
+   703→  label,
+   704→  value,
+   705→  sublabel,
+   706→}: {
+   707→  icon: React.ComponentType<{ className?: string }>;
+   708→  iconBg: string;
+   709→  iconColor: string;
+   710→  label: string;
+   711→  value: string;
+   712→  sublabel: string;
+   713→}) {
+   714→  return (
+   715→    <Card className="rounded-xl border-border shadow-sm hover:shadow-md transition-shadow">
+   716→      <CardContent className="p-4 sm:p-5">
+   717→        <div className="flex items-center gap-3">
+   718→          <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${iconBg}`}>
+   719→            <Icon className={`h-5 w-5 ${iconColor}`} />
+   720→          </div>
+   721→          <div>
+   722→            <p className="text-xs text-muted-foreground">{label}</p>
+   723→            <p className="text-lg font-bold text-foreground leading-tight">{value}</p>
+   724→            <p className="text-[11px] text-muted-foreground/70">{sublabel}</p>
+   725→          </div>
+   726→        </div>
+   727→      </CardContent>
+   728→    </Card>
+   729→  );
+   730→}
+   731→
+   732→// ====================================================================
+   733→//  Quick Generate Button (used in Dashboard Tab)
+   734→// ====================================================================
+   735→
+   736→function QuickGenerateButton() {
+   737→  const store = useAppStore();
+   738→  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+   739→  const scene = store.selectedSceneId;
+   740→  const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+   741→  const isMotion = scene === 'motion';
+   742→
+   743→  // Point cost
+   744→  let pointCost = 0;
+   745→  if (currentModel) {
+   746→    const costs = isMotion ? currentModel.pointCostMotion : scene === 'reference' ? currentModel.pointCostReference : currentModel.pointCostImage;
+   747→    const match = costs?.find(
+   748→      (c) =>
+   749→        (isMotion ? c.motDuration === parseInt(store.motDuration) : c.duration === store.selectedDuration) &&
+   750→        c.resolution === store.selectedResolution
+   751→    );
+   752→    pointCost = match?.point ?? 0;
+   753→  }
+   754→
+   755→  const canGenerate = store.isAuthenticated && !store.isGenerating && store.restPoint >= pointCost;
+   756→
+   757→  // Cleanup polling on unmount
+   758→  useEffect(() => {
+   759→    return () => {
+   760→      if (pollRef.current) clearInterval(pollRef.current);
+   761→    };
+   762→  }, []);
+   763→
+   764→  const handleClick = async () => {
+   765→    if (!canGenerate) return;
+   766→    const hasImage = !!store.imageFile;
+   767→    const hasVideo = !!store.videoFile;
+   768→    const isTextOnly = !hasImage && !hasVideo;
+   769→    const isMot = scene === 'motion';
+   770→
+   771→    if (isMot && !hasVideo) {
+   772→      toast.error('Motion mode requires a video file. Use the Create tab to upload files.');
+   773→      return;
+   774→    }
+   775→
+   776→    store.setGenerating(true);
+   777→    store.setTaskProgress(0);
+   778→    store.setTaskStatus(isTextOnly ? 'generating' : 'uploading');
+   779→    store.setTaskVideoUrl(null);
+   780→    store.setTaskId(null);
+   781→
+   782→    try {
+   783→      let imageUrl = '';
+   784→      let videoUrl = '';
+   785→
+   786→      if (!isTextOnly) {
+   787→        store.setTaskStatus('uploading');
+   788→        const filesToUpload: Array<{ filename: string; fileExt: string; size: number; file: File }> = [];
+   789→
+   790→        const imageNoExt = getFilenameNoExt(store.imageFile!.name);
+   791→        const imageExt = getExt(store.imageFile!.name);
+   792→        filesToUpload.push({ filename: imageNoExt, fileExt: imageExt, size: store.imageFile!.size, file: store.imageFile! });
+   793→
+   794→        if (store.videoFile) {
+   795→          const videoNoExt = getFilenameNoExt(store.videoFile.name);
+   796→          const videoExt = getExt(store.videoFile.name);
+   797→          filesToUpload.push({ filename: videoNoExt, fileExt: videoExt, size: store.videoFile.size, file: store.videoFile });
+   798→        }
+   799→
+   800→        const tokenResp = await fetch('/api/oreate/upload-token', {
+   801→          method: 'POST',
+   802→          headers: { 'Content-Type': 'application/json' },
+   803→          body: JSON.stringify({
+   804→            cookie: store.cookie,
+   805→            files: filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })),
+   806→          }),
+   807→        });
+   808→        const tokenData = await tokenResp.json();
+   809→
+   810→        if (tokenData.error || !tokenData.KeyList) {
+   811→          toast.error(`Upload token failed: ${tokenData.error || 'No KeyList'}`);
+   812→          store.setGenerating(false);
+   813→          store.setTaskStatus('idle');
+   814→          return;
+   815→        }
+   816→
+   817→        store.setTaskStatus('uploading');
+   818→        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList;
+   819→        const uploadedUrls: string[] = [];
+   820→        const keys = Object.keys(keyList);
+   821→
+   822→        for (let i = 0; i < filesToUpload.length; i++) {
+   823→          const f = filesToUpload[i];
+   824→          let matchedKey = keys.find((k) => k === f.filename || k === f.file || k.toLowerCase() === f.filename.toLowerCase());
+   825→          if (matchedKey === undefined && keys.length === 1) matchedKey = keys[0];
+   826→          if (matchedKey === undefined && i < keys.length) matchedKey = keys[i];
+   827→
+   828→          if (!matchedKey || !keyList[matchedKey]) {
+   829→            toast.error(`No upload credential for ${f.filename}`);
+   830→            store.setGenerating(false);
+   831→            store.setTaskStatus('idle');
+   832→            return;
+   833→          }
+   834→
+   835→          const cred = keyList[matchedKey];
+   836→          const formData = new FormData();
+   837→          formData.append('file', f.file);
+   838→          formData.append('bucket', cred.bucket);
+   839→          formData.append('objectPath', cred.objectPath);
+   840→          formData.append('sessionkey', cred.sessionkey);
+   841→
+   842→          const uploadResp = await fetch('/api/oreate/upload-file', {
+   843→            method: 'POST',
+   844→            body: formData,
+   845→          });
+   846→          const uploadData = await uploadResp.json();
+   847→
+   848→          if (!uploadData.success || !uploadData.url) {
+   849→            toast.error(`Upload failed: ${uploadData.error || 'Unknown'}`);
+   850→            store.setGenerating(false);
+   851→            store.setTaskStatus('idle');
+   852→            return;
+   853→          }
+   854→          uploadedUrls.push(uploadData.url);
+   855→        }
+   856→
+   857→        imageUrl = uploadedUrls[0] || '';
+   858→        if (isMot && uploadedUrls.length > 1) {
+   859→          const imgIdx = filesToUpload.findIndex((f) => IMAGE_EXTS.includes(getExt(f.file.name)));
+   860→          const vidIdx = filesToUpload.findIndex((f) => VIDEO_EXTS.includes(getExt(f.file.name)));
+   861→          if (vidIdx >= 0 && imgIdx >= 0) {
+   862→            videoUrl = uploadedUrls[vidIdx];
+   863→            imageUrl = uploadedUrls[imgIdx];
+   864→          } else {
+   865→            imageUrl = uploadedUrls[0];
+   866→            videoUrl = uploadedUrls[1] || '';
+   867→          }
+   868→        }
+   869→      }
+   870→
+   871→      // Build SSE request
+   872→      store.setTaskStatus('generating');
+   873→      const chatId = generateChatID();
+   874→
+   875→      const attachments: Array<Record<string, unknown>> = [];
+   876→      if (isMot && videoUrl) {
+   877→        attachments.push({
+   878→          bos_url: videoUrl,
+   879→          bosUrl: videoUrl,
+   880→          docId: '',
+   881→          doc_title: getFilenameNoExt(store.videoFile?.name || ''),
+   882→          doc_type: getExt(store.videoFile?.name || ''),
+   883→          size: store.videoFile?.size || 0,
+   884→          flag: 'upload',
+   885→          type: 'file',
+   886→          status: 1,
+   887→        });
+   888→      }
+   889→      if (hasImage && imageUrl) {
+   890→        attachments.push({
+   891→          bos_url: imageUrl,
+   892→          bosUrl: imageUrl,
+   893→          docId: '',
+   894→          doc_title: getFilenameNoExt(store.imageFile!.name),
+   895→          doc_type: getExt(store.imageFile!.name),
+   896→          size: store.imageFile!.size,
+   897→          flag: 'upload',
+   898→          type: 'file',
+   899→          status: 1,
+   900→        });
+   901→      }
+   902→
+   903→      const curModel = store.models.find((m) => m.modelName === store.selectedModelName);
+   904→      const isMotScene = scene === 'motion';
+   905→      const isRefScene = scene === 'reference';
+   906→      const costs = isMotScene
+   907→        ? (curModel?.pointCostMotion || [])
+   908→        : isRefScene
+   909→          ? (curModel?.pointCostReference || [])
+   910→          : (curModel?.pointCostImage || []);
+   911→      const genDuration = Number(store.selectedDuration) || 5;
+   912→      const genResolution = store.selectedResolution || '';
+   913→      const matchedCost = costs.find((c: { resolution?: string; duration?: number }) => {
+   914→        const resOk = !c.resolution || c.resolution === genResolution;
+   915→        const durOk = c.duration === undefined || c.duration === genDuration;
+   916→        return resOk && durOk;
+   917→      });
+   918→      const genAiType = matchedCost?.aiType ?? 0;
+   919→
+   920→      const hasDur = !!(curModel?.duration && curModel.duration.length > 0);
+   921→      const videoConfig: Record<string, unknown> = {
+   922→        modelName: store.selectedModelName,
+   923→        ratio: store.selectedVideoSize || '',
+   924→        resolution: genResolution,
+   925→        ...(hasDur ? { duration: genDuration } : {}),
+   926→        isAudio: false,
+   927→        aiType: genAiType,
+   928→        scene: store.selectedSceneId,
+   929→      };
+   930→
+   931→      if (scene === 'text_or_image') {
+   932→        videoConfig.textOrImage = { image: imageUrl || '' };
+   933→      } else if (scene === 'motion') {
+   934→        let motDurVal: number | string = '';
+   935→        if (store.motDuration) {
+   936→          const n = parseInt(store.motDuration);
+   937→          motDurVal = isNaN(n) ? '' : n;
+   938→        }
+   939→        videoConfig.motion = {
+   940→          characterImage: imageUrl,
+   941→          motionVideo: videoUrl,
+   942→          motDuration: motDurVal,
+   943→          keepOriginalSound: false,
+   944→        };
+   945→      } else if (scene === 'reference') {
+   946→        const refImages: string[] = [];
+   947→        const refVideos: string[] = [];
+   948→        if (IMAGE_EXTS.includes(getExt(store.imageFile.name))) refImages.push(imageUrl);
+   949→        if (videoUrl && VIDEO_EXTS.includes(getExt(store.videoFile?.name || ''))) refVideos.push(videoUrl);
+   950→        videoConfig.reference = {
+   951→          referenceImages: refImages,
+   952→          referenceVideos: refVideos,
+   953→          refDuration: '',
+   954→          refTotalDuration: '',
+   955→          keepOriginalSound: false,
+   956→        };
+   957→      } else if (scene === 'frame_based') {
+   958→        videoConfig.frameBased = { firstFrame: imageUrl || '', lastFrame: '' };
+   959→      }
+   960→
+   961→      const cookies = parseCookies(store.cookie);
+   962→
+   963→      const sseRequest = buildSSERequest({
+   964→        chatId,
+   965→        prompt: store.prompt || '',
+   966→        attachments: attachments as Array<Record<string, unknown>>,
+   967→        videoConfig: videoConfig as unknown as Record<string, unknown>,
+   968→        cookies,
+   969→        userInfo: store.userInfo as Record<string, unknown> | null,
+   970→      });
+   971→
+   972→      const genResp = await fetch('/api/oreate/generate', {
+   973→        method: 'POST',
+   974→        headers: { 'Content-Type': 'application/json' },
+   975→        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
+   976→      });
+   977→      const genData = await genResp.json();
+   978→
+   979→      if (!genData.success) {
+   980→        toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
+   981→        store.setGenerating(false);
+   982→        store.setTaskStatus('idle');
+   983→        return;
+   984→      }
+   985→
+   986→      const docId = genData.docId || genData.chatId;
+   987→      if (!docId) {
+   988→        toast.error('No docId returned from generation');
+   989→        store.setGenerating(false);
+   990→        store.setTaskStatus('idle');
+   991→        return;
+   992→      }
+   993→
+   994→      store.setTaskId(docId);
+   995→      store.setTaskStatus('polling');
+   996→      toast.success('Generation submitted, polling...');
+   997→
+   998→      let pollCount = 0;
+   999→      const maxPolls = 120;
+  1000→
+  1001→      pollRef.current = setInterval(async () => {
+  1002→        pollCount++;
+  1003→        if (pollCount > maxPolls) {
+  1004→          if (pollRef.current) clearInterval(pollRef.current);
+  1005→          store.setGenerating(false);
+  1006→          store.setTaskStatus('timeout');
+  1007→          toast.error('Generation timed out');
+  1008→          return;
+  1009→        }
+  1010→
+  1011→        try {
+  1012→          const statusResp = await fetch('/api/oreate/task-status', {
+  1013→            method: 'POST',
+  1014→            headers: { 'Content-Type': 'application/json' },
+  1015→            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
+  1016→          });
+  1017→          const statusData = await statusResp.json();
+  1018→
+  1019→          const progress = (statusData.progress as number) ?? 0;
+  1020→          const videoUrl2 = (statusData.videoUrl as string) || '';
+  1021→          const docStatus = (statusData.status as number) ?? -1;
+  1022→
+  1023→          store.setTaskProgress(Math.min(progress, 100));
+  1024→
+  1025→          if (docStatus === 2 || (videoUrl2 && videoUrl2.startsWith('http'))) {
+  1026→            if (pollRef.current) clearInterval(pollRef.current);
+  1027→            store.setTaskProgress(100);
+  1028→            store.setTaskVideoUrl(videoUrl2);
+  1029→            store.setTaskStatus('complete');
+  1030→            store.setGenerating(false);
+  1031→            toast.success('Video generated!');
+  1032→            return;
+  1033→          }
+  1034→
+  1035→          if (docStatus === 3) {
+  1036→            if (pollRef.current) clearInterval(pollRef.current);
+  1037→            store.setTaskStatus('failed');
+  1038→            store.setGenerating(false);
+  1039→            toast.error('Generation failed on server');
+  1040→            return;
+  1041→          }
+  1042→
+  1043→          store.setTaskProgress(Math.max(progress, Math.min(pollCount * 2, 95)));
+  1044→        } catch {
+  1045→          // continue polling
+  1046→        }
+  1047→      }, 3000);
+  1048→    } catch {
+  1049→      store.setGenerating(false);
+  1050→      store.setTaskStatus('idle');
+  1051→      toast.error('Generation failed');
+  1052→    }
+  1053→  };
+  1054→
+  1055→  return (
+  1056→    <Button
+  1057→      size="lg"
+  1058→      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-6"
+  1059→      disabled={!canGenerate}
+  1060→      onClick={handleClick}
+  1061→    >
+  1062→      {store.isGenerating ? (
+  1063→        <>
+  1064→          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+  1065→          {store.taskStatus === 'uploading' ? 'Uploading...' : store.taskStatus === 'generating' ? 'Generating...' : 'Processing...'}
+  1066→        </>
+  1067→      ) : (
+  1068→        <>
+  1069→          <Sparkles className="h-4 w-4 mr-2" />
+  1070→          Generate
+  1071→        </>
+  1072→      )}
+  1073→    </Button>
+  1074→  );
+  1075→}
+  1076→
+  1077→// ====================================================================
+  1078→//  Create Tab
+  1079→// ====================================================================
+  1080→
+  1081→function CreateTab() {
+  1082→  const store = useAppStore();
+  1083→  const imageInputRef = useRef<HTMLInputElement>(null);
+  1084→  const videoInputRef = useRef<HTMLInputElement>(null);
+  1085→  const [uploadedImageUrl, setUploadedImageUrl] = useState<string>('');
+  1086→  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string>('');
+  1087→  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  1088→
+  1089→  const scene = store.selectedSceneId;
+  1090→  const isMotion = scene === 'motion';
+  1091→
+  1092→  // Find available models from scenes
+  1093→  const availableModels: string[] = [];
+  1094→  for (const s of store.scenes) {
+  1095→    if (s.sceneId === scene) {
+  1096→      for (const f of s.factory) {
+  1097→        for (const m of f.models) {
+  1098→          if (!availableModels.includes(m.modelName)) {
+  1099→            availableModels.push(m.modelName);
+  1100→          }
+  1101→        }
+  1102→      }
+  1103→    }
+  1104→  }
+  1105→
+  1106→  // Find point costs
+  1107→  const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+  1108→  let pointCost = 0;
+  1109→  if (currentModel) {
+  1110→    const costs = isMotion ? currentModel.pointCostMotion : scene === 'reference' ? currentModel.pointCostReference : currentModel.pointCostImage;
+  1111→    const match = costs?.find(
+  1112→      (c) =>
+  1113→        (isMotion ? c.motDuration === parseInt(store.motDuration) : c.duration === store.selectedDuration) &&
+  1114→        c.resolution === store.selectedResolution
+  1115→    );
+  1116→    pointCost = match?.point ?? 0;
+  1117→  }
+  1118→
+  1119→  const canGenerate = store.isAuthenticated && !store.isGenerating && store.restPoint >= pointCost;
+  1120→
+  1121→  const handleGenerate = async () => {
+  1122→    if (!canGenerate) return;
+  1123→    const hasImage = !!store.imageFile;
+  1124→    const hasVideo = !!store.videoFile;
+  1125→    const isTextOnly = !hasImage && !hasVideo;
+  1126→    const isMot = scene === 'motion';
+  1127→
+  1128→    if (isMot && !hasVideo) {
+  1129→      toast.error('Motion mode requires a video file');
+  1130→      return;
+  1131→    }
+  1132→
+  1133→    store.setGenerating(true);
+  1134→    store.setTaskProgress(0);
+  1135→    store.setTaskStatus(isTextOnly ? 'generating' : 'uploading');
+  1136→    store.setTaskVideoUrl(null);
+  1137→    store.setTaskId(null);
+  1138→
+  1139→    try {
+  1140→      let imageUrl = '';
+  1141→      let videoUrl = '';
+  1142→
+  1143→      if (!isTextOnly) {
+  1144→        store.setTaskStatus('uploading');
+  1145→        const filesToUpload: Array<{ filename: string; fileExt: string; size: number; file: File }> = [];
+  1146→
+  1147→        const imageNoExt = getFilenameNoExt(store.imageFile!.name);
+  1148→        const imageExt = getExt(store.imageFile!.name);
+  1149→        filesToUpload.push({ filename: imageNoExt, fileExt: imageExt, size: store.imageFile!.size, file: store.imageFile! });
+  1150→
+  1151→        if (store.videoFile) {
+  1152→          const videoNoExt = getFilenameNoExt(store.videoFile.name);
+  1153→          const videoExt = getExt(store.videoFile.name);
+  1154→          filesToUpload.push({ filename: videoNoExt, fileExt: videoExt, size: store.videoFile.size, file: store.videoFile });
+  1155→        }
+  1156→
+  1157→        const tokenResp = await fetch('/api/oreate/upload-token', {
+  1158→          method: 'POST',
+  1159→          headers: { 'Content-Type': 'application/json' },
+  1160→          body: JSON.stringify({
+  1161→            cookie: store.cookie,
+  1162→            files: filesToUpload.map((f) => ({ filename: f.filename, fileExt: f.fileExt, size: f.size })),
+  1163→          }),
+  1164→        });
+  1165→        const tokenData = await tokenResp.json();
+  1166→
+  1167→        if (tokenData.error || !tokenData.KeyList) {
+  1168→          toast.error(`Upload token failed: ${tokenData.error || 'No KeyList'}`);
+  1169→          store.setGenerating(false);
+  1170→          store.setTaskStatus('idle');
+  1171→          return;
+  1172→        }
+  1173→
+  1174→        store.setTaskStatus('uploading');
+  1175→        const keyList: Record<string, { bucket: string; objectPath: string; sessionkey: string }> = tokenData.KeyList;
+  1176→        const uploadedUrls: string[] = [];
+  1177→        const keys = Object.keys(keyList);
+  1178→
+  1179→        for (let i = 0; i < filesToUpload.length; i++) {
+  1180→          const f = filesToUpload[i];
+  1181→          let matchedKey = keys.find((k) => k === f.filename || k === f.file || k.toLowerCase() === f.filename.toLowerCase());
+  1182→          if (matchedKey === undefined && keys.length === 1) matchedKey = keys[0];
+  1183→          if (matchedKey === undefined && i < keys.length) matchedKey = keys[i];
+  1184→
+  1185→          if (!matchedKey || !keyList[matchedKey]) {
+  1186→            toast.error(`No upload credential for ${f.filename}`);
+  1187→            store.setGenerating(false);
+  1188→            store.setTaskStatus('idle');
+  1189→            return;
+  1190→          }
+  1191→
+  1192→          const cred = keyList[matchedKey];
+  1193→          const formData = new FormData();
+  1194→          formData.append('file', f.file);
+  1195→          formData.append('bucket', cred.bucket);
+  1196→          formData.append('objectPath', cred.objectPath);
+  1197→          formData.append('sessionkey', cred.sessionkey);
+  1198→
+  1199→          const uploadResp = await fetch('/api/oreate/upload-file', {
+  1200→            method: 'POST',
+  1201→            body: formData,
+  1202→          });
+  1203→          const uploadData = await uploadResp.json();
+  1204→
+  1205→          if (!uploadData.success || !uploadData.url) {
+  1206→            toast.error(`Upload failed: ${uploadData.error || 'Unknown'}`);
+  1207→            store.setGenerating(false);
+  1208→            store.setTaskStatus('idle');
+  1209→            return;
+  1210→          }
+  1211→          uploadedUrls.push(uploadData.url);
+  1212→        }
+  1213→
+  1214→        imageUrl = uploadedUrls[0] || '';
+  1215→        if (isMot && uploadedUrls.length > 1) {
+  1216→          const imgIdx = filesToUpload.findIndex((f) => IMAGE_EXTS.includes(getExt(f.file.name)));
+  1217→          const vidIdx = filesToUpload.findIndex((f) => VIDEO_EXTS.includes(getExt(f.file.name)));
+  1218→          if (vidIdx >= 0 && imgIdx >= 0) {
+  1219→            videoUrl = uploadedUrls[vidIdx];
+  1220→            imageUrl = uploadedUrls[imgIdx];
+  1221→          } else {
+  1222→            imageUrl = uploadedUrls[0];
+  1223→            videoUrl = uploadedUrls[1] || '';
+  1224→          }
+  1225→        }
+  1226→      }
+  1227→
+  1228→      setUploadedImageUrl(imageUrl);
+  1229→      setUploadedVideoUrl(videoUrl);
+  1230→
+  1231→      // Build SSE request
+  1232→      store.setTaskStatus('generating');
+  1233→      const chatId = generateChatID();
+  1234→
+  1235→      const attachments: Array<Record<string, unknown>> = [];
+  1236→      if (isMot && videoUrl) {
+  1237→        attachments.push({
+  1238→          bos_url: videoUrl,
+  1239→          bosUrl: videoUrl,
+  1240→          docId: '',
+  1241→          doc_title: getFilenameNoExt(store.videoFile?.name || ''),
+  1242→          doc_type: getExt(store.videoFile?.name || ''),
+  1243→          size: store.videoFile?.size || 0,
+  1244→          flag: 'upload',
+  1245→          type: 'file',
+  1246→          status: 1,
+  1247→        });
+  1248→      }
+  1249→      if (hasImage && imageUrl) {
+  1250→        attachments.push({
+  1251→          bos_url: imageUrl,
+  1252→          bosUrl: imageUrl,
+  1253→          docId: '',
+  1254→          doc_title: getFilenameNoExt(store.imageFile!.name),
+  1255→          doc_type: getExt(store.imageFile!.name),
+  1256→          size: store.imageFile!.size,
+  1257→          flag: 'upload',
+  1258→          type: 'file',
+  1259→          status: 1,
+  1260→        });
+  1261→      }
+  1262→
+  1263→      const curModel = store.models.find((m) => m.modelName === store.selectedModelName);
+  1264→      const isMotScene = scene === 'motion';
+  1265→      const isRefScene = scene === 'reference';
+  1266→      const costs = isMotScene
+  1267→        ? (curModel?.pointCostMotion || [])
+  1268→        : isRefScene
+  1269→          ? (curModel?.pointCostReference || [])
+  1270→          : (curModel?.pointCostImage || []);
+  1271→      const genDuration = Number(store.selectedDuration) || 5;
+  1272→      const genResolution = store.selectedResolution || '';
+  1273→      const matchedCost = costs.find((c: { resolution?: string; duration?: number }) => {
+  1274→        const resOk = !c.resolution || c.resolution === genResolution;
+  1275→        const durOk = c.duration === undefined || c.duration === genDuration;
+  1276→        return resOk && durOk;
+  1277→      });
+  1278→      const genAiType = matchedCost?.aiType ?? 0;
+  1279→
+  1280→      const hasDur = !!(curModel?.duration && curModel.duration.length > 0);
+  1281→      const videoConfig: Record<string, unknown> = {
+  1282→        modelName: store.selectedModelName,
+  1283→        ratio: store.selectedVideoSize || '',
+  1284→        resolution: genResolution,
+  1285→        ...(hasDur ? { duration: genDuration } : {}),
+  1286→        isAudio: false,
+  1287→        aiType: genAiType,
+  1288→        scene: store.selectedSceneId,
+  1289→      };
+  1290→
+  1291→      if (scene === 'text_or_image') {
+  1292→        videoConfig.textOrImage = { image: imageUrl || '' };
+  1293→      } else if (scene === 'motion') {
+  1294→        let motDurVal: number | string = '';
+  1295→        if (store.motDuration) {
+  1296→          const n = parseInt(store.motDuration);
+  1297→          motDurVal = isNaN(n) ? '' : n;
+  1298→        }
+  1299→        videoConfig.motion = {
+  1300→          characterImage: imageUrl,
+  1301→          motionVideo: videoUrl,
+  1302→          motDuration: motDurVal,
+  1303→          keepOriginalSound: false,
+  1304→        };
+  1305→      } else if (scene === 'reference') {
+  1306→        const refImages: string[] = [];
+  1307→        const refVideos: string[] = [];
+  1308→        if (IMAGE_EXTS.includes(getExt(store.imageFile.name))) refImages.push(imageUrl);
+  1309→        if (videoUrl && VIDEO_EXTS.includes(getExt(store.videoFile?.name || ''))) refVideos.push(videoUrl);
+  1310→        videoConfig.reference = {
+  1311→          referenceImages: refImages,
+  1312→          referenceVideos: refVideos,
+  1313→          refDuration: '',
+  1314→          refTotalDuration: '',
+  1315→          keepOriginalSound: false,
+  1316→        };
+  1317→      } else if (scene === 'frame_based') {
+  1318→        videoConfig.frameBased = { firstFrame: imageUrl || '', lastFrame: '' };
+  1319→      }
+  1320→
+  1321→      const cookies = parseCookies(store.cookie);
+  1322→
+  1323→      const sseRequest = buildSSERequest({
+  1324→        chatId,
+  1325→        prompt: store.prompt || '',
+  1326→        attachments: attachments as Array<Record<string, unknown>>,
+  1327→        videoConfig: videoConfig as unknown as Record<string, unknown>,
+  1328→        cookies,
+  1329→        userInfo: store.userInfo as Record<string, unknown> | null,
+  1330→      });
+  1331→
+  1332→      const genResp = await fetch('/api/oreate/generate', {
+  1333→        method: 'POST',
+  1334→        headers: { 'Content-Type': 'application/json' },
+  1335→        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
+  1336→      });
+  1337→      const genData = await genResp.json();
+  1338→
+  1339→      if (!genData.success) {
+  1340→        toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
+  1341→        store.setGenerating(false);
+  1342→        store.setTaskStatus('idle');
+  1343→        return;
+  1344→      }
+  1345→
+  1346→      const docId = genData.docId || genData.chatId;
+  1347→      if (!docId) {
+  1348→        toast.error('No docId returned from generation');
+  1349→        store.setGenerating(false);
+  1350→        store.setTaskStatus('idle');
+  1351→        return;
+  1352→      }
+  1353→
+  1354→      store.setTaskId(docId);
+  1355→      store.setTaskStatus('polling');
+  1356→      toast.success('Generation submitted, polling...');
+  1357→
+  1358→      let pollCount = 0;
+  1359→      const maxPolls = 120;
+  1360→
+  1361→      pollRef.current = setInterval(async () => {
+  1362→        pollCount++;
+  1363→        if (pollCount > maxPolls) {
+  1364→          if (pollRef.current) clearInterval(pollRef.current);
+  1365→          store.setGenerating(false);
+  1366→          store.setTaskStatus('timeout');
+  1367→          toast.error('Generation timed out');
+  1368→          return;
+  1369→        }
+  1370→
+  1371→        try {
+  1372→          const statusResp = await fetch('/api/oreate/task-status', {
+  1373→            method: 'POST',
+  1374→            headers: { 'Content-Type': 'application/json' },
+  1375→            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
+  1376→          });
+  1377→          const statusData = await statusResp.json();
+  1378→
+  1379→          const progress = (statusData.progress as number) ?? 0;
+  1380→          const videoUrl2 = (statusData.videoUrl as string) || '';
+  1381→          const docStatus = (statusData.status as number) ?? -1;
+  1382→
+  1383→          store.setTaskProgress(Math.min(progress, 100));
+  1384→
+  1385→          if (docStatus === 2 || (videoUrl2 && videoUrl2.startsWith('http'))) {
+  1386→            if (pollRef.current) clearInterval(pollRef.current);
+  1387→            store.setTaskProgress(100);
+  1388→            store.setTaskVideoUrl(videoUrl2);
+  1389→            store.setTaskStatus('complete');
+  1390→            store.setGenerating(false);
+  1391→            toast.success('Video generated!');
+  1392→            return;
+  1393→          }
+  1394→
+  1395→          if (docStatus === 3) {
+  1396→            if (pollRef.current) clearInterval(pollRef.current);
+  1397→            store.setTaskStatus('failed');
+  1398→            store.setGenerating(false);
+  1399→            toast.error('Generation failed on server');
+  1400→            return;
+  1401→          }
+  1402→
+  1403→          store.setTaskProgress(Math.max(progress, Math.min(pollCount * 2, 95)));
+  1404→        } catch {
+  1405→          // continue polling
+  1406→        }
+  1407→      }, 3000);
+  1408→    } catch {
+  1409→      store.setGenerating(false);
+  1410→      store.setTaskStatus('idle');
+  1411→      toast.error('Generation failed');
+  1412→    }
+  1413→  };
+  1414→
+  1415→  // Cleanup polling on unmount
+  1416→  useEffect(() => {
+  1417→    return () => {
+  1418→      if (pollRef.current) clearInterval(pollRef.current);
+  1419→    };
+  1420→  }, []);
+  1421→
+  1422→  if (!store.isAuthenticated) {
+  1423→    return (
+  1424→      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  1425→        <div className="flex items-center justify-center min-h-[40vh]">
+  1426→          <Card className="max-w-md rounded-xl border-border shadow-sm">
+  1427→            <CardContent className="py-12 text-center">
+  1428→              <Film className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+  1429→              <p className="text-lg font-medium text-foreground">Not Connected</p>
+  1430→              <p className="text-sm text-muted-foreground mt-1">Go to Dashboard and connect first</p>
+  1431→              <Button
+  1432→                className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+  1433→                onClick={() => store.setActiveTab('dashboard')}
+  1434→              >
+  1435→                Go to Dashboard
+  1436→              </Button>
+  1437→            </CardContent>
+  1438→          </Card>
+  1439→        </div>
+  1440→      </div>
+  1441→    );
+  1442→  }
+  1443→
+  1444→  return (
+  1445→    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+  1446→      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+  1447→        {/* Left Panel (2/3) */}
+  1448→        <div className="lg:col-span-2 space-y-6">
+  1449→          {/* Prompt */}
+  1450→          <Card className="rounded-xl border-border shadow-sm">
+  1451→            <CardHeader className="pb-3">
+  1452→              <CardTitle className="text-base">Prompt</CardTitle>
+  1453→              <CardDescription>Describe the video you want to generate</CardDescription>
+  1454→            </CardHeader>
+  1455→            <CardContent>
+  1456→              <Textarea
+  1457→                placeholder="A cinematic shot of a futuristic city at sunset, with flying cars and neon lights reflecting off glass buildings..."
+  1458→                className="min-h-[120px] resize-none rounded-lg"
+  1459→                value={store.prompt}
+  1460→                onChange={(e) => store.setPrompt(e.target.value)}
+  1461→              />
+  1462→            </CardContent>
+  1463→          </Card>
+  1464→
+  1465→          {/* File Uploads */}
+  1466→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1467→            {/* Image Upload */}
+  1468→            <Card className="rounded-xl border-border shadow-sm">
+  1469→              <CardHeader className="pb-3">
+  1470→                <CardTitle className="text-sm flex items-center gap-2">
+  1471→                  <ImagePlus className="h-4 w-4 text-emerald-600" />
+  1472→                  Image Upload
+  1473→                  {scene === 'text_or_image' && (
+  1474→                    <Badge variant="outline" className="text-[10px] ml-auto text-muted-foreground">Optional</Badge>
+  1475→                  )}
+  1476→                  {scene === 'motion' && (
+  1477→                    <Badge variant="outline" className="text-[10px] ml-auto text-amber-700 border-amber-300 bg-amber-50">Required</Badge>
+  1478→                  )}
+  1479→                </CardTitle>
+  1480→              </CardHeader>
+  1481→              <CardContent>
+  1482→                <input
+  1483→                  ref={imageInputRef}
+  1484→                  type="file"
+  1485→                  accept="image/*"
+  1486→                  className="hidden"
+  1487→                  onChange={(e) => {
+  1488→                    const file = e.target.files?.[0] || null;
+  1489→                    if (file) {
+  1490→                      const url = URL.createObjectURL(file);
+  1491→                      store.setImageFile(file, url);
+  1492→                    }
+  1493→                  }}
+  1494→                />
+  1495→                {store.imagePreview ? (
+  1496→                  <div className="relative group">
+  1497→                    <img src={store.imagePreview} alt="Preview" className="w-full h-40 object-cover rounded-lg border border-border" />
+  1498→                    <Button
+  1499→                      variant="destructive"
+  1500→                      size="icon"
+  1501→                      className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+  1502→                      onClick={() => {
+  1503→                        store.setImageFile(null, null);
+  1504→                        setUploadedImageUrl('');
+  1505→                      }}
+  1506→                    >
+  1507→                      <X className="h-3.5 w-3.5" />
+  1508→                    </Button>
+  1509→                  </div>
+  1510→                ) : (
+  1511→                  <button
+  1512→                    className="w-full h-36 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-400 hover:text-emerald-600 transition-colors cursor-pointer bg-muted/30"
+  1513→                    onClick={() => imageInputRef.current?.click()}
+  1514→                  >
+  1515→                    <Upload className="h-6 w-6" />
+  1516→                    <span className="text-sm font-medium">Drop image or click to upload</span>
+  1517→                    <span className="text-xs text-muted-foreground/60">PNG, JPG, WEBP</span>
+  1518→                  </button>
+  1519→                )}
+  1520→              </CardContent>
+  1521→            </Card>
+  1522→
+  1523→            {/* Video Upload (motion only) */}
+  1524→            {isMotion && (
+  1525→              <Card className="rounded-xl border-border shadow-sm">
+  1526→                <CardHeader className="pb-3">
+  1527→                  <CardTitle className="text-sm flex items-center gap-2">
+  1528→                    <Video className="h-4 w-4 text-emerald-600" />
+  1529→                    Video Upload
+  1530→                    <Badge variant="outline" className="text-[10px] ml-auto text-amber-700 border-amber-300 bg-amber-50">Required</Badge>
+  1531→                  </CardTitle>
+  1532→                </CardHeader>
+  1533→                <CardContent>
+  1534→                  <input
+  1535→                    ref={videoInputRef}
+  1536→                    type="file"
+  1537→                    accept="video/*"
+  1538→                    className="hidden"
+  1539→                    onChange={(e) => {
+  1540→                      const file = e.target.files?.[0] || null;
+  1541→                      if (file) {
+  1542→                        const url = URL.createObjectURL(file);
+  1543→                        store.setVideoFile(file, url);
+  1544→                      }
+  1545→                    }}
+  1546→                  />
+  1547→                  {store.videoPreview ? (
+  1548→                    <div className="relative group">
+  1549→                      <video src={store.videoPreview} className="w-full h-40 object-cover rounded-lg border border-border" muted />
+  1550→                      <Button
+  1551→                        variant="destructive"
+  1552→                        size="icon"
+  1553→                        className="absolute top-2 right-2 h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
+  1554→                        onClick={() => {
+  1555→                          store.setVideoFile(null, null);
+  1556→                          setUploadedVideoUrl('');
+  1557→                        }}
+  1558→                      >
+  1559→                        <X className="h-3.5 w-3.5" />
+  1560→                      </Button>
+  1561→                    </div>
+  1562→                  ) : (
+  1563→                    <button
+  1564→                      className="w-full h-36 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center gap-2 text-muted-foreground hover:border-emerald-400 hover:text-emerald-600 transition-colors cursor-pointer bg-muted/30"
+  1565→                      onClick={() => videoInputRef.current?.click()}
+  1566→                    >
+  1567→                      <Video className="h-6 w-6" />
+  1568→                      <span className="text-sm font-medium">Drop video or click to upload</span>
+  1569→                      <span className="text-xs text-muted-foreground/60">MP4, MOV, AVI</span>
+  1570→                    </button>
+  1571→                  )}
+  1572→                </CardContent>
+  1573→              </Card>
+  1574→            )}
+  1575→          </div>
+  1576→
+  1577→          {/* Scene Selector */}
+  1578→          <Card className="rounded-xl border-border shadow-sm">
+  1579→            <CardHeader className="pb-3">
+  1580→              <CardTitle className="text-sm">Scene Mode</CardTitle>
+  1581→            </CardHeader>
+  1582→            <CardContent>
+  1583→              <div className="flex gap-2 flex-wrap">
+  1584→                {[
+  1585→                  { id: 'text_or_image', label: 'Text or Image', desc: 'Generate from text or with a reference image' },
+  1586→                  { id: 'motion', label: 'Motion', desc: 'Animate a character using a motion video' },
+  1587→                  { id: 'reference', label: 'Reference', desc: 'Use reference images/videos as style guide' },
+  1588→                ].map((s) => (
+  1589→                  <Button
+  1590→                    key={s.id}
+  1591→                    variant={store.selectedSceneId === s.id ? 'default' : 'outline'}
+  1592→                    className={`rounded-lg h-auto py-2.5 px-4 ${store.selectedSceneId === s.id ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+  1593→                    onClick={() => {
+  1594→                      store.setScene(s.id);
+  1595→                      setUploadedImageUrl('');
+  1596→                      setUploadedVideoUrl('');
+  1597→                    }}
+  1598→                  >
+  1599→                    <div className="text-left">
+  1600→                      <div className="font-medium text-sm">{s.label}</div>
+  1601→                      <div className={`text-[11px] mt-0.5 ${store.selectedSceneId === s.id ? 'text-emerald-100' : 'text-muted-foreground'}`}>
+  1602→                        {s.desc}
+  1603→                      </div>
+  1604→                    </div>
+  1605→                  </Button>
+  1606→                ))}
+  1607→              </div>
+  1608→            </CardContent>
+  1609→          </Card>
+  1610→
+  1611→          {/* Selectors Grid */}
+  1612→          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+  1613→            {/* Model */}
+  1614→            <Card className="rounded-xl border-border shadow-sm">
+  1615→              <CardHeader className="pb-3">
+  1616→                <CardTitle className="text-sm">Model</CardTitle>
+  1617→              </CardHeader>
+  1618→              <CardContent>
+  1619→                <Select value={store.selectedModelName} onValueChange={(v) => {
+  1620→                  store.setModel(v);
+  1621→                  const model = store.models.find((m) => m.modelName === v);
+  1622→                  if (model) {
+  1623→                    const costs = isMotion ? model.pointCostMotion : scene === 'reference' ? model.pointCostReference : model.pointCostImage;
+  1624→                    const match = costs?.find((c) => c.resolution === store.selectedResolution);
+  1625→                    if (match) store.setAiType(match.aiType);
+  1626→                  }
+  1627→                }}>
+  1628→                  <SelectTrigger className="rounded-lg">
+  1629→                    <SelectValue />
+  1630→                  </SelectTrigger>
+  1631→                  <SelectContent>
+  1632→                    {availableModels.length > 0
+  1633→                      ? availableModels.map((m) => (
+  1634→                          <SelectItem key={m} value={m}>{m}</SelectItem>
+  1635→                        ))
+  1636→                      : store.models.map((m) => (
+  1637→                          <SelectItem key={m.modelName} value={m.modelName}>{m.modelName}</SelectItem>
+  1638→                        ))}
+  1639→                  </SelectContent>
+  1640→                </Select>
+  1641→              </CardContent>
+  1642→            </Card>
+  1643→
+  1644→            {/* Duration */}
+  1645→            <Card className="rounded-xl border-border shadow-sm">
+  1646→              <CardHeader className="pb-3">
+  1647→                <CardTitle className="text-sm flex items-center gap-2">
+  1648→                  <Timer className="h-4 w-4 text-muted-foreground" />
+  1649→                  Duration
+  1650→                </CardTitle>
+  1651→              </CardHeader>
+  1652→              <CardContent>
+  1653→                <div className="flex gap-2">
+  1654→                  {(currentModel?.duration || [{ icon: '5s', value: 5 }, { icon: '10s', value: 10 }]).map((d) => (
+  1655→                    <Button
+  1656→                      key={d.value}
+  1657→                      variant={store.selectedDuration === d.value ? 'default' : 'outline'}
+  1658→                      size="sm"
+  1659→                      className={`flex-1 rounded-lg ${store.selectedDuration === d.value ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+  1660→                      onClick={() => store.setDuration(d.value)}
+  1661→                    >
+  1662→                      {d.icon || `${d.value}s`}
+  1663→                    </Button>
+  1664→                  ))}
+  1665→                </div>
+  1666→              </CardContent>
+  1667→            </Card>
+  1668→
+  1669→            {/* Resolution */}
+  1670→            <Card className="rounded-xl border-border shadow-sm">
+  1671→              <CardHeader className="pb-3">
+  1672→                <CardTitle className="text-sm flex items-center gap-2">
+  1673→                  <Monitor className="h-4 w-4 text-muted-foreground" />
+  1674→                  Resolution
+  1675→                </CardTitle>
+  1676→              </CardHeader>
+  1677→              <CardContent>
+  1678→                <div className="flex gap-2">
+  1679→                  {(currentModel?.videoResolution || ['720', '1080']).map((r) => (
+  1680→                    <Button
+  1681→                      key={r}
+  1682→                      variant={store.selectedResolution === r ? 'default' : 'outline'}
+  1683→                      size="sm"
+  1684→                      className={`flex-1 rounded-lg ${store.selectedResolution === r ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+  1685→                      onClick={() => store.setResolution(r)}
+  1686→                    >
+  1687→                      {r}p
+  1688→                    </Button>
+  1689→                  ))}
+  1690→                </div>
+  1691→              </CardContent>
+  1692→            </Card>
+  1693→
+  1694→            {/* Video Size / Ratio */}
+  1695→            <Card className="rounded-xl border-border shadow-sm">
+  1696→              <CardHeader className="pb-3">
+  1697→                <CardTitle className="text-sm flex items-center gap-2">
+  1698→                  <LayoutGrid className="h-4 w-4 text-muted-foreground" />
+  1699→                  Aspect Ratio
+  1700→                </CardTitle>
+  1701→              </CardHeader>
+  1702→              <CardContent>
+  1703→                <div className="flex gap-2">
+  1704→                  {(currentModel?.videoSize || [{ icon: '1:1', ratio: '1:1' }, { icon: '16:9', ratio: '16:9' }, { icon: '9:16', ratio: '9:16' }]).map((s) => (
+  1705→                    <Button
+  1706→                      key={s.ratio}
+  1707→                      variant={store.selectedVideoSize === s.ratio ? 'default' : 'outline'}
+  1708→                      size="sm"
+  1709→                      className={`flex-1 rounded-lg ${store.selectedVideoSize === s.ratio ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+  1710→                      onClick={() => store.setVideoSize(s.ratio)}
+  1711→                    >
+  1712→                      {s.icon || s.ratio}
+  1713→                    </Button>
+  1714→                  ))}
+  1715→                </div>
+  1716→              </CardContent>
+  1717→            </Card>
+  1718→          </div>
+  1719→
+  1720→          {/* Motion Options */}
+  1721→          {isMotion && (
+  1722→            <Card className="rounded-xl border-border shadow-sm">
+  1723→              <CardHeader className="pb-3">
+  1724→                <CardTitle className="text-sm flex items-center gap-2">
+  1725→                  <Settings2 className="h-4 w-4 text-muted-foreground" />
+  1726→                  Motion Options
+  1727→                </CardTitle>
+  1728→              </CardHeader>
+  1729→              <CardContent className="space-y-4">
+  1730→                <div>
+  1731→                  <Label className="text-sm font-medium">Motion Duration</Label>
+  1732→                  <div className="flex gap-2 mt-2">
+  1733→                    {['3', '4', '5'].map((d) => (
+  1734→                      <Button
+  1735→                        key={d}
+  1736→                        variant={store.motDuration === d ? 'default' : 'outline'}
+  1737→                        size="sm"
+  1738→                        className={`rounded-lg ${store.motDuration === d ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''}`}
+  1739→                        onClick={() => store.setMotDuration(d)}
+  1740→                      >
+  1741→                        {d}s
+  1742→                      </Button>
+  1743→                    ))}
+  1744→                  </div>
+  1745→                </div>
+  1746→                <div className="flex items-center justify-between">
+  1747→                  <Label className="text-sm">Keep Original Sound</Label>
+  1748→                  <Switch
+  1749→                    checked={store.keepOriginalSound}
+  1750→                    onCheckedChange={store.setKeepOriginalSound}
+  1751→                    className="data-[state=checked]:bg-emerald-600"
+  1752→                  />
+  1753→                </div>
+  1754→              </CardContent>
+  1755→            </Card>
+  1756→          )}
+  1757→
+  1758→          {/* Cost & Generate */}
+  1759→          <Card className="rounded-xl border-border shadow-sm">
+  1760→            <CardContent className="p-6">
+  1761→              <div className="flex items-center justify-between gap-4">
+  1762→                <div className="text-sm">
+  1763→                  <span className="text-muted-foreground">Cost: </span>
+  1764→                  <span className="text-emerald-600 font-bold text-lg">{pointCost}</span>
+  1765→                  <span className="text-muted-foreground ml-1">credits</span>
+  1766→                  {store.restPoint < pointCost && (
+  1767→                    <Badge variant="outline" className="ml-2 border-red-300 text-red-700 bg-red-50 text-xs">
+  1768→                      Insufficient credits
+  1769→                    </Badge>
+  1770→                  )}
+  1771→                </div>
+  1772→                <Button
+  1773→                  size="lg"
+  1774→                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg px-8"
+  1775→                  disabled={!canGenerate}
+  1776→                  onClick={handleGenerate}
+  1777→                >
+  1778→                  {store.isGenerating ? (
+  1779→                    <>
+  1780→                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+  1781→                      {store.taskStatus === 'uploading' ? 'Uploading...' : store.taskStatus === 'generating' ? 'Generating...' : 'Processing...'}
+  1782→                    </>
+  1783→                  ) : (
+  1784→                    <>
+  1785→                      <Sparkles className="h-4 w-4 mr-2" />
+  1786→                      Generate Video
+  1787→                    </>
+  1788→                  )}
+  1789→                </Button>
+  1790→              </div>
+  1791→
+  1792→              {/* Progress */}
+  1793→              {store.isGenerating && (
+  1794→                <div className="mt-4 space-y-2">
+  1795→                  <div className="flex justify-between text-sm">
+  1796→                    <span className="text-muted-foreground capitalize">{store.taskStatus}</span>
+  1797→                    <span className="text-emerald-600 font-medium">{store.taskProgress}%</span>
+  1798→                  </div>
+  1799→                  <Progress value={store.taskProgress} className="h-2.5 [&>div]:bg-emerald-500" />
+  1800→                </div>
+  1801→              )}
+  1802→            </CardContent>
+  1803→          </Card>
+  1804→
+  1805→          {/* Video Player */}
+  1806→          {store.taskVideoUrl && (
+  1807→            <Card className="rounded-xl border-border shadow-sm">
+  1808→              <CardHeader className="pb-3">
+  1809→                <CardTitle className="text-base flex items-center gap-2">
+  1810→                  <Play className="h-5 w-5 text-emerald-600" />
+  1811→                  Generated Video
+  1812→                </CardTitle>
+  1813→              </CardHeader>
+  1814→              <CardContent>
+  1815→                <video
+  1816→                  src={store.taskVideoUrl}
+  1817→                  controls
+  1818→                  className="w-full rounded-lg border border-border"
+  1819→                />
+  1820→              </CardContent>
+  1821→            </Card>
+  1822→          )}
+  1823→        </div>
+  1824→
+  1825→        {/* Right Panel (1/3) - Config Summary */}
+  1826→        <div className="space-y-6">
+  1827→          <Card className="rounded-xl border-border shadow-sm sticky top-24">
+  1828→            <CardHeader className="pb-3">
+  1829→              <CardTitle className="text-sm flex items-center gap-2">
+  1830→                <Settings2 className="h-4 w-4 text-emerald-600" />
+  1831→                Configuration Summary
+  1832→              </CardTitle>
+  1833→            </CardHeader>
+  1834→            <CardContent className="space-y-4">
+  1835→              <div className="space-y-3">
+  1836→                <ConfigRow label="Scene" value={store.selectedSceneId} />
+  1837→                <ConfigRow label="Model" value={store.selectedModelName || 'None'} />
+  1838→                <ConfigRow label="Resolution" value={store.selectedResolution ? `${store.selectedResolution}p` : 'None'} />
+  1839→                <ConfigRow label="Duration" value={`${store.selectedDuration}s`} />
+  1840→                <ConfigRow label="Ratio" value={store.selectedVideoSize || 'Default'} />
+  1841→                {isMotion && (
+  1842→                  <>
+  1843→                    <ConfigRow label="Motion Duration" value={`${store.motDuration}s`} />
+  1844→                    <ConfigRow label="Keep Sound" value={store.keepOriginalSound ? 'Yes' : 'No'} />
+  1845→                  </>
+  1846→                )}
+  1847→                <Separator />
+  1848→                <ConfigRow label="Image" value={store.imageFile ? store.imageFile.name : 'None'} />
+  1849→                {isMotion && (
+  1850→                  <ConfigRow label="Video" value={store.videoFile ? store.videoFile.name : 'None'} />
+  1851→                )}
+  1852→                <Separator />
+  1853→                <div className="flex justify-between items-center">
+  1854→                  <span className="text-sm text-muted-foreground">Est. Cost</span>
+  1855→                  <span className="text-lg font-bold text-emerald-600">{pointCost}</span>
+  1856→                </div>
+  1857→                <div className="flex justify-between items-center">
+  1858→                  <span className="text-sm text-muted-foreground">Balance</span>
+  1859→                  <span className="text-sm font-medium text-foreground">{store.restPoint} credits</span>
+  1860→                </div>
+  1861→              </div>
+  1862→
+  1863→              {/* Status */}
+  1864→              {store.isGenerating && (
+  1865→                <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+  1866→                  <div className="flex items-center gap-2 mb-1">
+  1867→                    <Loader2 className="h-4 w-4 text-emerald-600 animate-spin" />
+  1868→                    <span className="text-sm font-medium text-emerald-700 capitalize">{store.taskStatus}</span>
+  1869→                  </div>
+  1870→                  <Progress value={store.taskProgress} className="h-1.5 mt-2 [&>div]:bg-emerald-500" />
+  1871→                  <p className="text-xs text-emerald-600 mt-1">{store.taskProgress}% complete</p>
+  1872→                </div>
+  1873→              )}
+  1874→
+  1875→              {store.taskStatus === 'complete' && (
+  1876→                <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-200">
+  1877→                  <div className="flex items-center gap-2">
+  1878→                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+  1879→                    <span className="text-sm font-medium text-emerald-700">Generation complete!</span>
+  1880→                  </div>
+  1881→                </div>
+  1882→              )}
+  1883→
+  1884→              {store.taskStatus === 'failed' && (
+  1885→                <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+  1886→                  <div className="flex items-center gap-2">
+  1887→                    <XCircle className="h-4 w-4 text-red-600" />
+  1888→                    <span className="text-sm font-medium text-red-700">Generation failed</span>
+  1889→                  </div>
+  1890→                </div>
+  1891→              )}
+  1892→            </CardContent>
+  1893→          </Card>
+  1894→        </div>
+  1895→      </div>
+  1896→    </div>
+  1897→  );
+  1898→}
+  1899→
+  1900→// ====================================================================
+  1901→//  Config Row (helper for Create Tab sidebar)
+  1902→// ====================================================================
+  1903→
+  1904→function ConfigRow({ label, value }: { label: string; value: string }) {
+  1905→  return (
+  1906→    <div className="flex justify-between items-center">
+  1907→      <span className="text-sm text-muted-foreground">{label}</span>
+  1908→      <span className="text-sm font-medium text-foreground truncate max-w-[160px]">{value}</span>
+  1909→    </div>
+  1910→  );
+  1911→}
+  1912→
+  1913→// ====================================================================
+  1914→//  History Tab
+  1915→// ====================================================================
+  1916→
+  1917→function HistoryTab() {
+  1918→  const store = useAppStore();
+  1919→  const [loading, setLoading] = useState(false);
+  1920→
+  1921→  const fetchHistory = async () => {
+  1922→    if (!store.cookie.trim()) {
+  1923→      toast.error('Connect first');
+  1924→      return;
+  1925→    }
+  1926→
+  1927→    setLoading(true);
+  1928→    store.setHistoryLoading(true);
+  1929→    try {
+  1930→      const resp = await fetch('/api/oreate/history', {
+  1931→        method: 'POST',
+  1932→        headers: { 'Content-Type': 'application/json' },
+  1933→        body: JSON.stringify({ cookie: store.cookie, pn: 1, rn: 20 }),
+  1934→      });
+  1935→      const data = await resp.json();
+  1936→
+  1937→      if (data.success) {
+  1938→        store.setHistory(data.items);
+  1939→        toast.success(`Loaded ${data.items.length} history items`);
+  1940→      } else {
+  1941→        toast.error('Failed to fetch history');
+  1942→      }
+  1943→    } catch {
+  1944→      toast.error('Failed to fetch history');
+  1945→    } finally {
+  1946→      setLoading(false);
+  1947→      store.setHistoryLoading(false);
+  1948→    }
+  1949→  };
+  1950→
+  1951→  if (!store.isAuthenticated) {
+  1952→    return (
+  1953→      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  1954→        <div className="flex items-center justify-center min-h-[40vh]">
+  1955→          <Card className="max-w-md rounded-xl border-border shadow-sm">
+  1956→            <CardContent className="py-12 text-center">
+  1957→              <History className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
+  1958→              <p className="text-lg font-medium text-foreground">Not Connected</p>
+  1959→              <p className="text-sm text-muted-foreground mt-1">Go to Dashboard and connect first</p>
+  1960→              <Button
+  1961→                className="mt-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+  1962→                onClick={() => store.setActiveTab('dashboard')}
+  1963→              >
+  1964→                Go to Dashboard
+  1965→              </Button>
+  1966→            </CardContent>
+  1967→          </Card>
+  1968→        </div>
+  1969→      </div>
+  1970→    );
+  1971→  }
+  1972→
+  1973→  return (
+  1974→    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
+  1975→      <div className="flex items-center justify-between">
+  1976→        <div>
+  1977→          <h2 className="text-xl font-bold text-foreground">Generation History</h2>
+  1978→          <p className="text-sm text-muted-foreground mt-1">View all your previously generated videos</p>
+  1979→        </div>
+  1980→        <Button
+  1981→          className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg"
+  1982→          onClick={fetchHistory}
+  1983→          disabled={loading}
+  1984→        >
+  1985→          {loading ? (
+  1986→            <Loader2 className="h-4 w-4 animate-spin" />
+  1987→          ) : (
+  1988→            <>
+  1989→              <History className="h-4 w-4 mr-2" />
+  1990→              Load History
+  1991→            </>
+  1992→          )}
+  1993→        </Button>
+  1994→      </div>
+  1995→
+  1996→      {store.history.length === 0 ? (
+  1997→        <Card className="rounded-xl border-border shadow-sm">
+  1998→          <CardContent className="py-16 text-center">
+  1999→            <div className="mx-auto mb-4 flex items-center justify-center w-16 h-16 rounded-2xl bg-muted">
+  2000→              <History className="h-8 w-8 text-muted-foreground/40" />
+
+[showing lines 1-2000 of 2076; use offset=2001 with limit to continue reading]

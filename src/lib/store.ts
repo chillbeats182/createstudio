@@ -171,7 +171,7 @@ const initialState = {
   taskVideoUrl: null,
   history: [],
   historyLoading: false,
-  activeTab: 'generate',
+  activeTab: 'dashboard',
   workflowLogs: [] as WorkflowLog[],
   buildReadiness: {} as Record<string, boolean>,
 };
