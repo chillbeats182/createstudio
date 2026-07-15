@@ -1,15 +1,16 @@
 // ====================================================================
-//  API Adapter — Routes calls between Desktop (direct) and Web (proxy)
+//  API Adapter — Routes calls between Desktop (Go backend) and Web (proxy)
 // ====================================================================
 //
-// In Web mode:  fetch('/api/oreate/...') → Next.js API routes (server-side)
-// In Desktop mode (Wails/Tauri): call oreate-client.ts directly (no CORS)
+// Web mode:  fetch('/api/oreate/...') → Next.js API routes (server-side)
+// Desktop mode (Wails): call Go-bound methods via window.go.main.App.*
+//                        (Go makes HTTP requests — no CORS from backend)
 // ====================================================================
 
 import type { ModelOption, SceneOption } from '@/lib/store';
 
 // ====================================================================
-//  Desktop Detection (Wails or Tauri)
+//  Desktop Detection (Wails runtime)
 // ====================================================================
 
 function isDesktop(): boolean {
@@ -17,13 +18,37 @@ function isDesktop(): boolean {
   const w = window as unknown as Record<string, unknown>;
   // Wails v2 injects window.runtime
   if ((w['runtime'] as Record<string, unknown>)?.['EventsOn']) return true;
-  // Tauri
-  if (w['__TAURI__'] || w['__TAURI_INTERNALS__']) return true;
   return false;
 }
 
 // ====================================================================
-//  Shared Types (matching API route response shapes)
+//  Wails Go App binding accessor
+// ====================================================================
+
+type WailsApp = {
+  OreateAuth(cookieHeader: string): Promise<Record<string, unknown>>;
+  OreateGetModels(cookieHeader: string): Promise<Record<string, unknown>>;
+  OreateGetUploadToken(cookieHeader: string, fileMetasJSON: string): Promise<Record<string, unknown>>;
+  OreateUploadFileGCS(base64Data: string, bucket: string, objectPath: string, sessionkey: string, contentType: string): Promise<Record<string, unknown>>;
+  OreateGenerate(cookieHeader: string, sseRequestJSON: string): Promise<Record<string, unknown>>;
+  OreateGetTaskStatus(cookieHeader: string, docId: string): Promise<Record<string, unknown>>;
+  OreateGetHistory(cookieHeader: string, pn: number, rn: number): Promise<Record<string, unknown>>;
+};
+
+function getWailsApp(): WailsApp | null {
+  try {
+    const w = window as unknown as Record<string, unknown>;
+    const goMain = w['go'] as Record<string, unknown> | undefined;
+    const appPkg = goMain?.['main'] as Record<string, unknown> | undefined;
+    const app = appPkg?.['App'] as WailsApp | undefined;
+    return app ?? null;
+  } catch {
+    return null;
+  }
+}
+
+// ====================================================================
+//  Shared Types
 // ====================================================================
 
 interface AuthResult {
@@ -86,7 +111,7 @@ interface HistoryResult {
 }
 
 // ====================================================================
-//  Web-mode helpers (proxy through Next.js API routes)
+//  Helpers
 // ====================================================================
 
 async function webFetch(url: string, body?: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -98,40 +123,50 @@ async function webFetch(url: string, body?: Record<string, unknown>): Promise<Re
   return resp.json();
 }
 
+/** Build cookie header from raw cookie string (JSON array or semicolon-separated) */
+async function buildCookieHeader(rawCookie: string): Promise<string> {
+  const { parseCookies, buildCookieHeader: _bch } = await import('@/lib/oreate-client');
+  const cookies = parseCookies(rawCookie);
+  return _bch(cookies);
+}
+
+/** Convert ArrayBuffer to base64 string for passing to Go */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
 // ====================================================================
 //  Exported Adapter Functions
 // ====================================================================
 
 /**
  * Authenticate user via cookie.
+ * Desktop: Go OreateAuth (no CORS)
  * Web: POST /api/oreate/auth
- * Tauri: calls authenticate() from oreate-client directly
  */
 export async function apiAuth(cookie: string): Promise<AuthResult> {
   if (isDesktop()) {
-    // Dynamic import to avoid bundling in web mode
-    const { parseCookies, authenticate } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: 'Invalid cookie format' };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: 'Wails runtime not available' };
     try {
-      const result = await authenticate(cookies);
-      if (!result.success) {
-        return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: 'Authentication failed' };
-      }
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateAuth(cookieHeader);
       return {
-        success: true,
-        userInfo: result.userInfo,
-        vipInfo: result.vipInfo,
-        restPoint: result.restPoint,
+        success: r.success as boolean,
+        userInfo: (r.userInfo as Record<string, unknown>) ?? null,
+        vipInfo: (r.vipInfo as Record<string, unknown>) ?? null,
+        restPoint: (r.restPoint as number) ?? 0,
       };
     } catch (err) {
-      return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: err instanceof Error ? err.message : 'Unknown error' };
+      return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: err instanceof Error ? err.message : 'Auth failed' };
     }
   }
 
-  // Web mode: proxy through API route
   const data = await webFetch('/api/oreate/auth', { cookie });
   if (data.error) {
     return { success: false, userInfo: null, vipInfo: null, restPoint: 0, error: data.error as string };
@@ -146,36 +181,26 @@ export async function apiAuth(cookie: string): Promise<AuthResult> {
 
 /**
  * Fetch available models and scenes.
+ * Desktop: Go OreateGetModels
  * Web: POST /api/oreate/models
- * Tauri: calls getModelConfig + getSceneConfig directly
  */
 export async function apiModels(cookie: string): Promise<ModelsResult> {
   if (isDesktop()) {
-    const { parseCookies, getModelConfig, getSceneConfig } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, models: [], scenes: [], error: 'Invalid cookie' };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, models: [], scenes: [], error: 'Wails runtime not available' };
     try {
-      const [modelResult, sceneResult] = await Promise.all([
-        getModelConfig(cookies),
-        getSceneConfig(cookies),
-      ]);
-      const modelData = modelResult.data as Record<string, unknown>;
-      const modelRespData = (modelData?.data as Record<string, unknown>) || {};
-      const sceneData = sceneResult.data as Record<string, unknown>;
-      const sceneRespData = (sceneData?.data as Record<string, unknown>) || {};
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateGetModels(cookieHeader);
       return {
-        success: true,
-        models: (modelRespData.models ?? []) as ModelOption[],
-        scenes: (sceneRespData.scenes ?? []) as SceneOption[],
+        success: r.success as boolean,
+        models: (r.models ?? []) as ModelOption[],
+        scenes: (r.scenes ?? []) as SceneOption[],
       };
     } catch (err) {
       return { success: false, models: [], scenes: [], error: err instanceof Error ? err.message : 'Failed to fetch models' };
     }
   }
 
-  // Web mode
   const data = await webFetch('/api/oreate/models', { cookie });
   if (data.error) {
     return { success: false, models: [], scenes: [], error: data.error as string };
@@ -189,38 +214,28 @@ export async function apiModels(cookie: string): Promise<ModelsResult> {
 
 /**
  * Get upload token for GCS upload.
+ * Desktop: Go OreateGetUploadToken
  * Web: POST /api/oreate/upload-token
- * Tauri: calls getUploadToken directly
  */
 export async function apiUploadToken(
   cookie: string,
   files: Array<{ filename: string; fileExt: string; size: number }>
 ): Promise<UploadTokenResult> {
   if (isDesktop()) {
-    const { parseCookies, getUploadToken } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, KeyList: null, error: 'Invalid cookie' };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, KeyList: null, error: 'Wails runtime not available' };
     try {
-      const fileMetas = files.map(f => ({ filename: f.filename, fileExt: f.fileExt, size: f.size }));
-      const result = await getUploadToken(cookies, fileMetas);
-      const data = result.data as Record<string, unknown>;
-      const status = (data?.status as Record<string, unknown>) || {};
-      if ((status.code as number) !== 0) {
-        return { success: false, KeyList: null, error: 'Failed to get upload token' };
-      }
-      const respData = (data?.data as Record<string, unknown>) || {};
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateGetUploadToken(cookieHeader, JSON.stringify(files));
       return {
-        success: true,
-        KeyList: (respData.KeyList ?? {}) as Record<string, { bucket: string; objectPath: string; sessionkey: string }>,
+        success: r.success as boolean,
+        KeyList: (r.KeyList ?? null) as Record<string, { bucket: string; objectPath: string; sessionkey: string }> | null,
       };
     } catch (err) {
       return { success: false, KeyList: null, error: err instanceof Error ? err.message : 'Failed to get upload token' };
     }
   }
 
-  // Web mode
   const data = await webFetch('/api/oreate/upload-token', { cookie, files });
   if (data.error || !data.KeyList) {
     return { success: false, KeyList: null, error: (data.error as string) || 'No KeyList' };
@@ -233,8 +248,8 @@ export async function apiUploadToken(
 
 /**
  * Upload a file to GCS.
+ * Desktop: Go OreateUploadFileGCS (base64 encoded)
  * Web: POST /api/oreate/upload-file (FormData)
- * Tauri: calls uploadToGCS directly
  */
 export async function apiUploadFile(
   file: File,
@@ -243,21 +258,24 @@ export async function apiUploadFile(
   sessionkey: string
 ): Promise<UploadFileResult> {
   if (isDesktop()) {
-    const { uploadToGCS } = await import('@/lib/oreate-client');
+    const app = getWailsApp();
+    if (!app) return { success: false, url: '', error: 'Wails runtime not available' };
     try {
       const arrayBuffer = await file.arrayBuffer();
+      const base64 = arrayBufferToBase64(arrayBuffer);
       const contentType = file.type || 'application/octet-stream';
-      const result = await uploadToGCS(arrayBuffer, bucket, objectPath, sessionkey, contentType);
-      if (result.data === '') {
-        return { success: false, url: '', error: 'GCS upload failed' };
-      }
-      return { success: true, url: result.data };
+      const r = await app.OreateUploadFileGCS(base64, bucket, objectPath, sessionkey, contentType);
+      return {
+        success: r.success as boolean,
+        url: (r.url as string) || '',
+        error: r.error as string | undefined,
+      };
     } catch (err) {
       return { success: false, url: '', error: err instanceof Error ? err.message : 'Upload failed' };
     }
   }
 
-  // Web mode: use FormData (API route expects it)
+  // Web mode: use FormData
   const formData = new FormData();
   formData.append('file', file);
   formData.append('bucket', bucket);
@@ -274,36 +292,31 @@ export async function apiUploadFile(
 
 /**
  * Submit SSE generation request.
+ * Desktop: Go OreateGenerate (parses SSE in Go)
  * Web: POST /api/oreate/generate
- * Tauri: calls submitSSEGeneration directly
  */
 export async function apiGenerate(
   cookie: string,
   sseRequest: Record<string, unknown>
 ): Promise<GenerateResult> {
   if (isDesktop()) {
-    const { parseCookies, submitSSEGeneration } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, docId: '', chatId: '', events: [], error: 'Invalid cookie' };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, docId: '', chatId: '', events: [], error: 'Wails runtime not available' };
     try {
-      const result = await submitSSEGeneration(cookies, sseRequest);
-      if (!result.success) {
-        return { success: false, docId: result.docId, chatId: result.chatId, events: result.events, error: result.error };
-      }
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateGenerate(cookieHeader, JSON.stringify(sseRequest));
       return {
-        success: true,
-        docId: result.docId,
-        chatId: result.chatId,
-        events: result.events,
+        success: r.success as boolean,
+        docId: (r.docId as string) || '',
+        chatId: (r.chatId as string) || '',
+        events: (r.events ?? []) as unknown[],
+        error: r.error as string | undefined,
       };
     } catch (err) {
       return { success: false, docId: '', chatId: '', events: [], error: err instanceof Error ? err.message : 'Generation failed' };
     }
   }
 
-  // Web mode
   const data = await webFetch('/api/oreate/generate', { cookie, sseRequest });
   if (!data.success) {
     return { success: false, docId: '', chatId: '', events: [], error: (data.error as string) || 'Unknown error' };
@@ -318,39 +331,31 @@ export async function apiGenerate(
 
 /**
  * Poll task status.
+ * Desktop: Go OreateGetTaskStatus
  * Web: POST /api/oreate/task-status
- * Tauri: calls getTaskStatus directly
  */
 export async function apiTaskStatus(
   cookie: string,
   taskId: string
 ): Promise<TaskStatusResult> {
   if (isDesktop()) {
-    const { parseCookies, getTaskStatus } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, status: -1, progress: 0, videoUrl: '', doc: {} };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, status: -1, progress: 0, videoUrl: '', doc: {} };
     try {
-      const result = await getTaskStatus(cookies, taskId);
-      const data = result.data as Record<string, unknown>;
-      const status = (data?.status as Record<string, unknown>) || {};
-      const respData = (data?.data as Record<string, unknown>) || {};
-      const docList = (respData.docList as Array<Record<string, unknown>>) || [];
-      const doc = docList[0] || {};
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateGetTaskStatus(cookieHeader, taskId);
       return {
-        success: (status.code as number) === 0,
-        status: (doc.status as number) ?? -1,
-        progress: (doc.progress as number) ?? 0,
-        videoUrl: (doc.videoUrl as string) || '',
-        doc,
+        success: r.success as boolean,
+        status: (r.status as number) ?? -1,
+        progress: (r.progress as number) ?? 0,
+        videoUrl: (r.videoUrl as string) || '',
+        doc: (r.doc ?? {}) as Record<string, unknown>,
       };
     } catch (err) {
       return { success: false, status: -1, progress: 0, videoUrl: '', doc: {} };
     }
   }
 
-  // Web mode
   const data = await webFetch('/api/oreate/task-status', { cookie, taskId });
   return {
     success: data.success as boolean,
@@ -363,8 +368,8 @@ export async function apiTaskStatus(
 
 /**
  * Fetch generation history.
+ * Desktop: Go OreateGetHistory
  * Web: POST /api/oreate/history
- * Tauri: calls getHistory directly
  */
 export async function apiHistory(
   cookie: string,
@@ -372,35 +377,21 @@ export async function apiHistory(
   rn = 20
 ): Promise<HistoryResult> {
   if (isDesktop()) {
-    const { parseCookies, getHistory } = await import('@/lib/oreate-client');
-    const cookies = parseCookies(cookie);
-    if (cookies.length === 0) {
-      return { success: false, items: [], total: 0 };
-    }
+    const app = getWailsApp();
+    if (!app) return { success: false, items: [], total: 0 };
     try {
-      const result = await getHistory(cookies, pn, rn);
-      const data = result.data as Record<string, unknown>;
-      const respData = (data?.data as Record<string, unknown>) || {};
-      const chatList = (respData.chatList as Array<Record<string, unknown>>) || [];
-      const total = (respData.total as number) ?? 0;
-      const items = chatList.map((c) => ({
-        docId: c.docId || '',
-        chatId: c.chatId || '',
-        title: c.title || '',
-        createTime: c.createTime || 0,
-        status: c.status || 0,
-        videoUrl: c.videoUrl || '',
-        thumbnailUrl: c.thumbnailUrl || '',
-        prompt: c.prompt || '',
-        modelName: c.modelName || '',
-      }));
-      return { success: true, items, total };
+      const cookieHeader = await buildCookieHeader(cookie);
+      const r = await app.OreateGetHistory(cookieHeader, pn, rn);
+      return {
+        success: r.success as boolean,
+        items: (r.items ?? []) as HistoryResult['items'],
+        total: (r.total as number) ?? 0,
+      };
     } catch (err) {
       return { success: false, items: [], total: 0 };
     }
   }
 
-  // Web mode
   const data = await webFetch('/api/oreate/history', { cookie, pn, rn });
   return {
     success: data.success as boolean,
