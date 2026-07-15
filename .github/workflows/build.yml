@@ -1,4 +1,4 @@
-name: Build Desktop App
+name: Build Windows Desktop
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
         run: bun install
 
       - name: Rust setup
-        uses: dtolnay/rust-action/setup@v1
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -33,38 +33,6 @@ jobs:
       - name: Build frontend
         run: bun run build
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          projectPath: src-tauri
-          tagName: v__VERSION__
-          releaseName: "OreateAI Studio v__VERSION__"
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
-          prerelease: false
-
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install Bun
-        uses: oven-sh/setup-bun@v2
-      - name: Install frontend dependencies
-        run: bun install
-      - name: Rust setup
-        uses: dtolnay/rust-action/setup@v1
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-      - name: Build frontend
-        run: bun run build
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
