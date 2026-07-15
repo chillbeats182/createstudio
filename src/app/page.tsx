@@ -562,6 +562,7 @@ function GenerateTab() {
         attachments: attachments as Array<Record<string, unknown>>,
         videoConfig: videoConfig as unknown as Record<string, unknown>,
         cookies,
+        userInfo: store.userInfo as Record<string, unknown> | null,
       });
 
       // Step 4: Submit generation
@@ -1467,6 +1468,7 @@ function WorkflowDebugTab() {
             attachments: sseAttachments as Array<Record<string, unknown>>,
             videoConfig,
             cookies: parseCookies(store.cookie),
+            userInfo: store.userInfo as Record<string, unknown> | null,
           });
 
           // --- Submit SSE generation ---

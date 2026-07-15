@@ -170,42 +170,56 @@ export function buildSSERequest(params: {
   attachments: Array<Record<string, unknown>>;
   videoConfig: Record<string, unknown>;
   cookies: CookieEntry[];
+  userInfo?: Record<string, unknown> | null;
 }): Record<string, unknown> {
-  const { chatId, prompt, attachments, videoConfig, cookies } = params;
+  const { chatId, prompt, attachments, videoConfig, cookies, userInfo } = params;
 
-  // Extract bid from cookies (website's ZCe mirror data reads __bid_n cookie)
+  // Extract cookie values (website reads these for mirror data)
   const bidCookie = cookies.find(c => c.name === '__bid_n');
   const bid = bidCookie?.value || '';
+  const ouidCookie = cookies.find(c => c.name === 'OUID');
+  const deviceID = ouidCookie?.value || '';
+
+  // Extract user info for extra fields (website sends real values)
+  const email = (userInfo?.email as string) || '';
+  const vipLevel = String(userInfo?.vipLevel ?? userInfo?.vip ?? '0');
+  const regTs = (userInfo?.regTs as number) || (userInfo?.reg_ts as number) || 0;
+
+  // Process videoConfig: strip 'P' suffix from resolution (website sends "720" not "720P")
+  const processedVideoConfig = { ...videoConfig };
+  if (typeof processedVideoConfig.resolution === 'string') {
+    processedVideoConfig.resolution = processedVideoConfig.resolution.replace(/P$/i, '');
+  }
 
   return {
     // Mirror data fields (deep-merged into body via lodash _.merge on website)
     jt: '',
     ua: DEFAULT_HEADERS['User-Agent'],
     js_env: 'h5',
-    // Main request fields
+    // extra must come before main fields (lodash _.merge order)
+    extra: {
+      email,
+      vip: vipLevel,
+      reg_ts: regTs,
+      deviceID,
+      bid,
+      doc_name: '',
+      module_name: 'gpt4o',
+    },
+    clientType: 'pc',
     type: 'chat',
+    chatType: 'aiVideo',
+    chatTitle: 'Unnamed Session',
     focusId: chatId,
     chatId,
-    chatType: 'aiVideo',
-    from: '',
-    chatTitle: 'Unnamed Session',
+    from: 'home',
     messages: [{
       role: 'user',
       content: prompt || '',
       attachments,
     }],
+    videoConfig: processedVideoConfig,
     isFirst: true,
-    videoConfig,
-    extra: {
-      doc_name: '',
-      module_name: 'gpt4o',
-      email: '',
-      vip: 'undefined',
-      reg_ts: 0,
-      deviceID: '',
-      bid,
-    },
-    clientType: 'pc',
   };
 }
 
@@ -334,21 +348,13 @@ export async function submitSSEGeneration(
   const body = JSON.stringify(sseRequest);
   const startTime = Date.now();
 
-  // Headers must match Go desktop app (api_client.go newRequest + SubmitGeneration)
-  // Go sends: User-Agent, Accept, Accept-Language, Referer, Origin, Sec-Fetch-*, Cookie,
-  //          Content-Type (overridden), Accept (overridden to "text/event-stream, */*"), Client-Type, locale
+  // Headers EXACTLY match real website (captured via agent-browser)
+  // Real headers: Content-Type, locale, Client-Type, accept (lowercase)
   const headers: Record<string, string> = {
-    'User-Agent': DEFAULT_HEADERS['User-Agent'],
-    'Accept': 'text/event-stream, */*',
-    'Accept-Language': DEFAULT_HEADERS['Accept-Language'],
-    'Referer': DEFAULT_HEADERS['Referer'],
-    'Origin': DEFAULT_HEADERS['Origin'],
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin',
     'Content-Type': 'application/json',
-    'Client-Type': 'PC',
     'locale': 'en-US',
+    'Client-Type': 'pc',
+    'accept': 'text/event-stream',
     'Cookie': cookieHeader,
   };
 

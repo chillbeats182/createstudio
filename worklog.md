@@ -789,3 +789,33 @@ Stage Summary:
 - Root cause #2: Case 2 code was completely broken (syntax error from orphaned object literal)
 - Files modified: src/lib/oreate-client.ts, src/app/page.tsx
 - Page now compiles and serves HTTP 200
+
+---
+Task ID: 3
+Agent: Main
+Task: Real website test with agent-browser to capture exact SSE request and fix all differences
+
+Work Log:
+- Read cookie JSON from /home/z/my-project/upload/json create ai.txt
+- Used agent-browser to log into oreateai.com with real cookies
+- Selected: Text/Image to Video → Pixverse V5 → 9:16 → 720P → 5S
+- Installed JS fetch interceptor to capture exact request body/headers
+- Triggered REAL video generation ("a beautiful sunset over the ocean")
+- Successfully captured COMPLETE SSE request body and headers
+- Compared field-by-field with our app and found 8 differences
+- Fixed all differences in oreate-client.ts and page.tsx
+- Page compiles successfully (HTTP 200)
+
+Stage Summary:
+- Captured real request saved to: /home/z/my-project/upload/captured_sse_request.json
+- 8 differences found and fixed:
+  1. `from: ""` → `"home"` (website always sends "home")
+  2. `vip: "undefined"` → `"0"` (string "0", not "undefined")
+  3. `email: ""` → actual email from userInfo
+  4. `deviceID: ""` → OUID cookie value
+  5. `reg_ts: 0` → actual registration timestamp from userInfo
+  6. `accept: "text/event-stream, */*"` → `"text/event-stream"` (no wildcard)
+  7. `Client-Type: "PC"` → `"pc"` (lowercase)
+  8. Resolution safety strip (already "720" from config, but strip "P" as safety)
+- Field order in JSON body now matches real website exactly
+- extra object field order now matches real website (email, vip, reg_ts, deviceID, bid, doc_name, module_name)
