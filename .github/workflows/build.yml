@@ -8,8 +8,17 @@ on:
 jobs:
   build-windows:
     runs-on: windows-latest
+    env:
+      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@v4
+
+      # ── Toolchain Setup ──────────────────────────────────────────
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -19,47 +28,84 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
+      - name: Install MinGW (GCC for Wails CGO)
+        run: |
+          choco install mingw -y --no-progress
+          # Chocolatey installs to C:\tools\mingw64 by default
+          # Explicitly add to GITHUB_PATH so subsequent steps can find gcc/windres
+          $mingwBin = "C:\tools\mingw64\bin"
+          if (Test-Path "$mingwBin\gcc.exe") {
+            echo $mingwBin | Out-File -FilePath $env:GITHUB_PATH -Append
+            Write-Host "Added MinGW to PATH: $mingwBin"
+          } else {
+            # Fallback: search for gcc
+            $found = Get-ChildItem -Path "C:\" -Recurse -Filter "gcc.exe" -ErrorAction SilentlyContinue |
+                     Where-Object { $_.FullName -match "mingw" } |
+                     Select-Object -First 1
+            if ($found) {
+              echo $found.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Append
+              Write-Host "Found GCC at: $($found.FullName)"
+            } else {
+              Write-Error "GCC not found after installing MinGW!"
+              exit 1
+            }
+          }
+
+      - name: Verify toolchain
+        run: |
+          Write-Host "=== Go ==="
+          go version
+          Write-Host "=== GCC ==="
+          gcc --version
+          Write-Host "=== Wails ==="
+          wails version
+
+      # ── Frontend Build ──────────────────────────────────────────
 
       - name: Install frontend dependencies
         run: bun install
 
-      - name: Remove API routes (not needed for desktop)
-        run: Remove-Item -Recurse -Force src\app\api
+      - name: Remove API routes (incompatible with static export)
+        run: |
+          if (Test-Path src\app\api) {
+            Remove-Item -Recurse -Force src\app\api
+            Write-Host "Removed src/app/api"
+          }
 
-      - name: Build Next.js frontend
+      - name: Build Next.js (static export to /out)
         run: bun run build
 
-      - name: Copy frontend to Wails
+      - name: Copy frontend build to Wails embed directory
         run: |
           if (Test-Path wails-app\frontend) { Remove-Item -Recurse -Force wails-app\frontend }
           New-Item -ItemType Directory -Force -Path wails-app\frontend | Out-Null
           Copy-Item -Path out\* -Destination wails-app\frontend -Recurse
+          Write-Host "Frontend files copied:"
+          Get-ChildItem wails-app\frontend | Select-Object Name
 
-      - name: Download Windows resource compiler
-        run: |
-          # Wails needs windres for Windows icon compilation
-          choco install mingw -y --no-progress
+      # ── Wails Desktop Build ─────────────────────────────────────
 
       - name: Resolve Go dependencies
+        working-directory: wails-app
         run: |
-          cd wails-app
+          Write-Host "Running go mod tidy..."
           go mod tidy
+          Write-Host "Running go mod download..."
           go mod download
+          Write-Host "Go dependencies resolved."
 
       - name: Build Wails desktop app
-        run: |
-          cd wails-app
-          wails build -platform windows/amd64 -o OreateAI-Studio.exe
+        working-directory: wails-app
+        run: wails build -platform windows/amd64 -clean
+
+      # ── Upload Artifact ─────────────────────────────────────────
 
       - name: Upload Windows exe artifact
         uses: actions/upload-artifact@v4
         with:
           name: OreateAI-Studio-Windows
-          path: wails-app/build/bin/OreateAI-Studio.exe
+          path: wails-app/build/bin/*.exe
+          if-no-files-found: error

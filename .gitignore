@@ -52,8 +52,9 @@ prompt
 # Skills directory
 /skills/
 
-# Tauri build artifacts
-src-tauri/target/
+# Wails build artifacts
+wails-app/build/bin/
+wails-app/frontend/
 
 # Temp/working files (project root only)
 /captured-js/
