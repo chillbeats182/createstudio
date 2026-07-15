@@ -1,0 +1,13 @@
+{
+  "$schema": "https://wails.io/schemas/config.v2.json",
+  "name": "OreateAI Studio",
+  "outputfilename": "OreateAI-Studio",
+  "frontend:install": "",
+  "frontend:build": "",
+  "frontend:dev:watcher": "",
+  "frontend:dev:serverUrl": "auto",
+  "author": {
+    "name": "chillbeats182",
+    "email": "chillbeats182@users.noreply.github.com"
+  }
+}

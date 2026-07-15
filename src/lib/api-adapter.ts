@@ -1,21 +1,25 @@
 // ====================================================================
-//  API Adapter — Routes calls between Tauri (direct) and Web (proxy)
+//  API Adapter — Routes calls between Desktop (direct) and Web (proxy)
 // ====================================================================
 //
 // In Web mode:  fetch('/api/oreate/...') → Next.js API routes (server-side)
-// In Tauri mode: call oreate-client.ts directly (no CORS in desktop apps)
+// In Desktop mode (Wails/Tauri): call oreate-client.ts directly (no CORS)
 // ====================================================================
 
 import type { ModelOption, SceneOption } from '@/lib/store';
 
 // ====================================================================
-//  Tauri Detection
+//  Desktop Detection (Wails or Tauri)
 // ====================================================================
 
-function isTauri(): boolean {
+function isDesktop(): boolean {
   if (typeof window === 'undefined') return false;
   const w = window as unknown as Record<string, unknown>;
-  return !!w['__TAURI__'] || !!w['__TAURI_INTERNALS__'];
+  // Wails v2 injects window.runtime
+  if ((w['runtime'] as Record<string, unknown>)?.['EventsOn']) return true;
+  // Tauri
+  if (w['__TAURI__'] || w['__TAURI_INTERNALS__']) return true;
+  return false;
 }
 
 // ====================================================================
@@ -104,7 +108,7 @@ async function webFetch(url: string, body?: Record<string, unknown>): Promise<Re
  * Tauri: calls authenticate() from oreate-client directly
  */
 export async function apiAuth(cookie: string): Promise<AuthResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     // Dynamic import to avoid bundling in web mode
     const { parseCookies, authenticate } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
@@ -146,7 +150,7 @@ export async function apiAuth(cookie: string): Promise<AuthResult> {
  * Tauri: calls getModelConfig + getSceneConfig directly
  */
 export async function apiModels(cookie: string): Promise<ModelsResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { parseCookies, getModelConfig, getSceneConfig } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
     if (cookies.length === 0) {
@@ -192,7 +196,7 @@ export async function apiUploadToken(
   cookie: string,
   files: Array<{ filename: string; fileExt: string; size: number }>
 ): Promise<UploadTokenResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { parseCookies, getUploadToken } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
     if (cookies.length === 0) {
@@ -238,7 +242,7 @@ export async function apiUploadFile(
   objectPath: string,
   sessionkey: string
 ): Promise<UploadFileResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { uploadToGCS } = await import('@/lib/oreate-client');
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -277,7 +281,7 @@ export async function apiGenerate(
   cookie: string,
   sseRequest: Record<string, unknown>
 ): Promise<GenerateResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { parseCookies, submitSSEGeneration } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
     if (cookies.length === 0) {
@@ -321,7 +325,7 @@ export async function apiTaskStatus(
   cookie: string,
   taskId: string
 ): Promise<TaskStatusResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { parseCookies, getTaskStatus } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
     if (cookies.length === 0) {
@@ -367,7 +371,7 @@ export async function apiHistory(
   pn = 1,
   rn = 20
 ): Promise<HistoryResult> {
-  if (isTauri()) {
+  if (isDesktop()) {
     const { parseCookies, getHistory } = await import('@/lib/oreate-client');
     const cookies = parseCookies(cookie);
     if (cookies.length === 0) {

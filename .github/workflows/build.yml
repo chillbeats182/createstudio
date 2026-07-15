@@ -19,31 +19,47 @@ jobs:
       - name: Install Bun
         uses: oven-sh/setup-bun@v2
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@latest
+
       - name: Install frontend dependencies
         run: bun install
 
-      - name: Remove API routes (not needed for Tauri desktop)
+      - name: Remove API routes (not needed for desktop)
         run: Remove-Item -Recurse -Force src\app\api
 
-      - name: Rust setup
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Rust cache
-        uses: swatinem/rust-cache@v2
-        with:
-          workspaces: src-tauri -> target
-
-      - name: Build frontend
+      - name: Build Next.js frontend
         run: bun run build
 
-      - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Copy frontend to Wails
+        run: |
+          if (Test-Path wails-app\frontend) { Remove-Item -Recurse -Force wails-app\frontend }
+          New-Item -ItemType Directory -Force -Path wails-app\frontend | Out-Null
+          Copy-Item -Path out\* -Destination wails-app\frontend -Recurse
+
+      - name: Download Windows resource compiler
+        run: |
+          # Wails needs windres for Windows icon compilation
+          choco install mingw -y --no-progress
+
+      - name: Resolve Go dependencies
+        run: |
+          cd wails-app
+          go mod tidy
+          go mod download
+
+      - name: Build Wails desktop app
+        run: |
+          cd wails-app
+          wails build -platform windows/amd64 -o OreateAI-Studio.exe
+
+      - name: Upload Windows exe artifact
+        uses: actions/upload-artifact@v4
         with:
-          projectPath: src-tauri
-          tagName: v__VERSION__
-          releaseName: "OreateAI Studio v__VERSION__"
-          releaseBody: "See the assets to download and install this version."
-          releaseDraft: true
-          prerelease: false
+          name: OreateAI-Studio-Windows
+          path: wails-app/build/bin/OreateAI-Studio.exe
