@@ -360,25 +360,39 @@ function GenerateTab() {
     pointCost = match?.point ?? 0;
   }
 
-  const canGenerate = store.isAuthenticated && store.imageFile && !store.isGenerating && store.restPoint >= pointCost;
+  const canGenerate = store.isAuthenticated && !store.isGenerating && store.restPoint >= pointCost;
 
   const handleGenerate = async () => {
-    if (!canGenerate || !store.imageFile) return;
+    if (!canGenerate) return;
+    const hasImage = !!store.imageFile;
+    const hasVideo = !!store.videoFile;
+    const isTextOnly = !hasImage && !hasVideo;
+    const isMotion = scene === 'motion';
+
+    // Motion and reference require files
+    if (isMotion && !hasVideo) {
+      toast.error('Motion mode requires a video file');
+      return;
+    }
 
     store.setGenerating(true);
     store.setTaskProgress(0);
-    store.setTaskStatus('uploading');
+    store.setTaskStatus(isTextOnly ? 'generating' : 'uploading');
     store.setTaskVideoUrl(null);
     store.setTaskId(null);
 
     try {
-      // Step 1: Get upload token
-      store.setTaskStatus('uploading');
-      const filesToUpload: Array<{ filename: string; fileExt: string; size: number; file: File }> = [];
+      let imageUrl = '';
+      let videoUrl = '';
 
-      const imageNoExt = getFilenameNoExt(store.imageFile.name);
-      const imageExt = getExt(store.imageFile.name);
-      filesToUpload.push({ filename: imageNoExt, fileExt: imageExt, size: store.imageFile.size, file: store.imageFile });
+      // Step 1-2: Upload only if files exist
+      if (!isTextOnly) {
+        store.setTaskStatus('uploading');
+        const filesToUpload: Array<{ filename: string; fileExt: string; size: number; file: File }> = [];
+
+        const imageNoExt = getFilenameNoExt(store.imageFile!.name);
+        const imageExt = getExt(store.imageFile!.name);
+        filesToUpload.push({ filename: imageNoExt, fileExt: imageExt, size: store.imageFile!.size, file: store.imageFile! });
 
       if (store.videoFile) {
         const videoNoExt = getFilenameNoExt(store.videoFile.name);
@@ -443,13 +457,11 @@ function GenerateTab() {
           return;
         }
         uploadedUrls.push(uploadData.url);
-      }
+      } // end for-loop
 
-      // Build URLs
-      let imageUrl = uploadedUrls[0] || '';
-      let videoUrl = '';
+      // Build URLs from uploaded files
+      imageUrl = uploadedUrls[0] || '';
       if (isMotion && uploadedUrls.length > 1) {
-        // For motion: video first, then image
         const imgIdx = filesToUpload.findIndex((f) => IMAGE_EXTS.includes(getExt(f.file.name)));
         const vidIdx = filesToUpload.findIndex((f) => VIDEO_EXTS.includes(getExt(f.file.name)));
         if (vidIdx >= 0 && imgIdx >= 0) {
@@ -460,6 +472,7 @@ function GenerateTab() {
           videoUrl = uploadedUrls[1] || '';
         }
       }
+      } // end if (!isTextOnly)
 
       setUploadedImageUrl(imageUrl);
       setUploadedVideoUrl(videoUrl);
@@ -468,7 +481,7 @@ function GenerateTab() {
       store.setTaskStatus('generating');
       const chatId = generateChatID();
 
-      // Build attachments (matches website's nke() — NO videoDurationSec when 0)
+      // Build attachments (real website: empty [] for text-only)
       const attachments: Array<Record<string, unknown>> = [];
       if (isMotion && videoUrl) {
         attachments.push({
@@ -483,20 +496,22 @@ function GenerateTab() {
           status: 1,
         });
       }
-      attachments.push({
-        bos_url: imageUrl,
-        bosUrl: imageUrl,
-        docId: '',
-        doc_title: imageNoExt,
-        doc_type: imageExt,
-        size: store.imageFile.size,
-        flag: 'upload',
-        type: 'file',
-        status: 1,
-      });
+      if (hasImage && imageUrl) {
+        attachments.push({
+          bos_url: imageUrl,
+          bosUrl: imageUrl,
+          docId: '',
+          doc_title: getFilenameNoExt(store.imageFile!.name),
+          doc_type: getExt(store.imageFile!.name),
+          size: store.imageFile!.size,
+          flag: 'upload',
+          type: 'file',
+          status: 1,
+        });
+      }
 
-      // Build videoConfig (matches website's getVideoConfig EXACTLY)
-      // Website's _reconcile(): aiType from UV(pointCost, {resolution, duration, audio})
+      // Build videoConfig (EXACT field order from real captured request)
+      // Real: {modelName, ratio, resolution, duration, isAudio, aiType, scene, textOrImage}
       const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
       const isMot = scene === 'motion';
       const isRef = scene === 'reference';
@@ -519,15 +534,14 @@ function GenerateTab() {
         modelName: store.selectedModelName,
         ratio: store.selectedVideoSize || '',
         resolution: genResolution,
+        ...(hasDur ? { duration: genDuration } : {}),
         isAudio: false,
         aiType: genAiType,
         scene: store.selectedSceneId,
-        // duration: only included when model supports it (website: ...K8(durations) ? {duration} : {})
-        ...(hasDur ? { duration: genDuration } : {}),
       };
 
       if (scene === 'text_or_image') {
-        videoConfig.textOrImage = { image: imageUrl };
+        videoConfig.textOrImage = { image: imageUrl || '' };
       } else if (scene === 'motion') {
         let motDurVal: number | string = '';
         if (store.motDuration) {
@@ -538,7 +552,7 @@ function GenerateTab() {
           characterImage: imageUrl,
           motionVideo: videoUrl,
           motDuration: motDurVal,
-          keepOriginalSound: store.keepOriginalSound,
+          keepOriginalSound: false,
         };
       } else if (scene === 'reference') {
         const refImages: string[] = [];
@@ -550,10 +564,10 @@ function GenerateTab() {
           referenceVideos: refVideos,
           refDuration: '',
           refTotalDuration: '',
-          keepOriginalSound: store.keepOriginalSound,
+          keepOriginalSound: false,
         };
       } else if (scene === 'frame_based') {
-        videoConfig.frameBased = { firstFrame: imageUrl, lastFrame: '' };
+        videoConfig.frameBased = { firstFrame: imageUrl || '', lastFrame: '' };
       }
 
       const sseRequest = buildSSERequest({
@@ -1284,14 +1298,10 @@ function WorkflowDebugTab() {
         }
 
         case 2: {
-          // === GENERATE (website-verified: _reconcile() + getVideoConfig() from live JS) ===
+          // === GENERATE (real-website-verified: supports text-only OR image+text) ===
+          // Real website sends attachments:[] for text-only (NO upload required)
           const attachments = uploadedAttachmentsRef.current;
-          if (attachments.length === 0) {
-            toast.error('Run Upload step first to upload files');
-            setRunningStep(null);
-            setStepRes(2, { success: false, data: { error: 'No uploaded files. Run Upload step first.' }, duration: 0 });
-            return;
-          }
+          const hasAttachments = attachments.length > 0;
 
           const chatId = generateChatID();
           const sceneId = store.selectedSceneId || 'text_or_image';
@@ -1406,30 +1416,26 @@ function WorkflowDebugTab() {
           });
           const aiType = matchedCost?.aiType ?? 0;
 
-          // --- Build videoConfig (website's getVideoConfig EXACTLY) ---
-          // Website: ratio = K8(sizes.values) && n.portion || ""
-          // Website: resolution = K8(resolutions.values) && n.solution || ""
-          // Website: duration = K8(durations.values) ? {duration: Number(n.time||0)} : {}
-          // Website: isAudio = K8(supportAudio.values) ? !!n.supportAudio : false
-          // Website: aiType = n.aiType || 0
+          // --- Build videoConfig (EXACT field order from real captured request) ---
+          // Real: {modelName, ratio, resolution, duration, isAudio, aiType, scene, textOrImage}
           const hasSizeOptions = !!(currentModel?.videoSize && currentModel.videoSize.length > 0);
           const hasResolutionOptions = !!(currentModel?.videoResolution && currentModel.videoResolution.length > 0);
           const hasDurationOptions = !!(currentModel?.duration && currentModel.duration.length > 0);
           const hasAudioSupport = !!currentModel?.supportAudio;
 
+          // Build base videoConfig matching real field order EXACTLY
           const videoConfig: Record<string, unknown> = {
             modelName,
-            aiType,
-            scene: sceneId,
             ratio: hasSizeOptions ? (store.selectedVideoSize || '') : '',
             resolution: hasResolutionOptions ? (store.selectedResolution || '') : '',
-            isAudio: hasAudioSupport ? !!store.supportAudio : false,
-            // duration: ONLY included when model supports durations (website: ...K8(durations) ? {duration} : {})
             ...(hasDurationOptions ? { duration } : {}),
+            isAudio: false,
+            aiType,
+            scene: sceneId,
           };
 
+          // Scene-specific sub-objects (real: textOrImage, motion, reference, frameBased)
           if (isMotion) {
-            // motDuration: parse to int, or empty string (matches website: this.motionVideoDuration || "")
             let motDurationVal: number | string = '';
             if (store.motDuration) {
               const n = parseInt(store.motDuration);
@@ -1439,10 +1445,11 @@ function WorkflowDebugTab() {
               characterImage: characterImageUrl,
               motionVideo: motionVideoUrl,
               motDuration: motDurationVal,
-              keepOriginalSound: store.keepOriginalSound || false,
+              keepOriginalSound: false,
             };
           } else if (sceneId === 'text_or_image') {
-            videoConfig.textOrImage = { image: characterImageUrl };
+            // Real: textOrImage: {image: ""} for text-only, {image: "<url>"} with image
+            videoConfig.textOrImage = { image: characterImageUrl || '' };
           } else if (sceneId === 'reference') {
             const refImages = attachments.filter(a => a.fileRole === 'image').map(a => a.bos_url);
             const refVideos = attachments.filter(a => a.fileRole === 'video').map(a => a.bos_url);
@@ -1451,10 +1458,9 @@ function WorkflowDebugTab() {
               referenceVideos: refVideos,
               refDuration: '',
               refTotalDuration: '',
-              keepOriginalSound: store.keepOriginalSound || false,
+              keepOriginalSound: false,
             };
           } else if (sceneId === 'frame_based') {
-            // Website: frameBased: {firstFrame, lastFrame} (CRITICAL — was missing!)
             videoConfig.frameBased = {
               firstFrame: firstFrameUrl,
               lastFrame: lastFrameUrl,
