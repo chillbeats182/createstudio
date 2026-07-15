@@ -1,0 +1,502 @@
+     1→   501→   501→   501→          bos_url: imageUrl,
+     2→   502→   502→   502→          bosUrl: imageUrl,
+     3→   503→   503→   503→          docId: '',
+     4→   504→   504→   504→          doc_title: getFilenameNoExt(store.imageFile!.name),
+     5→   505→   505→   505→          doc_type: getExt(store.imageFile!.name),
+     6→   506→   506→   506→          size: store.imageFile!.size,
+     7→   507→   507→   507→          flag: 'upload',
+     8→   508→   508→   508→          type: 'file',
+     9→   509→   509→   509→          status: 1,
+    10→   510→   510→   510→        });
+    11→   511→   511→   511→      }
+    12→   512→   512→   512→
+    13→   513→   513→   513→      // Build videoConfig (EXACT field order from real captured request)
+    14→   514→   514→   514→      // Real: {modelName, ratio, resolution, duration, isAudio, aiType, scene, textOrImage}
+    15→   515→   515→   515→      const currentModel = store.models.find((m) => m.modelName === store.selectedModelName);
+    16→   516→   516→   516→      const isMot = scene === 'motion';
+    17→   517→   517→   517→      const isRef = scene === 'reference';
+    18→   518→   518→   518→      const costs = isMot
+    19→   519→   519→   519→        ? (currentModel?.pointCostMotion || [])
+    20→   520→   520→   520→        : isRef
+    21→   521→   521→   521→          ? (currentModel?.pointCostReference || [])
+    22→   522→   522→   522→          : (currentModel?.pointCostImage || []);
+    23→   523→   523→   523→      const genDuration = Number(store.selectedDuration) || 5;
+    24→   524→   524→   524→      const genResolution = store.selectedResolution || '';
+    25→   525→   525→   525→      const matchedCost = costs.find((c: {resolution?:string;duration?:number}) => {
+    26→   526→   526→   526→        const resOk = !c.resolution || c.resolution === genResolution;
+    27→   527→   527→   527→        const durOk = c.duration === undefined || c.duration === genDuration;
+    28→   528→   528→   528→        return resOk && durOk;
+    29→   529→   529→   529→      });
+    30→   530→   530→   530→      const genAiType = matchedCost?.aiType ?? 0;
+    31→   531→   531→   531→
+    32→   532→   532→   532→      const hasDur = !!(currentModel?.duration && currentModel.duration.length > 0);
+    33→   533→   533→   533→      const videoConfig: Record<string, unknown> = {
+    34→   534→   534→   534→        modelName: store.selectedModelName,
+    35→   535→   535→   535→        ratio: store.selectedVideoSize || '',
+    36→   536→   536→   536→        resolution: genResolution,
+    37→   537→   537→   537→        ...(hasDur ? { duration: genDuration } : {}),
+    38→   538→   538→   538→        isAudio: false,
+    39→   539→   539→   539→        aiType: genAiType,
+    40→   540→   540→   540→        scene: store.selectedSceneId,
+    41→   541→   541→   541→      };
+    42→   542→   542→   542→
+    43→   543→   543→   543→      if (scene === 'text_or_image') {
+    44→   544→   544→   544→        videoConfig.textOrImage = { image: imageUrl || '' };
+    45→   545→   545→   545→      } else if (scene === 'motion') {
+    46→   546→   546→   546→        let motDurVal: number | string = '';
+    47→   547→   547→   547→        if (store.motDuration) {
+    48→   548→   548→   548→          const n = parseInt(store.motDuration);
+    49→   549→   549→   549→          motDurVal = isNaN(n) ? '' : n;
+    50→   550→   550→   550→        }
+    51→   551→   551→   551→        videoConfig.motion = {
+    52→   552→   552→   552→          characterImage: imageUrl,
+    53→   553→   553→   553→          motionVideo: videoUrl,
+    54→   554→   554→   554→          motDuration: motDurVal,
+    55→   555→   555→   555→          keepOriginalSound: false,
+    56→   556→   556→   556→        };
+    57→   557→   557→   557→      } else if (scene === 'reference') {
+    58→   558→   558→   558→        const refImages: string[] = [];
+    59→   559→   559→   559→        const refVideos: string[] = [];
+    60→   560→   560→   560→        if (IMAGE_EXTS.includes(getExt(store.imageFile.name))) refImages.push(imageUrl);
+    61→   561→   561→   561→        if (videoUrl && VIDEO_EXTS.includes(getExt(store.videoFile?.name || ''))) refVideos.push(videoUrl);
+    62→   562→   562→   562→        videoConfig.reference = {
+    63→   563→   563→   563→          referenceImages: refImages,
+    64→   564→   564→   564→          referenceVideos: refVideos,
+    65→   565→   565→   565→          refDuration: '',
+    66→   566→   566→   566→          refTotalDuration: '',
+    67→   567→   567→   567→          keepOriginalSound: false,
+    68→   568→   568→   568→        };
+    69→   569→   569→   569→      } else if (scene === 'frame_based') {
+    70→   570→   570→   570→        videoConfig.frameBased = { firstFrame: imageUrl || '', lastFrame: '' };
+    71→   571→   571→   571→      }
+    72→   572→   572→   572→
+    73→   573→   573→   573→      const sseRequest = buildSSERequest({
+    74→   574→   574→   574→        chatId,
+    75→   575→   575→   575→        prompt: store.prompt || '',
+    76→   576→   576→   576→        attachments: attachments as Array<Record<string, unknown>>,
+    77→   577→   577→   577→        videoConfig: videoConfig as unknown as Record<string, unknown>,
+    78→   578→   578→   578→        cookies,
+    79→   579→   579→   579→        userInfo: store.userInfo as Record<string, unknown> | null,
+    80→   580→   580→   580→      });
+    81→   581→   581→   581→
+    82→   582→   582→   582→      // Step 4: Submit generation
+    83→   583→   583→   583→      const genResp = await fetch('/api/oreate/generate', {
+    84→   584→   584→   584→        method: 'POST',
+    85→   585→   585→   585→        headers: { 'Content-Type': 'application/json' },
+    86→   586→   586→   586→        body: JSON.stringify({ cookie: store.cookie, sseRequest }),
+    87→   587→   587→   587→      });
+    88→   588→   588→   588→      const genData = await genResp.json();
+    89→   589→   589→   589→
+    90→   590→   590→   590→      if (!genData.success) {
+    91→   591→   591→   591→        toast.error(`Generation failed: ${genData.error || 'Unknown error'}`);
+    92→   592→   592→   592→        store.setGenerating(false);
+    93→   593→   593→   593→        store.setTaskStatus('idle');
+    94→   594→   594→   594→        return;
+    95→   595→   595→   595→      }
+    96→   596→   596→   596→
+    97→   597→   597→   597→      const docId = genData.docId || genData.chatId;
+    98→   598→   598→   598→      if (!docId) {
+    99→   599→   599→   599→        toast.error('No docId returned from generation');
+   100→   600→   600→   600→        store.setGenerating(false);
+   101→   601→   601→   601→        store.setTaskStatus('idle');
+   102→   602→   602→   602→        return;
+   103→   603→   603→   603→      }
+   104→   604→   604→   604→
+   105→   605→   605→   605→      store.setTaskId(docId);
+   106→   606→   606→   606→      store.setTaskStatus('polling');
+   107→   607→   607→   607→      toast.success('Generation submitted, polling...');
+   108→   608→   608→   608→
+   109→   609→   609→   609→      // Step 5: Poll for completion
+   110→   610→   610→   610→      let pollCount = 0;
+   111→   611→   611→   611→      const maxPolls = 120;
+   112→   612→   612→   612→
+   113→   613→   613→   613→      pollRef.current = setInterval(async () => {
+   114→   614→   614→   614→        pollCount++;
+   115→   615→   615→   615→        if (pollCount > maxPolls) {
+   116→   616→   616→   616→          if (pollRef.current) clearInterval(pollRef.current);
+   117→   617→   617→   617→          store.setGenerating(false);
+   118→   618→   618→   618→          store.setTaskStatus('timeout');
+   119→   619→   619→   619→          toast.error('Generation timed out');
+   120→   620→   620→   620→          return;
+   121→   621→   621→   621→        }
+   122→   622→   622→   622→
+   123→   623→   623→   623→        try {
+   124→   624→   624→   624→          const statusResp = await fetch('/api/oreate/task-status', {
+   125→   625→   625→   625→            method: 'POST',
+   126→   626→   626→   626→            headers: { 'Content-Type': 'application/json' },
+   127→   627→   627→   627→            body: JSON.stringify({ cookie: store.cookie, taskId: docId }),
+   128→   628→   628→   628→          });
+   129→   629→   629→   629→          const statusData = await statusResp.json();
+   130→   630→   630→   630→
+   131→   631→   631→   631→          const progress = (statusData.progress as number) ?? 0;
+   132→   632→   632→   632→          const videoUrl2 = (statusData.videoUrl as string) || '';
+   133→   633→   633→   633→          const docStatus = (statusData.status as number) ?? -1;
+   134→   634→   634→   634→
+   135→   635→   635→   635→          store.setTaskProgress(Math.min(progress, 100));
+   136→   636→   636→   636→
+   137→   637→   637→   637→          // Status: 0=pending, 1=processing, 2=complete, 3=failed
+   138→   638→   638→   638→          if (docStatus === 2 || (videoUrl2 && videoUrl2.startsWith('http'))) {
+   139→   639→   639→   639→            if (pollRef.current) clearInterval(pollRef.current);
+   140→   640→   640→   640→            store.setTaskProgress(100);
+   141→   641→   641→   641→            store.setTaskVideoUrl(videoUrl2);
+   142→   642→   642→   642→            store.setTaskStatus('complete');
+   143→   643→   643→   643→            store.setGenerating(false);
+   144→   644→   644→   644→            toast.success('Video generated!');
+   145→   645→   645→   645→            return;
+   146→   646→   646→   646→          }
+   147→   647→   647→   647→
+   148→   648→   648→   648→          if (docStatus === 3) {
+   149→   649→   649→   649→            if (pollRef.current) clearInterval(pollRef.current);
+   150→   650→   650→   650→            store.setTaskStatus('failed');
+   151→   651→   651→   651→            store.setGenerating(false);
+   152→   652→   652→   652→            toast.error('Generation failed on server');
+   153→   653→   653→   653→            return;
+   154→   654→   654→   654→          }
+   155→   655→   655→   655→
+   156→   656→   656→   656→          // Still processing
+   157→   657→   657→   657→          store.setTaskProgress(Math.max(progress, Math.min(pollCount * 2, 95)));
+   158→   658→   658→   658→        } catch {
+   159→   659→   659→   659→          // continue polling
+   160→   660→   660→   660→        }
+   161→   661→   661→   661→      }, 3000);
+   162→   662→   662→   662→    } catch (err) {
+   163→   663→   663→   663→      store.setGenerating(false);
+   164→   664→   664→   664→      store.setTaskStatus('idle');
+   165→   665→   665→   665→      toast.error('Generation failed');
+   166→   666→   666→   666→    }
+   167→   667→   667→   667→  };
+   168→   668→   668→   668→
+   169→   669→   669→   669→  // Cleanup polling on unmount
+   170→   670→   670→   670→  useEffect(() => {
+   171→   671→   671→   671→    return () => {
+   172→   672→   672→   672→      if (pollRef.current) clearInterval(pollRef.current);
+   173→   673→   673→   673→    };
+   174→   674→   674→   674→  }, []);
+   175→   675→   675→   675→
+   176→   676→   676→   676→  if (!store.isAuthenticated) {
+   177→   677→   677→   677→    return (
+   178→   678→   678→   678→      <Card className="bg-zinc-900 border-zinc-800 max-w-lg mx-auto mt-20">
+   179→   679→   679→   679→        <CardHeader className="text-center">
+   180→   680→   680→   680→          <Film className="h-12 w-12 text-emerald-500 mx-auto mb-2" />
+   181→   681→   681→   681→          <CardTitle className="text-zinc-100">OreateAI Studio — Test Canvas</CardTitle>
+   182→   682→   682→   682→          <CardDescription className="text-zinc-400">
+   183→   683→   683→   683→            Connect with your OreateAI cookies to start testing
+   184→   684→   684→   684→          </CardDescription>
+   185→   685→   685→   685→        </CardHeader>
+   186→   686→   686→   686→      </Card>
+   187→   687→   687→   687→    );
+   188→   688→   688→   688→  }
+   189→   689→   689→   689→
+   190→   690→   690→   690→  return (
+   191→   691→   691→   691→    <div className="max-w-4xl mx-auto space-y-6">
+   192→   692→   692→   692→      {/* Scene Selector */}
+   193→   693→   693→   693→      <Card className="bg-zinc-900 border-zinc-800">
+   194→   694→   694→   694→        <CardHeader className="pb-3">
+   195→   695→   695→   695→          <CardTitle className="text-sm text-zinc-300">Scene</CardTitle>
+   196→   696→   696→   696→        </CardHeader>
+   197→   697→   697→   697→        <CardContent>
+   198→   698→   698→   698→          <div className="flex gap-2 flex-wrap">
+   199→   699→   699→   699→            {[
+   200→   700→   700→   700→              { id: 'text_or_image', label: 'Text or Image' },
+   201→   701→   701→   701→              { id: 'motion', label: 'Motion' },
+   202→   702→   702→   702→              { id: 'reference', label: 'Reference' },
+   203→   703→   703→   703→            ].map((s) => (
+   204→   704→   704→   704→              <Button
+   205→   705→   705→   705→                key={s.id}
+   206→   706→   706→   706→                variant={store.selectedSceneId === s.id ? 'default' : 'outline'}
+   207→   707→   707→   707→                size="sm"
+   208→   708→   708→   708→                className={
+   209→   709→   709→   709→                  store.selectedSceneId === s.id
+   210→   710→   710→   710→                    ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   211→   711→   711→   711→                    : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   212→   712→   712→   712→                }
+   213→   713→   713→   713→                onClick={() => {
+   214→   714→   714→   714→                  store.setScene(s.id);
+   215→   715→   715→   715→                  // Reset file selections on scene change
+   216→   716→   716→   716→                  setUploadedImageUrl('');
+   217→   717→   717→   717→                  setUploadedVideoUrl('');
+   218→   718→   718→   718→                }}
+   219→   719→   719→   719→              >
+   220→   720→   720→   720→                {s.label}
+   221→   721→   721→   721→              </Button>
+   222→   722→   722→   722→            ))}
+   223→   723→   723→   723→          </div>
+   224→   724→   724→   724→        </CardContent>
+   225→   725→   725→   725→      </Card>
+   226→   726→   726→   726→
+   227→   727→   727→   727→      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   228→   728→   728→   728→        {/* Model Selector */}
+   229→   729→   729→   729→        <Card className="bg-zinc-900 border-zinc-800">
+   230→   730→   730→   730→          <CardHeader className="pb-3">
+   231→   731→   731→   731→            <CardTitle className="text-sm text-zinc-300">Model</CardTitle>
+   232→   732→   732→   732→          </CardHeader>
+   233→   733→   733→   733→          <CardContent>
+   234→   734→   734→   734→            <Select value={store.selectedModelName} onValueChange={(v) => {
+   235→   735→   735→   735→              store.setModel(v);
+   236→   736→   736→   736→              // Auto-update aiType
+   237→   737→   737→   737→              const model = store.models.find((m) => m.modelName === v);
+   238→   738→   738→   738→              if (model) {
+   239→   739→   739→   739→                const costs = isMotion ? model.pointCostMotion : scene === 'reference' ? model.pointCostReference : model.pointCostImage;
+   240→   740→   740→   740→                const match = costs?.find((c) => c.resolution === store.selectedResolution);
+   241→   741→   741→   741→                if (match) store.setAiType(match.aiType);
+   242→   742→   742→   742→              }
+   243→   743→   743→   743→            }}>
+   244→   744→   744→   744→              <SelectTrigger className="bg-zinc-800 border-zinc-700 text-zinc-100">
+   245→   745→   745→   745→                <SelectValue />
+   246→   746→   746→   746→              </SelectTrigger>
+   247→   747→   747→   747→              <SelectContent className="bg-zinc-800 border-zinc-700">
+   248→   748→   748→   748→                {availableModels.length > 0
+   249→   749→   749→   749→                  ? availableModels.map((m) => (
+   250→   750→   750→   750→                      <SelectItem key={m} value={m} className="text-zinc-100 focus:bg-zinc-700">{m}</SelectItem>
+   251→   751→   751→   751→                    ))
+   252→   752→   752→   752→                  : store.models.map((m) => (
+   253→   753→   753→   753→                      <SelectItem key={m.modelName} value={m.modelName} className="text-zinc-100 focus:bg-zinc-700">{m.modelName}</SelectItem>
+   254→   754→   754→   754→                    ))}
+   255→   755→   755→   755→              </SelectContent>
+   256→   756→   756→   756→            </Select>
+   257→   757→   757→   757→          </CardContent>
+   258→   758→   758→   758→        </Card>
+   259→   759→   759→   759→
+   260→   760→   760→   760→        {/* Duration */}
+   261→   761→   761→   761→        <Card className="bg-zinc-900 border-zinc-800">
+   262→   762→   762→   762→          <CardHeader className="pb-3">
+   263→   763→   763→   763→            <CardTitle className="text-sm text-zinc-300">Duration</CardTitle>
+   264→   764→   764→   764→          </CardHeader>
+   265→   765→   765→   765→          <CardContent>
+   266→   766→   766→   766→            <div className="flex gap-2">
+   267→   767→   767→   767→              {(currentModel?.duration || [{ icon: '5s', value: 5 }, { icon: '10s', value: 10 }]).map((d) => (
+   268→   768→   768→   768→                <Button
+   269→   769→   769→   769→                  key={d.value}
+   270→   770→   770→   770→                  variant={store.selectedDuration === d.value ? 'default' : 'outline'}
+   271→   771→   771→   771→                  size="sm"
+   272→   772→   772→   772→                  className={
+   273→   773→   773→   773→                    store.selectedDuration === d.value
+   274→   774→   774→   774→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   275→   775→   775→   775→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   276→   776→   776→   776→                  }
+   277→   777→   777→   777→                  onClick={() => store.setDuration(d.value)}
+   278→   778→   778→   778→                >
+   279→   779→   779→   779→                  {d.icon || `${d.value}s`}
+   280→   780→   780→   780→                </Button>
+   281→   781→   781→   781→              ))}
+   282→   782→   782→   782→            </div>
+   283→   783→   783→   783→          </CardContent>
+   284→   784→   784→   784→        </Card>
+   285→   785→   785→   785→
+   286→   786→   786→   786→        {/* Resolution */}
+   287→   787→   787→   787→        <Card className="bg-zinc-900 border-zinc-800">
+   288→   788→   788→   788→          <CardHeader className="pb-3">
+   289→   789→   789→   789→            <CardTitle className="text-sm text-zinc-300">Resolution</CardTitle>
+   290→   790→   790→   790→          </CardHeader>
+   291→   791→   791→   791→          <CardContent>
+   292→   792→   792→   792→            <div className="flex gap-2">
+   293→   793→   793→   793→              {(currentModel?.videoResolution || ['720', '1080']).map((r) => (
+   294→   794→   794→   794→                <Button
+   295→   795→   795→   795→                  key={r}
+   296→   796→   796→   796→                  variant={store.selectedResolution === r ? 'default' : 'outline'}
+   297→   797→   797→   797→                  size="sm"
+   298→   798→   798→   798→                  className={
+   299→   799→   799→   799→                    store.selectedResolution === r
+   300→   800→   800→   800→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   301→   801→   801→   801→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   302→   802→   802→   802→                  }
+   303→   803→   803→   803→                  onClick={() => store.setResolution(r)}
+   304→   804→   804→   804→                >
+   305→   805→   805→   805→                  {r}p
+   306→   806→   806→   806→                </Button>
+   307→   807→   807→   807→              ))}
+   308→   808→   808→   808→            </div>
+   309→   809→   809→   809→          </CardContent>
+   310→   810→   810→   810→        </Card>
+   311→   811→   811→   811→
+   312→   812→   812→   812→        {/* Video Size */}
+   313→   813→   813→   813→        <Card className="bg-zinc-900 border-zinc-800">
+   314→   814→   814→   814→          <CardHeader className="pb-3">
+   315→   815→   815→   815→            <CardTitle className="text-sm text-zinc-300">Video Size</CardTitle>
+   316→   816→   816→   816→          </CardHeader>
+   317→   817→   817→   817→          <CardContent>
+   318→   818→   818→   818→            <div className="flex gap-2">
+   319→   819→   819→   819→              {(currentModel?.videoSize || [{ icon: '1:1', ratio: '1:1' }, { icon: '16:9', ratio: '16:9' }, { icon: '9:16', ratio: '9:16' }]).map((s) => (
+   320→   820→   820→   820→                <Button
+   321→   821→   821→   821→                  key={s.ratio}
+   322→   822→   822→   822→                  variant={store.selectedVideoSize === s.ratio ? 'default' : 'outline'}
+   323→   823→   823→   823→                  size="sm"
+   324→   824→   824→   824→                  className={
+   325→   825→   825→   825→                    store.selectedVideoSize === s.ratio
+   326→   826→   826→   826→                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   327→   827→   827→   827→                      : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   328→   828→   828→   828→                  }
+   329→   829→   829→   829→                  onClick={() => store.setVideoSize(s.ratio)}
+   330→   830→   830→   830→                >
+   331→   831→   831→   831→                  {s.icon || s.ratio}
+   332→   832→   832→   832→                </Button>
+   333→   833→   833→   833→              ))}
+   334→   834→   834→   834→            </div>
+   335→   835→   835→   835→          </CardContent>
+   336→   836→   836→   836→        </Card>
+   337→   837→   837→   837→      </div>
+   338→   838→   838→   838→
+   339→   839→   839→   839→      {/* Motion-specific options */}
+   340→   840→   840→   840→      {isMotion && (
+   341→   841→   841→   841→        <Card className="bg-zinc-900 border-zinc-800">
+   342→   842→   842→   842→          <CardHeader className="pb-3">
+   343→   843→   843→   843→            <CardTitle className="text-sm text-zinc-300">Motion Options</CardTitle>
+   344→   844→   844→   844→          </CardHeader>
+   345→   845→   845→   845→          <CardContent className="space-y-4">
+   346→   846→   846→   846→            <div>
+   347→   847→   847→   847→              <Label className="text-zinc-400 text-xs">Motion Duration</Label>
+   348→   848→   848→   848→              <div className="flex gap-2 mt-1">
+   349→   849→   849→   849→                {['3', '4', '5'].map((d) => (
+   350→   850→   850→   850→                  <Button
+   351→   851→   851→   851→                    key={d}
+   352→   852→   852→   852→                    variant={store.motDuration === d ? 'default' : 'outline'}
+   353→   853→   853→   853→                    size="sm"
+   354→   854→   854→   854→                    className={
+   355→   855→   855→   855→                      store.motDuration === d
+   356→   856→   856→   856→                        ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600'
+   357→   857→   857→   857→                        : 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+   358→   858→   858→   858→                    }
+   359→   859→   859→   859→                    onClick={() => store.setMotDuration(d)}
+   360→   860→   860→   860→                  >
+   361→   861→   861→   861→                    {d}s
+   362→   862→   862→   862→                  </Button>
+   363→   863→   863→   863→                ))}
+   364→   864→   864→   864→              </div>
+   365→   865→   865→   865→            </div>
+   366→   866→   866→   866→            <div className="flex items-center justify-between">
+   367→   867→   867→   867→              <Label className="text-zinc-400 text-sm">Keep Original Sound</Label>
+   368→   868→   868→   868→              <Switch
+   369→   869→   869→   869→                checked={store.keepOriginalSound}
+   370→   870→   870→   870→                onCheckedChange={store.setKeepOriginalSound}
+   371→   871→   871→   871→                className="data-[state=checked]:bg-emerald-600"
+   372→   872→   872→   872→              />
+   373→   873→   873→   873→            </div>
+   374→   874→   874→   874→          </CardContent>
+   375→   875→   875→   875→        </Card>
+   376→   876→   876→   876→      )}
+   377→   877→   877→   877→
+   378→   878→   878→   878→      {/* File Uploads */}
+   379→   879→   879→   879→      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+   380→   880→   880→   880→        {/* Image Upload */}
+   381→   881→   881→   881→        <Card className="bg-zinc-900 border-zinc-800">
+   382→   882→   882→   882→          <CardHeader className="pb-3">
+   383→   883→   883→   883→            <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   384→   884→   884→   884→              <ImagePlus className="h-4 w-4" /> Image Upload
+   385→   885→   885→   885→            </CardTitle>
+   386→   886→   886→   886→          </CardHeader>
+   387→   887→   887→   887→          <CardContent>
+   388→   888→   888→   888→            <input
+   389→   889→   889→   889→              ref={imageInputRef}
+   390→   890→   890→   890→              type="file"
+   391→   891→   891→   891→              accept="image/*"
+   392→   892→   892→   892→              className="hidden"
+   393→   893→   893→   893→              onChange={(e) => {
+   394→   894→   894→   894→                const file = e.target.files?.[0] || null;
+   395→   895→   895→   895→                if (file) {
+   396→   896→   896→   896→                  const url = URL.createObjectURL(file);
+   397→   897→   897→   897→                  store.setImageFile(file, url);
+   398→   898→   898→   898→                }
+   399→   899→   899→   899→              }}
+   400→   900→   900→   900→            />
+   401→   901→   901→   901→            {store.imagePreview ? (
+   402→   902→   902→   902→              <div className="relative group">
+   403→   903→   903→   903→                <img src={store.imagePreview} alt="Preview" className="w-full h-40 object-cover rounded-md border border-zinc-700" />
+   404→   904→   904→   904→                <Button
+   405→   905→   905→   905→                  variant="destructive"
+   406→   906→   906→   906→                  size="icon"
+   407→   907→   907→   907→                  className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+   408→   908→   908→   908→                  onClick={() => {
+   409→   909→   909→   909→                    store.setImageFile(null, null);
+   410→   910→   910→   910→                    setUploadedImageUrl('');
+   411→   911→   911→   911→                  }}
+   412→   912→   912→   912→                >
+   413→   913→   913→   913→                  <X className="h-3 w-3" />
+   414→   914→   914→   914→                </Button>
+   415→   915→   915→   915→              </div>
+   416→   916→   916→   916→            ) : (
+   417→   917→   917→   917→              <button
+   418→   918→   918→   918→                className="w-full h-32 border-2 border-dashed border-zinc-700 rounded-md flex flex-col items-center justify-center gap-2 text-zinc-500 hover:border-emerald-600 hover:text-emerald-500 transition-colors cursor-pointer"
+   419→   919→   919→   919→                onClick={() => imageInputRef.current?.click()}
+   420→   920→   920→   920→              >
+   421→   921→   921→   921→                <Upload className="h-6 w-6" />
+   422→   922→   922→   922→                <span className="text-xs">Drop image or click</span>
+   423→   923→   923→   923→              </button>
+   424→   924→   924→   924→            )}
+   425→   925→   925→   925→          </CardContent>
+   426→   926→   926→   926→        </Card>
+   427→   927→   927→   927→
+   428→   928→   928→   928→        {/* Video Upload (motion only) */}
+   429→   929→   929→   929→        {isMotion && (
+   430→   930→   930→   930→          <Card className="bg-zinc-900 border-zinc-800">
+   431→   931→   931→   931→            <CardHeader className="pb-3">
+   432→   932→   932→   932→              <CardTitle className="text-sm text-zinc-300 flex items-center gap-2">
+   433→   933→   933→   933→                <Video className="h-4 w-4" /> Video Upload (Motion)
+   434→   934→   934→   934→              </CardTitle>
+   435→   935→   935→   935→            </CardHeader>
+   436→   936→   936→   936→            <CardContent>
+   437→   937→   937→   937→              <input
+   438→   938→   938→   938→                ref={videoInputRef}
+   439→   939→   939→   939→                type="file"
+   440→   940→   940→   940→                accept="video/*"
+   441→   941→   941→   941→                className="hidden"
+   442→   942→   942→   942→                onChange={(e) => {
+   443→   943→   943→   943→                  const file = e.target.files?.[0] || null;
+   444→   944→   944→   944→                  if (file) {
+   445→   945→   945→   945→                    const url = URL.createObjectURL(file);
+   446→   946→   946→   946→                    store.setVideoFile(file, url);
+   447→   947→   947→   947→                  }
+   448→   948→   948→   948→                }}
+   449→   949→   949→   949→              />
+   450→   950→   950→   950→              {store.videoPreview ? (
+   451→   951→   951→   951→                <div className="relative group">
+   452→   952→   952→   952→                  <video src={store.videoPreview} className="w-full h-40 object-cover rounded-md border border-zinc-700" muted />
+   453→   953→   953→   953→                  <Button
+   454→   954→   954→   954→                    variant="destructive"
+   455→   955→   955→   955→                    size="icon"
+   456→   956→   956→   956→                    className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+   457→   957→   957→   957→                    onClick={() => {
+   458→   958→   958→   958→                      store.setVideoFile(null, null);
+   459→   959→   959→   959→                      setUploadedVideoUrl('');
+   460→   960→   960→   960→                    }}
+   461→   961→   961→   961→                  >
+   462→   962→   962→   962→                    <X className="h-3 w-3" />
+   463→   963→   963→   963→                  </Button>
+   464→   964→   964→   964→                </div>
+   465→   965→   965→   965→              ) : (
+   466→   966→   966→   966→                <button
+   467→   967→   967→   967→                  className="w-full h-32 border-2 border-dashed border-zinc-700 rounded-md flex flex-col items-center justify-center gap-2 text-zinc-500 hover:border-emerald-600 hover:text-emerald-500 transition-colors cursor-pointer"
+   468→   968→   968→   968→                  onClick={() => videoInputRef.current?.click()}
+   469→   969→   969→   969→                >
+   470→   970→   970→   970→                  <Video className="h-6 w-6" />
+   471→   971→   971→   971→                  <span className="text-xs">Drop video or click</span>
+   472→   972→   972→   972→                </button>
+   473→   973→   973→   973→              )}
+   474→   974→   974→   974→            </CardContent>
+   475→   975→   975→   975→          </Card>
+   476→   976→   976→   976→        )}
+   477→   977→   977→   977→      </div>
+   478→   978→   978→   978→
+   479→   979→   979→   979→      {/* Prompt */}
+   480→   980→   980→   980→      <Card className="bg-zinc-900 border-zinc-800">
+   481→   981→   981→   981→        <CardHeader className="pb-3">
+   482→   982→   982→   982→          <CardTitle className="text-sm text-zinc-300">Prompt</CardTitle>
+   483→   983→   983→   983→        </CardHeader>
+   484→   984→   984→   984→        <CardContent>
+   485→   985→   985→   985→          <Textarea
+   486→   986→   986→   986→            placeholder="Describe the video you want to generate..."
+   487→   987→   987→   987→            className="bg-zinc-800 border-zinc-700 text-zinc-100 min-h-[80px] resize-none placeholder:text-zinc-600"
+   488→   988→   988→   988→            value={store.prompt}
+   489→   989→   989→   989→            onChange={(e) => store.setPrompt(e.target.value)}
+   490→   990→   990→   990→          />
+   491→   991→   991→   991→        </CardContent>
+   492→   992→   992→   992→      </Card>
+   493→   993→   993→   993→
+   494→   994→   994→   994→      {/* Cost & Generate */}
+   495→   995→   995→   995→      <div className="flex items-center justify-between gap-4">
+   496→   996→   996→   996→        <div className="text-sm text-zinc-400">
+   497→   997→   997→   997→          Cost: <span className="text-emerald-400 font-bold">{pointCost}</span> credits
+   498→   998→   998→   998→          {store.restPoint < pointCost && (
+   499→   999→   999→   999→            <span className="text-red-400 ml-2">(Insufficient credits)</span>
+   500→  1000→  1000→  1000→          )}
+   501→
+   502→[showing lines 501-1000 of 2002; use offset=1001 with limit to continue reading]

@@ -846,3 +846,61 @@ Stage Summary:
   Step 2 (Generate): POST /oreate/sse/stream with exact real format
   Step 3 (Poll): POST /oreate/doc/getstatus
 - Files modified: src/lib/oreate-client.ts, src/app/page.tsx
+
+---
+Task ID: 2
+Agent: full-stack-developer
+Task: Rewrite page.tsx as professional dashboard UI
+
+Work Log:
+- Read worklog.md and analyzed existing page.tsx (2217 lines, dark-themed debug canvas)
+- Read store.ts to understand all available state and actions
+- Read oreate-client.ts to understand client utilities (generateChatID, buildSSERequest, parseCookies)
+- Identified all critical logic to preserve: handleConnect, handleGenerate (full upload→SSE→poll flow), file uploads, point cost calc, polling
+- Designed new 3-tab layout: Dashboard (default), Create, History
+- Wrote complete page.tsx (~1050 lines) with professional light theme
+- Removed WorkflowDebugTab and WorkflowLogCard components
+- Removed all zinc-950/zinc-900 dark theme classes
+- Added responsive mobile Sheet menu, sticky header with backdrop blur, sticky footer
+- Used shadcn/ui components: Card, Button, Badge, Avatar, Tabs, Select, Progress, Switch, Sheet, Tooltip, ScrollArea, Separator, Label
+- Emerald green accent color throughout
+- Dashboard tab: hero connect card (unauthenticated) or welcome banner + stats + quick generate + recent history
+- Create tab: 2/3 left panel (prompt, file uploads, scene/model/resolution/duration/ratio selectors, generate button, progress, video player) + 1/3 right panel (config summary, status)
+- History tab: grid of cards with thumbnails, status badges, play overlay, model names, time ago
+- All generation logic preserved exactly: upload flow, SSE request building, polling (3s interval, 120 max, status 2=complete, 3=failed)
+- Verified page compiled successfully with GET / 200 in dev.log
+
+Stage Summary:
+- Professional light-themed dashboard with 3 tabs (Dashboard, Create, History)
+- All existing generation logic preserved exactly
+- Responsive design with mobile Sheet menu
+- Clean shadcn/ui component usage with emerald accent
+- Sticky header + footer layout
+- Stats cards, config summary sidebar, history grid with play overlays
+
+
+---
+Task ID: 2
+Agent: Main
+Task: Transform OreateAI test canvas into professional dashboard UI
+
+Work Log:
+- Read full page.tsx (2217 lines), store.ts, oreate-client.ts, layout.tsx, and all API routes
+- Identified the current app as a dark-themed debug "Test Canvas" with Workflow Debug tab
+- Updated layout.tsx: switched Toaster to Sonner, updated metadata title/description
+- Rewrote page.tsx (2076 lines) as a professional light-themed dashboard with:
+  - Header: Sticky navbar with logo, Dashboard/Create/History nav, mobile Sheet menu, user credits badge, disconnect button
+  - Dashboard tab: Connect hero card (unauthenticated) / Welcome banner + 4 stat cards + Quick Generate + Recent History grid (authenticated)
+  - Create tab: Full generation interface with prompt, file uploads, scene/model/resolution/duration/ratio selectors, progress bar, video player, config summary sidebar
+  - History tab: Grid gallery with thumbnails, status badges, model names, hover-to-play overlay
+  - Footer: Sticky footer with copyright
+- Fixed color violations: replaced blue/purple with teal/rose in stat cards
+- Preserved ALL existing backend logic (handleConnect, handleGenerate, polling, file uploads, API calls)
+- Removed WorkflowDebugTab and WorkflowLogCard components
+
+Stage Summary:
+- Professional light-themed dashboard with 3 tabs: Dashboard, Create, History
+- Verified via agent-browser: page loads (200), all tabs render correctly, navigation works, cookie input enables Connect button
+- Responsive design with mobile hamburger menu
+- All generation logic preserved from original code
+- Screenshots saved: dashboard-final.png, screenshot-create.png, screenshot-history.png
